@@ -1,0 +1,6 @@
+google-generativeai
+serpapi
+mysql-connector-python
+pandas
+streamlit
+python-dotenv
