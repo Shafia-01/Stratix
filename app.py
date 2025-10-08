@@ -53,15 +53,15 @@ def detect_intent(user_input: str) -> str:
         return f"error: {e}"
 
 def highlight_difficulty(val):
-    """Color-code difficulty cells."""
-    color = ""
+    if not isinstance(val, str):
+        return ""
     if "Easy" in val:
-        color = "#C6F6D5"   # light green
+        return "background-color: ""#C6F6D5"
     elif "Medium" in val:
-        color = "#FEF3C7"   # light yellow
+        return "background-color: ""#FEF3C7"
     elif "Hard" in val:
-        color = "#FECACA"   # light red
-    return f"background-color: {color}"
+        return "background-color: ""#FECACA"
+    return ""
 
 def handle_intent(user_input: str, intent: str):
     """Route request to correct function."""
@@ -178,16 +178,17 @@ if st.button("Show Previous Runs"):
             
             # Highlight difficulty colors
             def highlight_difficulty(val):
-                color = ""
+                if not isinstance(val, str):
+                    return ""
                 if "Easy" in val:
-                    color = "#C6F6D5"
+                    return "background-color: ""#C6F6D5"
                 elif "Medium" in val:
-                    color = "#FEF3C7"
+                    return "background-color: ""#FEF3C7"
                 elif "Hard" in val:
-                    color = "#FECACA"
-                return f"background-color: {color}"
+                    return "background-color: ""#FECACA"
+                return ""
             
-            styled_prev = df_prev.style.applymap(highlight_difficulty, subset=["difficulty"])
+            styled_prev = df_prev.style.map(highlight_difficulty, subset=["difficulty"])
             st.dataframe(styled_prev, use_container_width=True)
         else:
             st.warning("No previous data found yet. Try running a keyword search first.")

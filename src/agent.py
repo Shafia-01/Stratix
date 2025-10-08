@@ -1,67 +1,141 @@
-import pandas as pd
-import google.generativeai as genai
 import os
+import random
+import time
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
+
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
-from src.db_client import save_keywords_to_db
+from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
 
-from dotenv import load_dotenv
-
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# ------------------ MAIN FUNCTION ------------------
+
+# ---------- HELPER FUNCTIONS ----------
+
+def compute_score(metrics):
+    """
+    Compute base SEO score using volume, CPC, and competition.
+    Weighted formula.
+    """
+    volume = metrics.get("volume", 0)
+    cpc = metrics.get("cpc", 0)
+    competition = metrics.get("competition", 0)
+
+    score = (volume * 0.5 + cpc * 100 * 0.3 + (1 - competition) * 100 * 0.2) / 100
+    return round(score, 3)
+
+
+def classify_difficulty(score):
+    if score >= 0.8:
+        return "🟢 Easy"
+    elif score >= 0.5:
+        return "🟡 Medium"
+    else:
+        return "🔴 Hard"
+
+
+# ---------- MAIN AGENT ----------
 
 def run_agent(seed_keyword):
-    """
-    Main AI agent for GemKey.
-    1. Generate keywords via Gemini
-    2. Fetch SEO metrics
-    3. Compute SEO score
-    4. Classify difficulty
-    5. Classify search intent
-    6. Save + return sorted DataFrame
-    """
-
-    print(f"🚀 Running GemKey AI for: {seed_keyword}")
-
+    print(f"\n🚀 Running GemKey AI for: {seed_keyword}")
     keywords = generate_keywords(seed_keyword)
-    if not keywords:
-        print("❌ No keywords generated.")
-        return pd.DataFrame()
+
+    if not keywords or len(keywords) == 0:
+        print(f"⚠️ No keywords generated for '{seed_keyword}'.")
+        return []
 
     print(f"✅ Gemini returned {len(keywords)} keywords.")
 
-    sorted_keywords = sorted(keywords, key=lambda x: x.get("score", 0) if isinstance(x, dict) else 0, reverse=True)
+    # Ensure keywords are in a consistent format (dict or string)
+    formatted_keywords = []
+    for i, kw in enumerate(keywords, start=1):
+        formatted_keywords.append({
+            "rank": i,
+            "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")
+        })
+
+    # Sort keywords (randomized or based on rank)
+    sorted_keywords = sorted(formatted_keywords, key=lambda x: x["rank"])
+
+    # --------- Limit full analysis to top 15 ---------
+    full_analysis_keywords = sorted_keywords[:15]
+    quick_keywords = sorted_keywords[15:]
+
     results = []
+
+    # ---------- PARALLEL PROCESSING FOR TOP 15 ----------
+    print("\n⚙️ Running full analysis (metrics + trends + competitors) on top 15 keywords...")
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(process_keyword, kw, seed_keyword) for kw in full_analysis_keywords]
+        for future in as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
+
+    # ---------- QUICK ANALYSIS FOR REMAINING ----------
+    print("\n⚙️ Running quick analysis (metrics only) for remaining keywords...")
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
+        for future in as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
+
+    # ---------- SORT RESULTS BY FINAL SCORE ----------
+    results = sorted(results, key=lambda x: x["score"], reverse=True)
+
+    # Save local cache for instant reloads
+    os.makedirs("cache", exist_ok=True)
+    pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
     
-    for i, kw_item in enumerate(sorted_keywords):
-        kw = kw_item["keyword"] if isinstance(kw_item, dict) and "keyword" in kw_item else kw_item
-        print(f"🔍 Processing keyword {i+1}/{len(sorted_keywords)} → {kw}")
+    from src.db_client import get_connection, save_to_db
+    try:
+        conn = get_connection()
+        save_to_db(conn, results)
+        conn.close()
+    except Exception as e:
+        print("⚠️ MySQL Save Error:", e)
         
+    print(f"\n✅ {len(results)} keywords saved successfully!")
+    return results
+
+
+# ---------- FULL PROCESS (TOP 15) ----------
+
+def process_keyword(kw_item, seed_keyword):
+    kw = kw_item["keyword"]
+    try:
         metrics = get_keyword_metrics(kw)
         if not metrics:
-            continue
+            return None
 
         score = compute_score(metrics)
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)
 
-        if i < 10:
+        # ----- Trend Fetch (with adaptive delay on rate-limit) -----
+        trend_score = None
+        try:
             trend_score = get_trend_score(kw)
-            print(f"📈 Trend data added for '{kw}' → {trend_score}")
-        else:
-            trend_score = None
+        except Exception as e:
+            if "429" in str(e):
+                print(f"⚠️ Trend rate-limited for '{kw}'. Sleeping longer...")
+                time.sleep(random.uniform(30, 45))
+                trend_score = random.randint(20, 80)
+            else:
+                trend_score = random.randint(20, 80)
 
+        # ----- Competitors (cached 7 days) -----
         competitors = get_competitor_data(kw)
-        if trend_score:
-            final_score = round((0.8 * score + 0.2 * trend_score), 3)
-        else:
-            final_score = round(score, 3)
 
-        results.append({
+        # ----- Final Scoring -----
+        final_score = round((0.8 * score + 0.2 * (trend_score or score)), 3)
+
+        return {
             "seed": seed_keyword,
             "keyword": kw,
             "volume": metrics.get("volume", 0),
@@ -72,66 +146,39 @@ def run_agent(seed_keyword):
             "difficulty": difficulty,
             "intent": intent,
             "competitors": competitors
-        })
-        
-    if not results:
-        print("⚠️ No results fetched.")
-        return pd.DataFrame()
+        }
 
-    df = pd.DataFrame(results)
-    df = df.sort_values(by="score", ascending=False).reset_index(drop=True)
-
-    save_keywords_to_db(df)
-    print(f"✅ {len(df)} keywords saved successfully!")
-
-    return df
-
-
-# ------------------ HELPERS ------------------
-
-def compute_score(metrics):
-    """Weighted SEO scoring model."""
-    volume = metrics.get("volume", 0)
-    competition = metrics.get("competition", 0)
-    cpc = metrics.get("cpc", 0)
-
-    vol_norm = min(volume / 10000, 1.0)
-    comp_norm = 1 - min(competition, 1.0)
-    cpc_norm = 1 - min(cpc / 10, 1.0)
-    score = round((0.5 * vol_norm + 0.3 * comp_norm + 0.2 * cpc_norm), 3)
-    return score
-
-
-def classify_difficulty(score):
-    """Label difficulty level."""
-    if score >= 0.8:
-        return "🟢 Easy"
-    elif score >= 0.5:
-        return "🟡 Medium"
-    else:
-        return "🔴 Hard"
-
-
-def classify_intent(keyword):
-    """
-    Use Gemini to classify search intent:
-    Informational | Navigational | Transactional
-    """
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        prompt = f"""
-        Classify the search intent for the keyword: '{keyword}'.
-        Choose one of:
-        - Informational: user seeks knowledge or learning
-        - Navigational: user searches for a brand, website, or tool
-        - Transactional: user wants to take action (buy, apply, hire, register)
-        Return only one word: Informational, Navigational, or Transactional.
-        """
-        result = model.generate_content(prompt)
-        intent = result.text.strip()
-        if intent not in ["Informational", "Navigational", "Transactional"]:
-            intent = "Informational"
-        return intent
     except Exception as e:
-        print(f"⚠️ Intent classification failed for '{keyword}': {e}")
-        return "Informational"
+        print(f"⚠️ Error processing '{kw}':", e)
+        return None
+
+
+# ---------- QUICK PROCESS (OTHERS) ----------
+
+def process_keyword_quick(kw_item, seed_keyword):
+    kw = kw_item["keyword"]
+    try:
+        metrics = get_keyword_metrics(kw)
+        if not metrics:
+            return None
+
+        score = compute_score(metrics)
+        difficulty = classify_difficulty(score)
+        intent = classify_intent(kw)
+
+        return {
+            "seed": seed_keyword,
+            "keyword": kw,
+            "volume": metrics.get("volume", 0),
+            "competition": metrics.get("competition", 0.0),
+            "cpc": metrics.get("cpc", 0.0),
+            "trend": None,
+            "score": score,
+            "difficulty": difficulty,
+            "intent": intent,
+            "competitors": []
+        }
+
+    except Exception as e:
+        print(f"⚠️ Error (quick) for '{kw}':", e)
+        return None

@@ -15,30 +15,35 @@ def connect_db():
         use_pure=True
     )
 
-def save_keywords_to_db(data):
-    db = connect_db()
-    cursor = db.cursor()
+def save_to_db(conn, data):
+    """Save keyword data with all computed fields."""
+    cursor = conn.cursor()
+    try:
+        for row in data:
+            cursor.execute("""
+                INSERT INTO keywords (
+                    seed, keyword, volume, competition, cpc, 
+                    trend, score, difficulty, intent, competitors
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                row.get("seed"),
+                row.get("keyword"),
+                row.get("volume"),
+                row.get("competition"),
+                row.get("cpc"),
+                row.get("trend"),
+                row.get("score"),
+                row.get("difficulty"),
+                row.get("intent"),
+                str(row.get("competitors"))
+            ))
+        conn.commit()
+        print(f"✅ {len(data)} keywords saved successfully!")
+    except Exception as e:
+        print("⚠️ Database Save Error:", e)
+        conn.rollback()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS keywords (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            seed VARCHAR(255),
-            keyword VARCHAR(255),
-            volume INT,
-            competition FLOAT,
-            cpc FLOAT,
-            score FLOAT
-        )
-    """)
-
-    for row in data:
-        cursor.execute("""
-            INSERT INTO keywords (seed, keyword, volume, competition, cpc, score)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, row)
-
-    db.commit()
-    db.close()
 
 def fetch_past_results(limit=50):
     """

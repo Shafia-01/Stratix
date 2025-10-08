@@ -72,7 +72,6 @@ def get_db_connection():
         database=os.getenv("MYSQL_DATABASE")
     )
 
-
 def check_cache(keyword):
     """Check if keyword already exists in DB and return metrics + timestamp."""
     try:
