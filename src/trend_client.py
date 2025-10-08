@@ -1,5 +1,3 @@
-# src/trend_client.py
-
 from pytrends.request import TrendReq
 import pandas as pd
 import time

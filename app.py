@@ -4,7 +4,8 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 from src.agent import run_agent
-from src.db import fetch_past_results
+from src.db_client import fetch_past_results
+from src.competitor_client import get_competitor_data
 
 # ------------------------- SETUP -------------------------
 load_dotenv()
@@ -77,14 +78,54 @@ def handle_intent(user_input: str, intent: str):
                     f"- {data.iloc[2]['keyword']}\n\n"
                     f"Here’s the table ↓"
                 )
-
-                # Apply color styling to difficulty column
-                highlight_cols = ["difficulty", "intent"]
-                styled = data[["keyword", "volume", "competition", "cpc", "trend", "score", "difficulty", "intent"]].head(15)
-                styled = styled.style.applymap(highlight_difficulty, subset=highlight_cols)
-                st.dataframe(styled, use_container_width=True)
                 
-                return summary, styled
+                # ---- Interactive Keyword Table with Competitor Buttons ----
+                st.markdown("### 📊 Keyword Performance Overview")
+                top_data = data.head(15)
+                for idx, row in top_data.iterrows():
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    
+                    with col1:
+                        st.markdown(
+                            f"**{idx+1}. {row['keyword']}**  \n"
+                            f"📈 Score: {row['score']} | 💰 CPC: {row['cpc']} | 🔍 Volume: {row['volume']}  \n"
+                            f"{row['difficulty']} | {row['intent']} | 🔥 Trend: {row['trend']}"
+                        )
+
+                    with col2:
+                        if st.button("View Competitors", key=f"comp_{idx}"):
+                            competitors = get_competitor_data(row["keyword"])
+                            if competitors:
+                                st.markdown(f"#### 🕵️ Competitor Insights for: **{row['keyword']}**")
+                                for comp in competitors:
+                                    st.markdown(
+                                        f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
+                                        f"🌐 {comp['domain']}  \n"
+                                        f"📝 *{comp['snippet']}*"
+                                    )
+                            else:
+                                st.warning(f"No competitor data found for '{row['keyword']}'.")
+
+                    with col3:
+                        st.write("")  # spacing
+                        st.divider()
+                
+                # ---- COMPETITOR INSIGHTS ----
+                top_kw = data.iloc[0]["keyword"]
+                st.markdown("---")
+                st.subheader(f"🕵️ Competitor Insights for: **{top_kw}**")
+                
+                competitors = get_competitor_data(top_kw)
+                if competitors:
+                    for comp in competitors:
+                        st.markdown(
+                            f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
+                            f"🌐 {comp['domain']}  \n"
+                            f"📝 *{comp['snippet']}*"
+                        )
+                else:
+                    st.warning(f"No competitor data found for '{top_kw}'.")
+
             else:
                 return f"⚠️ No keywords generated for '{user_input}'.", None
         except Exception as e:

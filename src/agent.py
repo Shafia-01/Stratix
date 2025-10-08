@@ -1,12 +1,12 @@
-# src/agent.py
-
 import pandas as pd
 import google.generativeai as genai
 import os
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
-from src.db import save_keywords_to_db
+from src.db_client import save_keywords_to_db
 from src.trend_client import get_trend_score
+from src.competitor_client import get_competitor_data
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,20 +42,21 @@ def run_agent(seed_keyword):
             difficulty = classify_difficulty(score)
             intent = classify_intent(kw)
             trend_score = get_trend_score(kw)
+            competitors = get_competitor_data(kw)
 
             # Combine both
             final_score = round((0.8 * score + 0.2 * trend_score), 3)
-
+            
             results.append({
                 "seed": seed_keyword,
                 "keyword": kw,
                 "volume": metrics.get("volume", 0),
-                "competition": metrics.get("competition", 0.0),
-                "cpc": metrics.get("cpc", 0.0),
+                "competition": metrics.get("competition", 0.0),"cpc": metrics.get("cpc", 0.0),
                 "trend": trend_score,
                 "score": final_score,
                 "difficulty": difficulty,
-                "intent": intent
+                "intent": intent,
+                "competitors": competitors
             })
 
     if not results:
