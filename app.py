@@ -79,7 +79,11 @@ def handle_intent(user_input: str, intent: str):
                 )
 
                 # Apply color styling to difficulty column
-                styled = data.head(15).style.applymap(highlight_difficulty, subset=["difficulty"])
+                highlight_cols = ["difficulty", "intent"]
+                styled = data[["keyword", "volume", "competition", "cpc", "trend", "score", "difficulty", "intent"]].head(15)
+                styled = styled.style.applymap(highlight_difficulty, subset=highlight_cols)
+                st.dataframe(styled, use_container_width=True)
+                
                 return summary, styled
             else:
                 return f"⚠️ No keywords generated for '{user_input}'.", None
@@ -88,7 +92,17 @@ def handle_intent(user_input: str, intent: str):
 
     # Case 2: Trends
     elif "trend" in intent:
-        return f"📈 Trend analysis for '{user_input}' will appear here soon.", None
+        from src.trend_client import get_trend_data
+        
+        top_keywords = ["AI jobs", "remote internships", "data science"]  # fallback example
+        st.markdown(f"📈 Fetching Google Trends for top keywords related to '{user_input}'...")
+        
+        trend_df = get_trend_data(top_keywords[:5])
+        if not trend_df.empty:
+            st.line_chart(trend_df.set_index("date"))
+            return "✅ Trend chart generated below.", None
+        else:
+            return f"⚠️ No trend data available for '{user_input}'.", None
 
     # Case 3: Content Ideas
     elif "content" in intent:

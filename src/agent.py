@@ -6,6 +6,7 @@ import os
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
 from src.db import save_keywords_to_db
+from src.trend_client import get_trend_score
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -40,6 +41,10 @@ def run_agent(seed_keyword):
             score = compute_score(metrics)
             difficulty = classify_difficulty(score)
             intent = classify_intent(kw)
+            trend_score = get_trend_score(kw)
+
+            # Combine both
+            final_score = round((0.8 * score + 0.2 * trend_score), 3)
 
             results.append({
                 "seed": seed_keyword,
@@ -47,7 +52,8 @@ def run_agent(seed_keyword):
                 "volume": metrics.get("volume", 0),
                 "competition": metrics.get("competition", 0.0),
                 "cpc": metrics.get("cpc", 0.0),
-                "score": score,
+                "trend": trend_score,
+                "score": final_score,
                 "difficulty": difficulty,
                 "intent": intent
             })
