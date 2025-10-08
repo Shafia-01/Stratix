@@ -5,7 +5,7 @@ import google.generativeai as genai
 import os
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
-from src.db_client import save_keywords_to_db
+from src.db import save_keywords_to_db
 from dotenv import load_dotenv
 
 load_dotenv()
