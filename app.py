@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from src.agent import run_agent
 from src.db_client import fetch_past_results
+from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
 
 # ------------------------- SETUP -------------------------
@@ -133,12 +134,10 @@ def handle_intent(user_input: str, intent: str):
 
     # Case 2: Trends
     elif "trend" in intent:
-        from src.trend_client import get_trend_data
-        
         top_keywords = ["AI jobs", "remote internships", "data science"]  # fallback example
         st.markdown(f"📈 Fetching Google Trends for top keywords related to '{user_input}'...")
         
-        trend_df = get_trend_data(top_keywords[:5])
+        trend_df = get_trend_score(top_keywords[:5])
         if not trend_df.empty:
             st.line_chart(trend_df.set_index("date"))
             return "✅ Trend chart generated below.", None

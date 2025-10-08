@@ -4,7 +4,7 @@ import os
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
 from src.db_client import save_keywords_to_db
-from src.trend_client import get_trend_score
+from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
 
 from dotenv import load_dotenv
@@ -34,31 +34,46 @@ def run_agent(seed_keyword):
 
     print(f"✅ Gemini returned {len(keywords)} keywords.")
 
+    sorted_keywords = sorted(keywords, key=lambda x: x.get("score", 0) if isinstance(x, dict) else 0, reverse=True)
     results = []
-    for kw in keywords:
+    
+    for i, kw_item in enumerate(sorted_keywords):
+        kw = kw_item["keyword"] if isinstance(kw_item, dict) and "keyword" in kw_item else kw_item
+        print(f"🔍 Processing keyword {i+1}/{len(sorted_keywords)} → {kw}")
+        
         metrics = get_keyword_metrics(kw)
-        if metrics:
-            score = compute_score(metrics)
-            difficulty = classify_difficulty(score)
-            intent = classify_intent(kw)
+        if not metrics:
+            continue
+
+        score = compute_score(metrics)
+        difficulty = classify_difficulty(score)
+        intent = classify_intent(kw)
+
+        if i < 10:
             trend_score = get_trend_score(kw)
-            competitors = get_competitor_data(kw)
+            print(f"📈 Trend data added for '{kw}' → {trend_score}")
+        else:
+            trend_score = None
 
-            # Combine both
+        competitors = get_competitor_data(kw)
+        if trend_score:
             final_score = round((0.8 * score + 0.2 * trend_score), 3)
-            
-            results.append({
-                "seed": seed_keyword,
-                "keyword": kw,
-                "volume": metrics.get("volume", 0),
-                "competition": metrics.get("competition", 0.0),"cpc": metrics.get("cpc", 0.0),
-                "trend": trend_score,
-                "score": final_score,
-                "difficulty": difficulty,
-                "intent": intent,
-                "competitors": competitors
-            })
+        else:
+            final_score = round(score, 3)
 
+        results.append({
+            "seed": seed_keyword,
+            "keyword": kw,
+            "volume": metrics.get("volume", 0),
+            "competition": metrics.get("competition", 0.0),
+            "cpc": metrics.get("cpc", 0.0),
+            "trend": trend_score,
+            "score": final_score,
+            "difficulty": difficulty,
+            "intent": intent,
+            "competitors": competitors
+        })
+        
     if not results:
         print("⚠️ No results fetched.")
         return pd.DataFrame()
