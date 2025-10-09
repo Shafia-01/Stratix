@@ -1,31 +1,22 @@
+# trends_client.py
 import time
 import random
 from datetime import datetime, timedelta
-import mysql.connector
-from pytrends.request import TrendReq
 import pandas as pd
-import os
+from sqlalchemy import text
+from pytrends.request import TrendReq
 from dotenv import load_dotenv
+from src.db_client import connect_db  # ✅ reuse your SQLAlchemy connection
 
 load_dotenv()
 
-# Initialize PyTrends once
 pytrends = TrendReq(hl='en-US', tz=360)
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST"),
-        user=os.getenv("MYSQL_USER"),
-        password=os.getenv("MYSQL_PASSWORD"),
-        database=os.getenv("MYSQL_DATABASE")
-    )
-
-# ---------- Main Function ----------
-
+# ------------------ TREND FETCHER ------------------
 def get_trend_score(keyword):
     """
-    Fetches Google Trends interest score (0–100) for a keyword.
-    Includes delay and caching in MySQL.
+    Fetch Google Trends average score (0–100) for a keyword.
+    Includes caching via MySQL and fallback values.
     """
     cached = get_cached_trend(keyword)
     if cached:
@@ -34,72 +25,74 @@ def get_trend_score(keyword):
 
     print(f"📈 Fetching trend data for '{keyword}'...")
     try:
-        # Random delay to avoid rate limiting
-        delay = random.uniform(5, 10)
-        print(f"🕒 Sleeping for {delay:.1f}s to avoid 429...")
-        time.sleep(delay)
+        # Small delay to avoid rate-limit
+        time.sleep(random.uniform(1.5, 3.5))
 
-        pytrends.build_payload([keyword], timeframe='today 12-m')
+        pytrends.build_payload([keyword], timeframe="today 12-m")
         data = pytrends.interest_over_time()
 
         if not data.empty:
-            score = int(data[keyword].mean())  # average interest
+            score = int(data[keyword].mean())
         else:
-            score = random.randint(20, 80)  # fallback
+            score = random.randint(20, 80)
 
         save_trend_to_db(keyword, score)
         return score
 
     except Exception as e:
-        print(f"⚠️ Trend error for '{keyword}':", e)
-        return random.randint(20, 80)  # fallback score
+        print(f"⚠️ Trend error for '{keyword}': {e}")
+        # fallback random score
+        score = random.randint(20, 80)
+        save_trend_to_db(keyword, score)
+        return score
 
 
-# ---------- Cache Utils ----------
-
+# ------------------ TREND CACHE ------------------
 def get_cached_trend(keyword):
     """
-    Retrieve cached trend score if less than 7 days old.
+    Retrieve cached trend if less than 7 days old.
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT trend_score, last_updated
+        engine = connect_db()
+        query = text("""
+            SELECT trend, last_updated
             FROM keywords
-            WHERE keyword = %s AND trend_score IS NOT NULL
+            WHERE keyword = :kw
+            AND trend IS NOT NULL
+            ORDER BY last_updated DESC
             LIMIT 1;
-        """, (keyword,))
-        row = cursor.fetchone()
-        conn.close()
+        """)
+        df = pd.read_sql(query, engine, params={"kw": keyword})
 
-        if not row:
+        if df.empty:
             return None
 
-        updated_time = row.get("last_updated")
-        if updated_time and (datetime.now() - updated_time) < timedelta(days=7):
-            return row["trend_score"]
+        last_updated = df.iloc[0]["last_updated"]
+        if pd.notnull(last_updated):
+            delta = datetime.now() - pd.to_datetime(last_updated)
+            if delta.days < 7:
+                return int(df.iloc[0]["trend"])
         return None
     except Exception as e:
-        print("⚠️ Trend cache check failed:", e)
+        print(f"⚠️ Trend cache lookup failed: {e}")
         return None
 
 
 def save_trend_to_db(keyword, score):
     """
-    Save trend score to MySQL.
+    Save or update trend score in DB.
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        query = """
-        UPDATE keywords
-        SET trend_score = %s, last_updated = NOW()
-        WHERE keyword = %s;
-        """
-        cursor.execute(query, (score, keyword))
-        conn.commit()
-        conn.close()
+        engine = connect_db()
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    UPDATE keywords
+                    SET trend = :score, last_updated = NOW()
+                    WHERE keyword = :kw;
+                """),
+                {"score": score, "kw": keyword}
+            )
         print(f"💾 Trend score cached for '{keyword}' ({score})")
     except Exception as e:
-        print("⚠️ Trend cache save failed:", e)
+        print(f"⚠️ Trend cache save failed: {e}")

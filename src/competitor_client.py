@@ -32,7 +32,7 @@ def get_competitor_data(keyword, num_results=5):
                 "snippet": result.get("snippet", "No description available.")
             })
 
-        time.sleep(1)  # avoid rate limits
+        time.sleep(1)
         return competitors
 
     except Exception as e:

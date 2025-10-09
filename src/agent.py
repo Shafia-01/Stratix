@@ -4,7 +4,6 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
 from src.intent_classifier import classify_intent
@@ -12,9 +11,6 @@ from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
 
 load_dotenv()
-
-
-# ---------- HELPER FUNCTIONS ----------
 
 def compute_score(metrics):
     """
@@ -28,7 +24,6 @@ def compute_score(metrics):
     score = (volume * 0.5 + cpc * 100 * 0.3 + (1 - competition) * 100 * 0.2) / 100
     return round(score, 3)
 
-
 def classify_difficulty(score):
     if score >= 0.8:
         return "🟢 Easy"
@@ -36,9 +31,6 @@ def classify_difficulty(score):
         return "🟡 Medium"
     else:
         return "🔴 Hard"
-
-
-# ---------- MAIN AGENT ----------
 
 def run_agent(seed_keyword):
     print(f"\n🚀 Running GemKey AI for: {seed_keyword}")
@@ -50,24 +42,17 @@ def run_agent(seed_keyword):
 
     print(f"✅ Gemini returned {len(keywords)} keywords.")
 
-    # Ensure keywords are in a consistent format (dict or string)
     formatted_keywords = []
     for i, kw in enumerate(keywords, start=1):
         formatted_keywords.append({
             "rank": i,
             "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")
         })
-
-    # Sort keywords (randomized or based on rank)
     sorted_keywords = sorted(formatted_keywords, key=lambda x: x["rank"])
-
-    # --------- Limit full analysis to top 15 ---------
     full_analysis_keywords = sorted_keywords[:15]
     quick_keywords = sorted_keywords[15:]
-
     results = []
 
-    # ---------- PARALLEL PROCESSING FOR TOP 15 ----------
     print("\n⚙️ Running full analysis (metrics + trends + competitors) on top 15 keywords...")
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(process_keyword, kw, seed_keyword) for kw in full_analysis_keywords]
@@ -75,8 +60,7 @@ def run_agent(seed_keyword):
             res = future.result()
             if res:
                 results.append(res)
-
-    # ---------- QUICK ANALYSIS FOR REMAINING ----------
+                
     print("\n⚙️ Running quick analysis (metrics only) for remaining keywords...")
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
@@ -85,10 +69,8 @@ def run_agent(seed_keyword):
             if res:
                 results.append(res)
 
-    # ---------- SORT RESULTS BY FINAL SCORE ----------
     results = sorted(results, key=lambda x: x["score"], reverse=True)
 
-    # Save local cache for instant reloads
     os.makedirs("cache", exist_ok=True)
     pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
     
@@ -103,9 +85,6 @@ def run_agent(seed_keyword):
     print(f"\n✅ {len(results)} keywords saved successfully!")
     return results
 
-
-# ---------- FULL PROCESS (TOP 15) ----------
-
 def process_keyword(kw_item, seed_keyword):
     kw = kw_item["keyword"]
     try:
@@ -117,7 +96,6 @@ def process_keyword(kw_item, seed_keyword):
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)
 
-        # ----- Trend Fetch (with adaptive delay on rate-limit) -----
         trend_score = None
         try:
             trend_score = get_trend_score(kw)
@@ -128,11 +106,9 @@ def process_keyword(kw_item, seed_keyword):
                 trend_score = random.randint(20, 80)
             else:
                 trend_score = random.randint(20, 80)
-
-        # ----- Competitors (cached 7 days) -----
+                
         competitors = get_competitor_data(kw)
 
-        # ----- Final Scoring -----
         final_score = round((0.8 * score + 0.2 * (trend_score or score)), 3)
 
         return {
@@ -151,9 +127,6 @@ def process_keyword(kw_item, seed_keyword):
     except Exception as e:
         print(f"⚠️ Error processing '{kw}':", e)
         return None
-
-
-# ---------- QUICK PROCESS (OTHERS) ----------
 
 def process_keyword_quick(kw_item, seed_keyword):
     kw = kw_item["keyword"]

@@ -1,65 +1,54 @@
-import os
-from dotenv import load_dotenv
+# gemini_client.py
 import google.generativeai as genai
+import os
+import time
+import random
+from dotenv import load_dotenv
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-def generate_keywords(seed_keyword: str):
+GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "learnlm-2.0-flash-experimental"
+]
+
+def safe_gemini_call(prompt, temperature=0.7):
+    """Try multiple Gemini models until one succeeds."""
+    for model_name in GEMINI_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            result = model.generate_content(prompt)
+            if hasattr(result, "text"):
+                print(f"✅ Using {model_name}")
+                return result.text.strip()
+            else:
+                return str(result)
+        except Exception as e:
+            if "429" in str(e) or "quota" in str(e).lower():
+                print(f"⚠️ {model_name} quota hit. Trying next model...")
+                time.sleep(random.uniform(2, 5))
+                continue
+            else:
+                print(f"❌ {model_name} failed: {e}")
+                continue
+    print("❌ All Gemini models failed or quota exceeded.")
+    return None
+
+def generate_keywords(seed_keyword):
+    """Generate SEO keywords using Gemini with automatic fallback."""
+    prompt = f"""
+    Generate 50 high-quality SEO keywords related to: '{seed_keyword}'.
+    Return only keywords, comma-separated. Avoid duplicates.
     """
-    Generate a list of SEO keywords using Gemini API.
-    Compatible with google-generativeai >=0.8.5.
-    """
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-
-        prompt = f"""
-        Generate 50 SEO-optimized keywords related to the topic "{seed_keyword}".
-        Return only the keywords as a clean, comma-separated list without numbering.
-        """
-
-        # ✅ Correct call format (list input required)
-        response = model.generate_content([prompt])
-
-        # Validate and clean response
-        if not hasattr(response, "text") or not response.text:
-            print(f"⚠️ No response text for seed: {seed_keyword}")
-            return []
-
-        # Parse comma-separated keywords
-        keywords = [kw.strip() for kw in response.text.split(",") if kw.strip()]
-        print(f"✅ Gemini returned {len(keywords)} keywords.")
-        return keywords
-
-    except Exception as e:
-        print(f"❌ Gemini API Error: {e}")
+    response = safe_gemini_call(prompt)
+    if not response:
+        print("⚠️ Gemini failed to return keywords.")
         return []
 
-def generate_intent_gemini(keyword: str) -> str:
-    """
-    Use Gemini to predict the search intent of a keyword.
-    Returns one of: Informational, Navigational, Transactional
-    """
-    try:
-        prompt = f"""
-        Determine the search intent category of the keyword below.
-        Choose one: Informational, Navigational, Transactional.
-
-        Keyword: "{keyword}"
-
-        Answer format: Just the intent name.
-        """
-        response = genai.GenerativeModel("gemini-2.5-flash").generate_content(prompt)
-        text = response.text.strip().lower()
-
-        if "informational" in text:
-            return "📘 Informational"
-        elif "navigational" in text:
-            return "🧭 Navigational"
-        elif "transactional" in text:
-            return "💼 Transactional"
-        else:
-            return "📘 Informational"
-    except Exception as e:
-        print(f"⚠️ Gemini intent error: {e}")
-        return "📘 Informational"
+    keywords = [kw.strip() for kw in response.split(",") if kw.strip()]
+    print(f"✅ Gemini returned {len(keywords)} keywords.")
+    return keywords
