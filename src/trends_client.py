@@ -1,6 +1,7 @@
 # trends_client.py
 import time
 import random
+import warnings
 from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy import text
@@ -9,6 +10,9 @@ from dotenv import load_dotenv
 from src.db_client import connect_db  # ✅ reuse your SQLAlchemy connection
 
 load_dotenv()
+
+# Suppress pandas FutureWarning for pytrends
+warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
 
 pytrends = TrendReq(hl='en-US', tz=360)
 
@@ -20,31 +24,60 @@ def get_trend_score(keyword):
     """
     cached = get_cached_trend(keyword)
     if cached:
-        print(f"♻️ Using cached trend data for '{keyword}'")
+        print(f"[CACHE] Using cached trend data for '{keyword}'")
         return cached
 
-    print(f"📈 Fetching trend data for '{keyword}'...")
-    try:
-        # Small delay to avoid rate-limit
-        time.sleep(random.uniform(1.5, 3.5))
+    print(f"[TREND] Fetching trend data for '{keyword}'...")
+    
+    # Retry logic with exponential backoff
+    max_retries = 3
+    base_delay = 2.0
+    
+    for attempt in range(max_retries):
+        try:
+            # Progressive delay to avoid rate-limit
+            delay = base_delay * (2 ** attempt) + random.uniform(0.5, 2.0)
+            time.sleep(delay)
+            
+            # Reset pytrends connection to avoid stale sessions
+            if attempt > 0:
+                global pytrends
+                pytrends = TrendReq(hl='en-US', tz=360)
 
-        pytrends.build_payload([keyword], timeframe="today 12-m")
-        data = pytrends.interest_over_time()
+            pytrends.build_payload([keyword], timeframe="today 12-m")
+            data = pytrends.interest_over_time()
 
-        if not data.empty:
-            score = int(data[keyword].mean())
-        else:
-            score = random.randint(20, 80)
+            if not data.empty:
+                score = int(data[keyword].mean())
+            else:
+                score = random.randint(20, 80)
 
-        save_trend_to_db(keyword, score)
-        return score
+            save_trend_to_db(keyword, score)
+            print(f"[SUCCESS] Trend data fetched for '{keyword}': {score}")
+            return score
 
-    except Exception as e:
-        print(f"⚠️ Trend error for '{keyword}': {e}")
-        # fallback random score
-        score = random.randint(20, 80)
-        save_trend_to_db(keyword, score)
-        return score
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[WARNING] Trend error for '{keyword}' (attempt {attempt + 1}): {error_msg}")
+            
+            # Handle specific error types
+            if "429" in error_msg or "rate" in error_msg.lower():
+                if attempt < max_retries - 1:
+                    wait_time = base_delay * (2 ** attempt) * 3  # Longer wait for rate limits
+                    print(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before retry...")
+                    time.sleep(wait_time)
+                    continue
+            elif "timeout" in error_msg.lower():
+                if attempt < max_retries - 1:
+                    print(f"[TIMEOUT] Retrying after delay...")
+                    continue
+            
+            # Final fallback after all retries
+            if attempt == max_retries - 1:
+                print(f"[FALLBACK] Using random score for '{keyword}' after {max_retries} attempts")
+                score = random.randint(20, 80)
+                save_trend_to_db(keyword, score)
+                return score
 
 
 # ------------------ TREND CACHE ------------------
@@ -74,7 +107,7 @@ def get_cached_trend(keyword):
                 return int(df.iloc[0]["trend"])
         return None
     except Exception as e:
-        print(f"⚠️ Trend cache lookup failed: {e}")
+        print(f"[ERROR] Trend cache lookup failed for '{keyword}': {e}")
         return None
 
 
@@ -93,6 +126,6 @@ def save_trend_to_db(keyword, score):
                 """),
                 {"score": score, "kw": keyword}
             )
-        print(f"💾 Trend score cached for '{keyword}' ({score})")
+        print(f"[CACHE] Trend score saved for '{keyword}': {score}")
     except Exception as e:
-        print(f"⚠️ Trend cache save failed: {e}")
+        print(f"[ERROR] Trend cache save failed for '{keyword}': {e}")

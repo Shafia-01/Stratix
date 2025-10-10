@@ -59,25 +59,30 @@ def check_cache(keyword):
     try:
         engine = connect_db()
         query = text("""
-            SELECT volume, competition, cpc, last_updated
+            SELECT volume, competition, cpc, last_updated, seed
             FROM keywords
             WHERE keyword = :kw
+            ORDER BY last_updated DESC
             LIMIT 1;
         """)
         df = pd.read_sql(query, engine, params={"kw": keyword})
         if df.empty:
             return None
         row = df.iloc[0].to_dict()
-        if "last_updated" in row and pd.notnull(row["last_updated"]):
-            row["last_updated"] = pd.to_datetime(row["last_updated"])
-        return row
+        
+        # Only use cached data if it has all the basic metrics
+        if pd.notnull(row.get("volume")) and pd.notnull(row.get("competition")) and pd.notnull(row.get("cpc")):
+            if "last_updated" in row and pd.notnull(row["last_updated"]):
+                row["last_updated"] = pd.to_datetime(row["last_updated"])
+            return row
+        return None
     except Exception as e:
-        print(f"⚠️ Cache check failed for '{keyword}': {e}")
+        print(f"[ERROR] Cache check failed for '{keyword}': {e}")
         return None
 
 
 def save_to_cache(keyword, metrics):
-    """Insert or update metrics + refresh timestamp."""
+    """Insert or update metrics + refresh timestamp without overwriting complete data."""
     try:
         engine = connect_db()
         with engine.begin() as conn:
@@ -86,9 +91,9 @@ def save_to_cache(keyword, metrics):
                     INSERT INTO keywords (keyword, volume, competition, cpc, last_updated)
                     VALUES (:kw, :volume, :competition, :cpc, NOW())
                     ON DUPLICATE KEY UPDATE
-                        volume = VALUES(volume),
-                        competition = VALUES(competition),
-                        cpc = VALUES(cpc),
+                        volume = CASE WHEN seed IS NULL THEN VALUES(volume) ELSE volume END,
+                        competition = CASE WHEN seed IS NULL THEN VALUES(competition) ELSE competition END,
+                        cpc = CASE WHEN seed IS NULL THEN VALUES(cpc) ELSE cpc END,
                         last_updated = NOW();
                 """),
                 {
@@ -98,6 +103,6 @@ def save_to_cache(keyword, metrics):
                     "cpc": metrics["cpc"],
                 },
             )
-        print(f"💾 Cached data saved for '{keyword}' (refreshed)")
+        print(f"[CACHE] Metrics cached for '{keyword}' (preserving complete data)")
     except Exception as e:
-        print(f"⚠️ Cache save failed for '{keyword}': {e}")
+        print(f"[ERROR] Cache save failed for '{keyword}': {e}")
