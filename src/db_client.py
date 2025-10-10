@@ -6,16 +6,16 @@ from dotenv import load_dotenv
 
 # ----------------- LOAD ENVIRONMENT VARIABLES -----------------
 load_dotenv()
-
+print("🔍 MYSQL_HOST from env:", os.getenv("MYSQL_HOST"))
 # ----------------- CONNECT TO MYSQL (SQLAlchemy) -----------------
 def connect_db():
     """Create and return a SQLAlchemy engine."""
     db_url = (
         f"mysql+mysqlconnector://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}"
-        f"@{os.getenv('MYSQL_HOST')}/{os.getenv('MYSQL_DATABASE')}"
+        f"{os.getenv('MYSQL_HOST')}/{os.getenv('MYSQL_DATABASE')}"
     )
     return create_engine(db_url, pool_pre_ping=True)
-
+print("🔍 MYSQL_HOST =", os.getenv("MYSQL_HOST"))
 # ----------------- SAVE FULL KEYWORD RESULTS -----------------
 def save_to_db(data):
     """Save keyword data with all computed fields."""

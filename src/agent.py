@@ -1,17 +1,21 @@
+# src/agent.py
 import os
 import random
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
+
 from src.gemini_client import generate_keywords
 from src.seo_api_client import get_keyword_metrics
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
+from src.db_client import save_to_db  # ✅ uses new SQLAlchemy method
 
 load_dotenv()
 
+# ---------- SCORE COMPUTATION ----------
 def compute_score(metrics):
     """
     Compute base SEO score using volume, CPC, and competition.
@@ -24,7 +28,9 @@ def compute_score(metrics):
     score = (volume * 0.5 + cpc * 100 * 0.3 + (1 - competition) * 100 * 0.2) / 100
     return round(score, 3)
 
+
 def classify_difficulty(score):
+    """Classify keyword difficulty based on score."""
     if score >= 0.8:
         return "🟢 Easy"
     elif score >= 0.5:
@@ -32,27 +38,29 @@ def classify_difficulty(score):
     else:
         return "🔴 Hard"
 
+
+# ---------- MAIN AGENT ----------
 def run_agent(seed_keyword):
     print(f"\n🚀 Running GemKey AI for: {seed_keyword}")
     keywords = generate_keywords(seed_keyword)
 
+    # ✅ Fallback if Gemini failed
     if not keywords or len(keywords) == 0:
-        print(f"⚠️ No keywords generated for '{seed_keyword}'.")
-        return []
+        print(f"⚠️ Gemini failed to generate keywords for '{seed_keyword}'. Retrying with fallback set...")
+        time.sleep(1)
+        keywords = [f"{seed_keyword} ideas", f"{seed_keyword} tools", f"best {seed_keyword} resources"]
 
     print(f"✅ Gemini returned {len(keywords)} keywords.")
 
-    formatted_keywords = []
-    for i, kw in enumerate(keywords, start=1):
-        formatted_keywords.append({
-            "rank": i,
-            "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")
-        })
+    formatted_keywords = [{"rank": i, "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")}
+                          for i, kw in enumerate(keywords, start=1)]
+
     sorted_keywords = sorted(formatted_keywords, key=lambda x: x["rank"])
     full_analysis_keywords = sorted_keywords[:15]
     quick_keywords = sorted_keywords[15:]
     results = []
 
+    # ---------- FULL ANALYSIS (TOP 15) ----------
     print("\n⚙️ Running full analysis (metrics + trends + competitors) on top 15 keywords...")
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(process_keyword, kw, seed_keyword) for kw in full_analysis_keywords]
@@ -60,7 +68,11 @@ def run_agent(seed_keyword):
             res = future.result()
             if res:
                 results.append(res)
-                
+                # ✅ Auto-save progress every 5 results
+                if len(results) % 5 == 0:
+                    pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_temp.csv", index=False)
+
+    # ---------- QUICK ANALYSIS (OTHERS) ----------
     print("\n⚙️ Running quick analysis (metrics only) for remaining keywords...")
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
@@ -69,22 +81,23 @@ def run_agent(seed_keyword):
             if res:
                 results.append(res)
 
+    # ---------- FINALIZE ----------
     results = sorted(results, key=lambda x: x["score"], reverse=True)
 
     os.makedirs("cache", exist_ok=True)
     pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
-    
-    from src.db_client import get_connection, save_to_db
+
+    # ✅ Save to DB (SQLAlchemy)
     try:
-        conn = get_connection()
-        save_to_db(conn, results)
-        conn.close()
+        save_to_db(results)
     except Exception as e:
         print("⚠️ MySQL Save Error:", e)
-        
+
     print(f"\n✅ {len(results)} keywords saved successfully!")
     return results
 
+
+# ---------- FULL PROCESS (TOP 15) ----------
 def process_keyword(kw_item, seed_keyword):
     kw = kw_item["keyword"]
     try:
@@ -96,7 +109,7 @@ def process_keyword(kw_item, seed_keyword):
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)
 
-        trend_score = None
+        # Trend data
         try:
             trend_score = get_trend_score(kw)
         except Exception as e:
@@ -106,7 +119,7 @@ def process_keyword(kw_item, seed_keyword):
                 trend_score = random.randint(20, 80)
             else:
                 trend_score = random.randint(20, 80)
-                
+
         competitors = get_competitor_data(kw)
 
         final_score = round((0.8 * score + 0.2 * (trend_score or score)), 3)
@@ -128,6 +141,8 @@ def process_keyword(kw_item, seed_keyword):
         print(f"⚠️ Error processing '{kw}':", e)
         return None
 
+
+# ---------- QUICK PROCESS (OTHERS) ----------
 def process_keyword_quick(kw_item, seed_keyword):
     kw = kw_item["keyword"]
     try:

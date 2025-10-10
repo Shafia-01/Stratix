@@ -1,2 +1,5 @@
 .env
 __pycache__/
+sql
+test.py 
+cache

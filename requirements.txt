@@ -1,6 +1,10 @@
-google-generativeai
-serpapi
-mysql-connector-python
-pandas
 streamlit
+google-generativeai
+pandas
 python-dotenv
+requests
+mysql-connector-python
+SQLAlchemy
+pytrends
+beautifulsoup4
+tqdm

@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import google.generativeai as genai
 import pandas as pd
@@ -14,7 +15,7 @@ from src.competitor_client import get_competitor_data
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# List of fallback models
+# ✅ Multi-model fallback list
 GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -22,6 +23,7 @@ GEMINI_MODELS = [
     "gemini-2.0-flash-lite",
     "learnlm-2.0-flash-experimental"
 ]
+
 
 def safe_gemini_call(prompt, temperature=0.7):
     """Try multiple Gemini models until one succeeds."""
@@ -34,13 +36,14 @@ def safe_gemini_call(prompt, temperature=0.7):
                 return result.text.strip()
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
-                print(f"⚠️ {model_name} quota hit, trying next...")
+                print(f"⚠️ {model_name} quota hit. Trying next...")
                 time.sleep(random.uniform(1, 3))
                 continue
             else:
                 print(f"❌ {model_name} failed: {e}")
                 continue
     return "⚠️ All Gemini models are currently unavailable. Try again later."
+
 
 # ------------------------- UI CONFIG -------------------------
 st.set_page_config(page_title="GemKey AI", page_icon="💎", layout="wide")
@@ -64,19 +67,36 @@ for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+
 # ------------------------- INTENT DETECTION -------------------------
+def clean_intent(text: str) -> str:
+    """Normalize model response into a simple label."""
+    text = text.lower()
+    if "keyword" in text:
+        return "Generate Keywords"
+    elif "trend" in text:
+        return "Show SEO Trends"
+    elif "content" in text:
+        return "Generate Content Ideas"
+    elif "explain" in text or "concept" in text:
+        return "Explain SEO Concept"
+    return "Unknown"
+
+
 def detect_intent(user_input: str) -> str:
     """Use Gemini (with fallback) to detect what the user wants."""
     intent_prompt = f"""
     You are GemKey AI, an SEO assistant.
-    Determine what the user wants to do from this message: "{user_input}"
+    Determine what the user wants to do from this message: "{user_input}".
     Choose one of:
       1. Generate Keywords
       2. Show SEO Trends
       3. Generate Content Ideas
       4. Explain SEO Concept
     """
-    return safe_gemini_call(intent_prompt).lower()
+    raw_intent = safe_gemini_call(intent_prompt)
+    return clean_intent(raw_intent)
+
 
 # ------------------------- STYLING -------------------------
 def highlight_difficulty(val):
@@ -90,88 +110,108 @@ def highlight_difficulty(val):
         return "background-color: #FECACA"
     return ""
 
+
+def style_intent(intent: str) -> str:
+    """Return colored badge for detected intent."""
+    colors = {
+        "Generate Keywords": "🟢",
+        "Show SEO Trends": "🔵",
+        "Generate Content Ideas": "🟣",
+        "Explain SEO Concept": "🟠",
+        "Unknown": "⚪"
+    }
+    return f"**{colors.get(intent, '⚪')} Detected Intent:** `{intent}`"
+
+
 # ------------------------- INTENT HANDLER -------------------------
 def handle_intent(user_input: str, intent: str):
-    """Route request to correct function based on intent."""
-    
+    """Route user request to the correct function and ensure consistent return."""
+
     # 1️⃣ Keyword generation
-    if "keyword" in intent or len(user_input.split()) <= 3:
+    if "keyword" in intent.lower() or len(user_input.split()) <= 3:
         try:
             data = run_agent(user_input)
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                st.markdown("### 📊 Keyword Performance Overview")
-                top_data = data.head(15)
-                for idx, row in top_data.iterrows():
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    with col1:
-                        st.markdown(
-                            f"**{idx+1}. {row['keyword']}**  \n"
-                            f"📈 Score: {row['score']} | 💰 CPC: {row['cpc']} | 🔍 Volume: {row['volume']}  \n"
-                            f"{row['difficulty']} | {row['intent']} | 🔥 Trend: {row['trend']}"
-                        )
-                    with col2:
-                        if st.button("View Competitors", key=f"comp_{idx}"):
-                            competitors = get_competitor_data(row["keyword"])
-                            if competitors:
-                                st.markdown(f"#### 🕵️ Competitor Insights for: **{row['keyword']}**")
-                                for comp in competitors:
-                                    st.markdown(
-                                        f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
-                                        f"🌐 {comp['domain']}  \n"
-                                        f"📝 *{comp['snippet']}*"
-                                    )
-                            else:
-                                st.warning(f"No competitor data found for '{row['keyword']}'.")
-                    with col3:
-                        st.write("")
-                        st.divider()
-                
-                # Default competitor insights
-                top_kw = data.iloc[0]["keyword"]
-                st.markdown("---")
-                st.subheader(f"🕵️ Competitor Insights for: **{top_kw}**")
-                competitors = get_competitor_data(top_kw)
-                if competitors:
-                    for comp in competitors:
-                        st.markdown(
-                            f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
-                            f"🌐 {comp['domain']}  \n"
-                            f"📝 *{comp['snippet']}*"
-                        )
-                else:
-                    st.warning(f"No competitor data found for '{top_kw}'.")
-            else:
+            if not data:
                 return f"⚠️ No keywords generated for '{user_input}'.", None
+            if isinstance(data, list):
+                data = pd.DataFrame(data)
+            if data.empty:
+                return f"⚠️ No valid keyword data found for '{user_input}'.", None
+
+            st.markdown("### 📊 Keyword Performance Overview")
+            top_data = data.head(15)
+
+            for idx, row in top_data.iterrows():
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.markdown(
+                        f"**{idx + 1}. {row['keyword']}**  \n"
+                        f"📈 **Score:** {row['score']} | 💰 **CPC:** {row['cpc']} | 🔍 **Volume:** {row['volume']}  \n"
+                        f"{row['difficulty']} | {row['intent']} | 🔥 **Trend:** {row['trend']}"
+                    )
+                with col2:
+                    if st.button("View Competitors", key=f"comp_{idx}"):
+                        competitors = get_competitor_data(row["keyword"])
+                        if competitors:
+                            st.markdown(f"#### 🕵️ Competitor Insights for: **{row['keyword']}**")
+                            for comp in competitors:
+                                st.markdown(
+                                    f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
+                                    f"🌐 {comp['domain']}  \n"
+                                    f"📝 *{comp['snippet']}*"
+                                )
+                        else:
+                            st.warning(f"No competitor data found for '{row['keyword']}'.")
+                with col3:
+                    st.write("")
+                    st.divider()
+
+            # Show competitor insights for top keyword
+            top_kw = data.iloc[0]["keyword"]
+            st.markdown("---")
+            st.subheader(f"🕵️ Competitor Insights for: **{top_kw}**")
+            competitors = get_competitor_data(top_kw)
+            if competitors:
+                for comp in competitors:
+                    st.markdown(
+                        f"**{comp['rank']}. [{comp['title']}]({comp['link']})**  \n"
+                        f"🌐 {comp['domain']}  \n"
+                        f"📝 *{comp['snippet']}*"
+                    )
+            else:
+                st.warning(f"No competitor data found for '{top_kw}'.")
+
+            return f"✅ Successfully analyzed keywords for '{user_input}'.", data
+
         except Exception as e:
             return f"❌ Error generating keywords: {e}", None
 
     # 2️⃣ Trends
-    elif "trend" in intent:
-        st.markdown(f"📈 Fetching Google Trends for top keywords related to '{user_input}'...")
+    elif "trend" in intent.lower():
+        st.markdown(f"📈 Fetching Google Trends for '{user_input}'...")
         trend_df = get_trend_score([user_input])
-        if not trend_df.empty:
+        if isinstance(trend_df, pd.DataFrame) and not trend_df.empty:
             st.line_chart(trend_df.set_index("date"))
             return "✅ Trend chart generated below.", None
         else:
             return f"⚠️ No trend data available for '{user_input}'.", None
 
     # 3️⃣ Content ideas
-    elif "content" in intent:
+    elif "content" in intent.lower():
         prompt = f"Generate 3 catchy blog titles and 1 meta description for the topic '{user_input}'."
-        try:
-            result = safe_gemini_call(prompt)
-            return f"🧠 Content Ideas:\n\n{result}", None
-        except Exception as e:
-            return f"Error generating content ideas: {e}", None
+        result = safe_gemini_call(prompt)
+        return f"🧠 Content Ideas:\n\n{result}", None
 
     # 4️⃣ SEO explanation
-    else:
+    elif "explain" in intent.lower() or "concept" in intent.lower():
         explain_prompt = f"Explain briefly the SEO concept: '{user_input}'."
-        try:
-            result = safe_gemini_call(explain_prompt)
-            return result, None
-        except Exception as e:
-            return f"Error explaining concept: {e}", None
+        result = safe_gemini_call(explain_prompt)
+        return result, None
+
+    # 5️⃣ Fallback
+    else:
+        return f"🤖 Intent '{intent}' not yet supported.", None
+
 
 # ------------------------- VIEW HISTORY -------------------------
 st.markdown("---")
@@ -187,6 +227,7 @@ if st.button("Show Previous Runs"):
         else:
             st.warning("No previous data found yet. Try running a keyword search first.")
 
+
 # ------------------------- MAIN CHAT -------------------------
 prompt = st.chat_input("Type your query or keyword...")
 
@@ -198,6 +239,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             intent = detect_intent(prompt)
+            st.markdown(style_intent(intent))
             text_reply, styled_table = handle_intent(prompt, intent)
             st.markdown(text_reply)
             if styled_table is not None:
