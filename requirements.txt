@@ -8,3 +8,5 @@ SQLAlchemy
 pytrends
 beautifulsoup4
 tqdm
+plotly
+numpy
