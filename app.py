@@ -559,7 +559,7 @@ def render_sidebar():
     st.sidebar.markdown("""
     <div class="sidebar-header">
         <h2>💎 GemKey AI</h2>
-        <p>SEO Research Assistant</p>
+        <p>The Gemini-Powered SEO Keyword Agent</p>
     </div>
     """, unsafe_allow_html=True)
     
