@@ -8,13 +8,11 @@ import random
 import json
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 from src.agent import run_agent
 from src.lightweight_agent import run_lightweight_agent
 from src.db_client import fetch_past_results, save_to_db
-from src.trends_client import get_trend_score
-from src.competitor_client import get_competitor_data
 from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
 from src.serp_analyzer import analyze_serp_opportunities
 from src.topic_clusterer import cluster_keywords_semantically
@@ -22,6 +20,30 @@ from src.trend_forecaster import analyze_trend_forecasting
 
 # ------------------------- SETUP -------------------------
 load_dotenv()
+
+# Configure Streamlit for better performance
+st.set_page_config(
+    page_title="GemKey AI",
+    page_icon="🔑",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Initialize session state for better performance
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "home"
+if "keyword_results" not in st.session_state:
+    st.session_state.keyword_results = []
+if "competitor_results" not in st.session_state:
+    st.session_state.competitor_results = None
+if "cluster_results" not in st.session_state:
+    st.session_state.cluster_results = None
+if "trend_results" not in st.session_state:
+    st.session_state.trend_results = None
+if "serp_results" not in st.session_state:
+    st.session_state.serp_results = None
+
+# Configure Gemini API
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ✅ Multi-model fallback list
@@ -29,10 +51,42 @@ GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
     "learnlm-2.0-flash-experimental"
 ]
 
+# ------------------------- CACHED FUNCTIONS -------------------------
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def cached_run_lightweight_agent(keyword, limit):
+    """Cached version of lightweight agent for better performance."""
+    return run_lightweight_agent(keyword, limit)
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def cached_run_agent(keyword, limit):
+    """Cached version of full agent for better performance."""
+    return run_agent(keyword, limit)
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def cached_analyze_competitor_gap(keyword):
+    """Cached version of competitor gap analysis."""
+    return analyze_competitor_keyword_gap(keyword)
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def cached_analyze_serp_opportunities(keyword):
+    """Cached version of SERP analysis."""
+    return analyze_serp_opportunities(keyword)
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def cached_cluster_keywords_semantically(keywords):
+    """Cached version of keyword clustering."""
+    return cluster_keywords_semantically(keywords)
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def cached_analyze_trend_forecasting(keywords):
+    """Cached version of trend forecasting."""
+    return analyze_trend_forecasting(keywords)
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def safe_gemini_call(prompt, temperature=0.7):
     """Try multiple Gemini models until one succeeds."""
     for model_name in GEMINI_MODELS:
@@ -277,6 +331,215 @@ def load_custom_css():
         background-color: #059669;
         box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
     }
+    
+    /* Floating Panel Styles */
+    .floating-panel {
+        position: fixed;
+        top: 20px;
+        right: -400px;
+        width: 380px;
+        height: calc(100vh - 40px);
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid #E5E7EB;
+        transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 1000;
+        overflow-y: auto;
+        padding: 20px;
+    }
+    
+    .floating-panel.open {
+        right: 20px;
+    }
+    
+    .floating-toggle {
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+        color: white;
+        border: none;
+        border-radius: 50px 0 0 50px;
+        padding: 15px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+        transition: all 0.3s ease;
+        z-index: 1001;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+    }
+    
+    .floating-toggle:hover {
+        background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+        box-shadow: 0 12px 24px rgba(37, 99, 235, 0.4);
+    }
+    
+    .floating-toggle.open {
+        right: 400px;
+        border-radius: 0 50px 50px 0;
+    }
+    
+    /* Home Overview Styles */
+    .home-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .welcome-section {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    
+    .app-logo {
+        font-size: 4rem;
+        margin-bottom: 10px;
+    }
+    
+    .app-title {
+        font-family: 'Poppins', sans-serif;
+        font-size: 3rem;
+        font-weight: 700;
+        color: #1F2937;
+        margin: 0;
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .app-subtitle {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.2rem;
+        color: #6B7280;
+        margin: 10px 0 30px 0;
+    }
+    
+    .quick-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 40px;
+    }
+    
+    .quick-btn {
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
+    }
+    
+    .quick-btn:hover {
+        background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+        box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 40px;
+    }
+    
+    .summary-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        border: 1px solid #E5E7EB;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .summary-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+    }
+    
+    .summary-card-icon {
+        font-size: 2.5rem;
+        margin-bottom: 12px;
+    }
+    
+    .summary-card-title {
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1F2937;
+        margin-bottom: 8px;
+    }
+    
+    .summary-card-value {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2563EB;
+        margin-bottom: 8px;
+    }
+    
+    .summary-card-desc {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9rem;
+        color: #6B7280;
+    }
+    
+    /* System Status Styles */
+    .system-status {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border: 1px solid #E5E7EB;
+    }
+    
+    .status-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #F3F4F6;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-label {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9rem;
+        color: #374151;
+    }
+    
+    .status-value {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .status-online {
+        color: #10B981;
+    }
+    
+    .status-offline {
+        color: #EF4444;
+    }
+    
+    .status-warning {
+        color: #F59E0B;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -300,25 +563,97 @@ def render_sidebar():
     </div>
     """, unsafe_allow_html=True)
     
-    # Quick Actions
-    st.sidebar.markdown("### 🚀 Quick Actions")
+    # System Status
+    st.sidebar.markdown("### 🔧 System Status")
     
-    if st.sidebar.button("🔍 New Keyword Analysis", use_container_width=True):
-        st.session_state.current_tab = "Keyword Analysis"
-        st.rerun()
+    # API Status
+    api_status = check_api_status()
+    api_test = test_api_quick()
     
-    if st.sidebar.button("📊 View Search History", use_container_width=True):
-        st.session_state.current_tab = "Search History"
-        st.rerun()
+    st.sidebar.markdown("""
+    <div class="system-status">
+        <div class="status-item">
+            <span class="status-label">Gemini API</span>
+            <span class="status-value {}">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">SerpApi</span>
+            <span class="status-value {}">{}</span>
+        </div>
+    </div>
+    """.format(
+        "status-online" if api_test["gemini"] else "status-offline",
+        "✅ Online" if api_test["gemini"] else "❌ Offline",
+        "status-online" if api_test["serpapi"] else "status-offline", 
+        "✅ Online" if api_test["serpapi"] else "❌ Offline"
+    ), unsafe_allow_html=True)
     
-    if st.sidebar.button("📈 Trend Analysis", use_container_width=True):
-        st.session_state.current_tab = "Trend Forecasting"
-        st.rerun()
+    # Model Status
+    st.sidebar.markdown("### 🤖 Model Status")
+    st.sidebar.markdown("""
+    <div class="system-status">
+        <div class="status-item">
+            <span class="status-label">Model Type</span>
+            <span class="status-value">Gemini 2.5 Flash</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Active Models</span>
+            <span class="status-value">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Requests Today</span>
+            <span class="status-value">{}</span>
+        </div>
+    </div>
+    """.format(len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)
+    
+    # Database Status
+    st.sidebar.markdown("### 💾 Database")
+    try:
+        df_test = fetch_past_results(limit=1)
+        if not df_test.empty:
+            st.sidebar.markdown("""
+            <div class="system-status">
+                <div class="status-item">
+                    <span class="status-label">Status</span>
+                    <span class="status-value status-online">✅ Connected</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Records</span>
+                    <span class="status-value">{}</span>
+                </div>
+            </div>
+            """.format(len(df_test)), unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown("""
+            <div class="system-status">
+                <div class="status-item">
+                    <span class="status-label">Status</span>
+                    <span class="status-value status-warning">⚠️ No Data</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    except:
+        st.sidebar.markdown("""
+        <div class="system-status">
+            <div class="status-item">
+                <span class="status-label">Status</span>
+                <span class="status-value status-offline">❌ Disconnected</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.sidebar.markdown("---")
     
-    # Search History Panel
-    st.sidebar.markdown("### 📂 Recent Searches")
+    # Database History
+    st.sidebar.markdown("### 📂 Database History")
+    
+    if st.sidebar.button("📊 Show History", use_container_width=True):
+        st.session_state.current_page = "search_history"
+        st.rerun()
+    
+    # Recent Searches
+    st.sidebar.markdown("### 🔍 Recent Searches")
     
     if "search_history" not in st.session_state:
         st.session_state.search_history = []
@@ -328,32 +663,978 @@ def render_sidebar():
         for i, search in enumerate(st.session_state.search_history[-5:]):
             if st.sidebar.button(f"🔍 {search[:30]}...", key=f"history_{i}", use_container_width=True):
                 st.session_state.selected_keyword = search
-                st.session_state.current_tab = "Keyword Analysis"
+                st.session_state.current_page = "keyword_discovery"
                 st.rerun()
     else:
         st.sidebar.info("No recent searches")
     
-    st.sidebar.markdown("---")
-    
-    # Database Status
-    st.sidebar.markdown("### 💾 Database Status")
-    try:
-        df_test = fetch_past_results(limit=1)
-        if not df_test.empty:
-            st.sidebar.success("✅ Connected")
-        else:
-            st.sidebar.warning("⚠️ No data")
-    except:
-        st.sidebar.error("❌ Disconnected")
-
-# ------------------------- MAIN HEADER -------------------------
-def render_header():
+# ------------------------- HOME/OVERVIEW PAGE -------------------------
+def render_home_overview():
+    # Welcome section
     st.markdown("""
-    <div class="main-header">
-        <h1>💎 GemKey AI</h1>
-        <p>Advanced SEO Research & Analysis Platform</p>
+    <div class="home-container">
+        <div class="welcome-section">
+            <div class="app-logo">💎</div>
+            <h1 class="app-title">GemKey AI</h1>
+            <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Quick buttons using Streamlit buttons
+    st.markdown("### 🚀 Quick Actions")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if st.button("🔍 Keyword Discovery", use_container_width=True):
+            st.session_state.current_page = "keyword_discovery"
+            st.rerun()
+    
+    with col2:
+        if st.button("🧩 Competitor Gap", use_container_width=True):
+            st.session_state.current_page = "competitor_gap"
+            st.rerun()
+    
+    with col3:
+        if st.button("📈 Trend Forecasting", use_container_width=True):
+            st.session_state.current_page = "trend_forecasting"
+            st.rerun()
+    
+    with col4:
+        if st.button("🧩 Full Strategy", use_container_width=True):
+            st.session_state.current_page = "full_strategy"
+            st.rerun()
+    
+    # Summary cards
+    st.markdown("### 📊 Global Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="summary-card">
+            <div class="summary-card-icon">🔍</div>
+            <div class="summary-card-title">Keywords Analyzed</div>
+            <div class="summary-card-value">{}</div>
+            <div class="summary-card-desc">Total keywords processed</div>
+        </div>
+        """.format(st.session_state.get("total_keywords", 0)), unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="summary-card">
+            <div class="summary-card-icon">📊</div>
+            <div class="summary-card-title">Avg Volume</div>
+            <div class="summary-card-value">{}</div>
+            <div class="summary-card-desc">Average search volume</div>
+        </div>
+        """.format(f"{st.session_state.get('avg_volume', 0):.0f}"), unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="summary-card">
+            <div class="summary-card-icon">🎯</div>
+            <div class="summary-card-title">Opportunities</div>
+            <div class="summary-card-value">{}</div>
+            <div class="summary-card-desc">High-potential keywords</div>
+        </div>
+        """.format(st.session_state.get("opportunities", 0)), unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="summary-card">
+            <div class="summary-card-icon">📈</div>
+            <div class="summary-card-title">Trend Score</div>
+            <div class="summary-card-value">{}</div>
+            <div class="summary-card-desc">Overall trend strength</div>
+        </div>
+        """.format(f"{st.session_state.get('trend_score', 0):.1f}"), unsafe_allow_html=True)
+
+# ------------------------- FLOATING PANEL -------------------------
+def render_floating_panel():
+    """Render the floating features panel"""
+    if st.session_state.get("panel_open", False):
+        st.markdown("### 🚀 All Features")
+        
+        # Feature buttons in columns
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔍 Keyword Discovery", key="fp_kd", use_container_width=True):
+                st.session_state.current_page = "keyword_discovery"
+                st.rerun()
+            
+            if st.button("🧩 Competitor Gap", key="fp_cg", use_container_width=True):
+                st.session_state.current_page = "competitor_gap"
+                st.rerun()
+            
+            if st.button("🎯 Search Intent", key="fp_si", use_container_width=True):
+                st.session_state.current_page = "search_intent"
+                st.rerun()
+            
+            if st.button("🧠 Topic Clustering", key="fp_tc", use_container_width=True):
+                st.session_state.current_page = "topic_clustering"
+                st.rerun()
+            
+            if st.button("📈 Trend Forecasting", key="fp_tf", use_container_width=True):
+                st.session_state.current_page = "trend_forecasting"
+                st.rerun()
+        
+        with col2:
+            if st.button("📰 SERP Analysis", key="fp_sa", use_container_width=True):
+                st.session_state.current_page = "serp_analysis"
+                st.rerun()
+            
+            if st.button("🧾 Content Optimization", key="fp_co", use_container_width=True):
+                st.session_state.current_page = "content_optimization"
+                st.rerun()
+            
+            if st.button("💰 Conversion Mapping", key="fp_cm", use_container_width=True):
+                st.session_state.current_page = "conversion_mapping"
+                st.rerun()
+            
+            if st.button("🌐 Industry Focus", key="fp_if", use_container_width=True):
+                st.session_state.current_page = "industry_focus"
+                st.rerun()
+            
+            if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
+                st.session_state.current_page = "full_strategy"
+                st.rerun()
+
+# ------------------------- UTILITY FUNCTIONS -------------------------
+def update_global_metrics(keyword_results):
+    """Update global metrics based on keyword analysis results"""
+    if keyword_results:
+        df = pd.DataFrame(keyword_results) if isinstance(keyword_results, list) else keyword_results
+        
+        # Update total keywords
+        current_total = st.session_state.get("total_keywords", 0)
+        st.session_state.total_keywords = current_total + len(df)
+        
+        # Update average volume
+        if 'volume' in df.columns:
+            current_avg = st.session_state.get("avg_volume", 0)
+            new_avg = df['volume'].mean()
+            # Calculate weighted average
+            total_count = st.session_state.total_keywords
+            if total_count > 0:
+                st.session_state.avg_volume = (current_avg * (total_count - len(df)) + new_avg * len(df)) / total_count
+        
+        # Update opportunities (keywords with high scores)
+        if 'score' in df.columns:
+            high_score_keywords = len(df[df['score'] > 7.0])  # Assuming score > 7 is high opportunity
+            current_opps = st.session_state.get("opportunities", 0)
+            st.session_state.opportunities = current_opps + high_score_keywords
+        
+        # Update trend score
+        if 'score' in df.columns:
+            current_trend = st.session_state.get("trend_score", 0)
+            new_trend = df['score'].mean()
+            # Calculate weighted average
+            total_count = st.session_state.total_keywords
+            if total_count > 0:
+                st.session_state.trend_score = (current_trend * (total_count - len(df)) + new_trend * len(df)) / total_count
+
+# ------------------------- NEW PAGE FUNCTIONS -------------------------
+def render_keyword_discovery():
+    """🔍 Keyword Discovery: Find, rank, and score keywords"""
+    st.markdown("### 🔍 Keyword Discovery")
+    st.markdown("Find, rank, and score keywords with comprehensive metrics and trend analysis.")
+    
+    # Input bar
+    col1, col2, col3 = st.columns([3, 1, 1])
+    
+    with col1:
+        keyword_input = st.text_input(
+            "Enter a seed keyword or topic:",
+            placeholder="e.g., 'AI tools', 'fitness apps', 'digital marketing'",
+            key="keyword_discovery_input"
+        )
+    
+    with col2:
+        analysis_mode = st.selectbox(
+            "Mode:",
+            ["Quick (5)", "Standard (15)", "Full (30)", "Comprehensive (50)"],
+            key="discovery_mode"
+        )
+    
+    with col3:
+        if st.button("🚀 Analyze", type="primary", use_container_width=True):
+            if keyword_input:
+                keyword_limit = {
+                    "Quick (5)": 5, 
+                    "Standard (15)": 15, 
+                    "Full (30)": 30,
+                    "Comprehensive (50)": 50
+                }[analysis_mode]
+                
+                with st.spinner(f"Analyzing {keyword_limit} keywords..."):
+                    try:
+                        if keyword_limit <= 5:
+                            results = cached_run_lightweight_agent(keyword_input, keyword_limit)
+                        else:
+                            results = cached_run_agent(keyword_input, keyword_limit)
+                        
+                        if results and len(results) > 0:
+                            st.session_state.keyword_results = results[:keyword_limit]
+                            st.session_state.selected_keyword = keyword_input
+                            
+                            # Update global metrics
+                            update_global_metrics(results[:keyword_limit])
+                            
+                            st.success(f"✅ Analyzed {len(results[:keyword_limit])} keywords!")
+                        else:
+                            st.error("❌ No keywords found. Please try a different term.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter a keyword first.")
+    
+    # Display results
+    if "keyword_results" in st.session_state and st.session_state.keyword_results:
+        results = st.session_state.keyword_results
+        df = pd.DataFrame(results) if isinstance(results, list) else results
+        
+        # Metrics table
+        st.markdown("#### 📊 Metrics Table")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # Trend graph
+        if 'volume' in df.columns and 'score' in df.columns:
+            st.markdown("#### 📈 Trend Graph")
+            fig = px.scatter(
+                df.head(20), 
+                x='volume', 
+                y='score',
+                hover_data=['keyword', 'difficulty'],
+                title="Volume vs Score Analysis",
+                color='score',
+                color_continuous_scale='Blues'
+            )
+            fig.update_layout(
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(family="Inter", size=12)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+def render_competitor_gap():
+    """🧩 Competitor Gap: Compare your keywords vs. competitors"""
+    st.markdown("### 🧩 Competitor Gap Analysis")
+    st.markdown("Compare your keywords against competitors to find missing opportunities.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        your_keyword = st.text_input(
+            "Your keyword:",
+            placeholder="e.g., 'project management software'",
+            key="your_keyword"
+        )
+    
+    with col2:
+        competitor_keyword = st.text_input(
+            "Competitor keyword:",
+            placeholder="e.g., 'task management tools'",
+            key="competitor_keyword"
+        )
+    
+    if st.button("🔍 Analyze Gap", type="primary"):
+        if your_keyword and competitor_keyword:
+            with st.spinner("Analyzing competitor gaps..."):
+                try:
+                    results = cached_analyze_competitor_gap(your_keyword)
+                    if results and "error" not in results:
+                        st.session_state.competitor_results = results
+                        st.success("✅ Competitor analysis complete!")
+                    else:
+                        st.warning("⚠️ Analysis completed but no competitor data found.")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+        else:
+            st.warning("⚠️ Please enter both keywords.")
+    
+    # Display results
+    if "competitor_results" in st.session_state and st.session_state.competitor_results:
+        results = st.session_state.competitor_results
+        
+        if "opportunities" in results and results["opportunities"]:
+            st.markdown("#### 🎯 Missing Keyword List")
+            for i, opp in enumerate(results["opportunities"][:10]):
+                with st.expander(f"#{i+1} {opp['keyword']} (Score: {opp['gap_score']})"):
+                    st.markdown(f"**Opportunity Type:** {opp['opportunity_type']}")
+                    st.markdown(f"**Traffic Potential:** {opp['traffic_potential']}")
+                    st.markdown(f"**Reasoning:** {opp['reasoning']}")
+        
+        # Bar chart
+        if "opportunities" in results and results["opportunities"]:
+            st.markdown("#### 📊 Gap Analysis Chart")
+            gap_data = []
+            for opp in results["opportunities"][:10]:
+                gap_data.append({
+                    "Keyword": opp['keyword'][:20] + "...",
+                    "Gap Score": opp['gap_score'],
+                    "Traffic Potential": opp['traffic_potential']
+                })
+            
+            if gap_data:
+                df_gap = pd.DataFrame(gap_data)
+                fig = px.bar(
+                    df_gap,
+                    x="Keyword",
+                    y="Gap Score",
+                    title="Top Keyword Gaps",
+                    color="Gap Score",
+                    color_continuous_scale="Reds"
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(family="Inter", size=12)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+def render_search_intent():
+    """🎯 Search Intent: Identify intent behind queries"""
+    st.markdown("### 🎯 Search Intent Analysis")
+    st.markdown("Identify the intent behind search queries to optimize content strategy.")
+    
+    # Keyword list input
+    keywords_text = st.text_area(
+        "Enter keywords (one per line):",
+        placeholder="AI tools\nbest project management software\nhow to use AI\nproject management tips",
+        height=150,
+        key="intent_keywords"
+    )
+    
+    if st.button("🎯 Analyze Intent", type="primary"):
+        if keywords_text:
+            keywords = [kw.strip() for kw in keywords_text.split('\n') if kw.strip()]
+            if keywords:
+                with st.spinner("Analyzing search intent..."):
+                    try:
+                        # Use AI to analyze intent
+                        intent_results = []
+                        for keyword in keywords[:10]:  # Limit to 10 for performance
+                            prompt = f"Analyze the search intent for the keyword '{keyword}'. Return the intent type (informational, navigational, transactional, commercial) and a short reasoning (max 50 words)."
+                            response = safe_gemini_call(prompt)
+                            
+                            # Parse response
+                            intent_type = "informational"  # default
+                            reasoning = response
+                            
+                            if "transactional" in response.lower():
+                                intent_type = "transactional"
+                            elif "navigational" in response.lower():
+                                intent_type = "navigational"
+                            elif "commercial" in response.lower():
+                                intent_type = "commercial"
+                            
+                            intent_results.append({
+                                "keyword": keyword,
+                                "intent_type": intent_type,
+                                "reasoning": reasoning[:100] + "..." if len(reasoning) > 100 else reasoning
+                            })
+                        
+                        st.session_state.intent_results = intent_results
+                        st.success(f"✅ Analyzed intent for {len(intent_results)} keywords!")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter at least one keyword.")
+        else:
+            st.warning("⚠️ Please enter keywords to analyze.")
+    
+    # Display results
+    if "intent_results" in st.session_state and st.session_state.intent_results:
+        results = st.session_state.intent_results
+        
+        st.markdown("#### 🎯 Intent Analysis Results")
+        for result in results:
+            intent_color = {
+                "informational": "🔵",
+                "navigational": "🟢", 
+                "transactional": "🔴",
+                "commercial": "🟡"
+            }.get(result["intent_type"], "⚪")
+            
+            st.markdown(f"""
+            **{intent_color} {result['keyword']}**
+            - **Intent Type:** {result['intent_type'].title()}
+            - **Reasoning:** {result['reasoning']}
+            """)
+            st.divider()
+
+def render_topic_clustering():
+    """🧠 Topic Clustering: Group related keywords"""
+    st.markdown("### 🧠 Topic Clustering")
+    st.markdown("Group related keywords into semantic clusters for better content strategy.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        cluster_keyword = st.text_input(
+            "Enter seed keyword for clustering:",
+            placeholder="e.g., 'AI tools', 'fitness apps'",
+            key="cluster_keyword_new"
+        )
+    
+    with col2:
+        if st.button("🧠 Cluster Topics", type="primary", use_container_width=True):
+            if cluster_keyword:
+                with st.spinner("Clustering topics..."):
+                    try:
+                        keywords = cached_run_lightweight_agent(cluster_keyword, 15)
+                        if keywords and len(keywords) > 0:
+                            results = cached_cluster_keywords_semantically(keywords)
+                            if results and "clusters" in results and len(results["clusters"]) > 0:
+                                st.session_state.cluster_results = results
+                                st.success(f"✅ Found {len(results['clusters'])} topic clusters!")
+                            else:
+                                st.warning("⚠️ No clusters found. Try a different keyword.")
+                        else:
+                            st.error("❌ No keywords found for clustering.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter a keyword first.")
+    
+    # Display results
+    if "cluster_results" in st.session_state and st.session_state.cluster_results:
+        results = st.session_state.cluster_results
+        
+        if "clusters" in results and results["clusters"]:
+            st.markdown("#### 🎯 Topic Clusters")
+            
+            # Cluster visualization
+            cluster_data = []
+            for i, cluster in enumerate(results["clusters"]):
+                cluster_data.append({
+                    "Cluster": f"Cluster {i+1}",
+                    "Keywords": cluster['keyword_count'],
+                    "Opportunity Score": cluster['opportunity_score']
+                })
+            
+            if cluster_data:
+                df_clusters = pd.DataFrame(cluster_data)
+                fig = px.bar(
+                    df_clusters,
+                    x="Cluster",
+                    y="Opportunity Score",
+                    title="Cluster Opportunity Scores",
+                    color="Opportunity Score",
+                    color_continuous_scale="Viridis"
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(family="Inter", size=12)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Grouped tables
+            for i, cluster in enumerate(results["clusters"]):
+                with st.expander(f"#{i+1} {cluster['cluster_name']} ({cluster['keyword_count']} keywords)"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown(f"**Description:** {cluster['description']}")
+                        st.markdown(f"**Intent:** {cluster['primary_intent']}")
+                        st.markdown(f"**Industry:** {cluster['industry_focus']}")
+                    
+                    with col2:
+                        st.markdown("**Keywords:**")
+                        for kw in cluster['keywords'][:8]:
+                            st.markdown(f"- {kw}")
+
+def render_trend_forecasting():
+    """📈 Trend Forecasting: Predict keyword trends"""
+    st.markdown("### 📈 Trend Forecasting")
+    st.markdown("Predict keyword trends with 6-month forecasts and seasonal analysis.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        trend_keyword = st.text_input(
+            "Enter keyword for trend analysis:",
+            placeholder="e.g., 'AI tools', 'remote work'",
+            key="trend_keyword_new"
+        )
+    
+    with col2:
+        if st.button("📈 Forecast Trends", type="primary", use_container_width=True):
+            if trend_keyword:
+                with st.spinner("Analyzing trends..."):
+                    try:
+                        keywords = cached_run_lightweight_agent(trend_keyword, 8)
+                        if keywords:
+                            results = cached_analyze_trend_forecasting(keywords)
+                            st.session_state.trend_results = results
+                            st.success("✅ Trend analysis complete!")
+                        else:
+                            st.error("❌ No keywords found for trend analysis.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter a keyword first.")
+    
+    # Display results
+    if "trend_results" in st.session_state and st.session_state.trend_results:
+        results = st.session_state.trend_results
+        
+        # Line graph
+        if "forecasts" in results and results["forecasts"]:
+            st.markdown("#### 📊 Trend Forecasts")
+            
+            for keyword, forecast in list(results["forecasts"].items())[:3]:
+                with st.expander(f"📈 {keyword} - {forecast['trend_direction']}"):
+                    st.markdown(f"**Predicted Growth:** {forecast['predicted_growth']}%")
+                    st.markdown(f"**Recommendation:** {forecast['recommendation']}")
+                    
+                    # Forecast chart
+                    if "forecast_scores" in forecast:
+                        forecast_df = pd.DataFrame(forecast["forecast_scores"])
+                        fig = px.line(
+                            forecast_df,
+                            x="month",
+                            y="score",
+                            title=f"6-Month Forecast: {keyword}",
+                            markers=True
+                        )
+                        fig.update_layout(
+                            plot_bgcolor='white',
+                            paper_bgcolor='white',
+                            font=dict(family="Inter", size=12)
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+        
+        # Seasonal peaks
+        if "seasonal_analysis" in results and results["seasonal_analysis"]:
+            st.markdown("#### 🗓️ Seasonal Peaks")
+            
+            for keyword, analysis in list(results["seasonal_analysis"].items())[:3]:
+                st.markdown(f"""
+                **{keyword}**
+                - Peak Season: Month {analysis['peak_season']}
+                - Low Season: Month {analysis['low_season']}
+                - Growth %: {analysis.get('growth_rate', 'N/A')}%
+                - Recommendation: {analysis['recommendation']}
+                """)
+                st.divider()
+
+def render_serp_analysis():
+    """📰 SERP Analysis: Show snippets & top-ranking pages"""
+    st.markdown("### 📰 SERP Analysis")
+    st.markdown("Analyze search engine results pages for optimization opportunities.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        serp_keyword = st.text_input(
+            "Enter keyword for SERP analysis:",
+            placeholder="e.g., 'best project management tools'",
+            key="serp_keyword_new"
+        )
+    
+    with col2:
+        if st.button("📊 Analyze SERP", type="primary", use_container_width=True):
+            if serp_keyword:
+                with st.spinner("Analyzing SERP opportunities..."):
+                    try:
+                        results = cached_analyze_serp_opportunities(serp_keyword)
+                        if results and "error" not in results:
+                            st.session_state.serp_results = results
+                            st.success("✅ SERP analysis complete!")
+                        else:
+                            st.warning("⚠️ Analysis completed but limited data available.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter a keyword first.")
+    
+    # Display results
+    if "serp_results" in st.session_state and st.session_state.serp_results:
+        results = st.session_state.serp_results
+        
+        # SERP preview cards
+        if "serp_data" in results and results["serp_data"]:
+            st.markdown("#### 🔍 Top-Ranking Pages")
+            
+            for i, result in enumerate(results["serp_data"][:5]):
+                with st.expander(f"#{i+1} {result.get('title', 'No title')[:50]}..."):
+                    st.markdown(f"**URL:** {result.get('link', 'No URL')}")
+                    st.markdown(f"**Snippet:** {result.get('snippet', 'No snippet')[:200]}...")
+                    st.markdown(f"**Domain:** {result.get('domain', 'Unknown')}")
+        
+        # Featured snippets
+        if "featured_snippets" in results and results["featured_snippets"]:
+            st.markdown("#### ⭐ Featured Snippets")
+            
+            for snippet in results["featured_snippets"][:3]:
+                st.markdown(f"""
+                **{snippet.get('title', 'Featured Snippet')}**
+                {snippet.get('content', 'No content available')}
+                """)
+                st.divider()
+        
+        # PAA questions
+        if "paa_questions" in results and results["paa_questions"]:
+            paa = results["paa_questions"]
+            
+            if paa.get("questions"):
+                st.markdown("#### ❓ People Also Ask Questions")
+                
+                for q in paa["questions"][:5]:
+                    st.markdown(f"**Q:** {q['question']}")
+                    st.markdown(f"**A:** {q['snippet'][:150]}...")
+                    st.markdown(f"**Content Idea:** {q['content_idea']}")
+                    st.divider()
+
+def render_content_optimization():
+    """🧾 Content Optimization: Suggest meta tags, missing topics"""
+    st.markdown("### 🧾 Content Optimization")
+    st.markdown("Get AI-powered suggestions for meta tags and missing content topics.")
+    
+    # Text area for content
+    content_text = st.text_area(
+        "Enter your content or topic:",
+        placeholder="Paste your article content or describe your topic here...",
+        height=200,
+        key="content_optimization_input"
+    )
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        content_type = st.selectbox(
+            "Content Type:",
+            ["Blog Post", "Product Page", "Landing Page", "Article", "Guide"],
+            key="content_type"
+        )
+    
+    with col2:
+        if st.button("🧾 Optimize Content", type="primary", use_container_width=True):
+            if content_text:
+                with st.spinner("Generating optimization suggestions..."):
+                    try:
+                        prompt = f"""
+                        Analyze this {content_type.lower()} content and provide optimization suggestions:
+                        
+                        Content: {content_text[:1000]}...
+                        
+                        Please provide:
+                        1. Meta title suggestions (3 options)
+                        2. Meta description suggestions (3 options)
+                        3. Missing topics to cover
+                        4. Keyword optimization tips
+                        5. Content structure improvements
+                        
+                        Format as a structured response.
+                        """
+                        
+                        response = safe_gemini_call(prompt)
+                        st.session_state.optimization_results = response
+                        st.success("✅ Content optimization complete!")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter content to optimize.")
+    
+    # Display results
+    if "optimization_results" in st.session_state and st.session_state.optimization_results:
+        results = st.session_state.optimization_results
+        
+        st.markdown("#### 🎯 AI Suggestions")
+        st.markdown(results)
+
+def render_conversion_mapping():
+    """💰 Conversion Mapping: Rank by CPC, buyer intent"""
+    st.markdown("### 💰 Conversion Mapping")
+    st.markdown("Rank keywords by CPC and buyer intent for maximum ROI.")
+    
+    # Get keyword data
+    if "keyword_results" in st.session_state and st.session_state.keyword_results:
+        df = pd.DataFrame(st.session_state.keyword_results)
+        
+        if 'cpc' in df.columns and 'score' in df.columns:
+            # Calculate ROI potential
+            df['roi_potential'] = df['score'] / (df['cpc'] + 0.01)  # Avoid division by zero
+            
+            # Sort by ROI potential
+            df_sorted = df.sort_values('roi_potential', ascending=False)
+            
+            st.markdown("#### 📊 ROI Potential Ranking")
+            
+            # Table sorted by ROI potential
+            st.dataframe(
+                df_sorted[['keyword', 'volume', 'cpc', 'score', 'roi_potential']].head(20),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # ROI chart
+            fig = px.bar(
+                df_sorted.head(15),
+                x="keyword",
+                y="roi_potential",
+                title="Top Keywords by ROI Potential",
+                color="roi_potential",
+                color_continuous_scale="Greens"
+            )
+            fig.update_layout(
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(family="Inter", size=12),
+                xaxis_tickangle=-45
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ CPC data not available. Run keyword analysis first.")
+    else:
+        st.info("💡 Run keyword analysis first to see conversion mapping data.")
+        
+        # Quick keyword input for conversion analysis
+        quick_keyword = st.text_input(
+            "Enter keyword for quick conversion analysis:",
+            placeholder="e.g., 'buy project management software'",
+            key="conversion_keyword"
+        )
+        
+        if st.button("💰 Analyze Conversion", type="primary"):
+            if quick_keyword:
+                with st.spinner("Analyzing conversion potential..."):
+                    try:
+                        keywords = cached_run_lightweight_agent(quick_keyword, 10)
+                        if keywords:
+                            df = pd.DataFrame(keywords)
+                            if 'cpc' in df.columns:
+                                df['roi_potential'] = df['score'] / (df['cpc'] + 0.01)
+                                df_sorted = df.sort_values('roi_potential', ascending=False)
+                                
+                                st.markdown("#### 📊 Conversion Analysis Results")
+                                st.dataframe(
+                                    df_sorted[['keyword', 'volume', 'cpc', 'score', 'roi_potential']],
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+                            else:
+                                st.warning("⚠️ CPC data not available for this keyword.")
+                        else:
+                            st.error("❌ No keywords found.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+
+def render_industry_focus():
+    """🌐 Industry Focus: Select industry → get tailored keyword set"""
+    st.markdown("### 🌐 Industry Focus")
+    st.markdown("Get tailored keyword sets and insights for your specific industry.")
+    
+    # Industry dropdown
+    industry = st.selectbox(
+        "Select Industry:",
+        [
+            "Technology", "Healthcare", "Finance", "Education", "E-commerce",
+            "Marketing", "Real Estate", "Travel", "Food & Beverage", "Fashion",
+            "Automotive", "Sports", "Entertainment", "Legal", "Consulting"
+        ],
+        key="industry_selection"
+    )
+    
+    if st.button("🌐 Get Industry Insights", type="primary"):
+        with st.spinner(f"Generating {industry} keyword insights..."):
+            try:
+                # Generate industry-specific keywords
+                prompt = f"""
+                Generate 20 high-value keywords for the {industry} industry. 
+                Include a mix of informational, commercial, and transactional keywords.
+                Focus on current trends and opportunities in {industry}.
+                """
+                
+                response = safe_gemini_call(prompt)
+                
+                # Parse and structure the response
+                keywords = []
+                lines = response.split('\n')
+                for line in lines:
+                    if line.strip() and not line.startswith('#') and not line.startswith('*'):
+                        keyword = line.strip().replace('-', '').replace('•', '').strip()
+                        if keyword and len(keyword) > 3:
+                            keywords.append(keyword)
+                
+                if keywords:
+                    st.session_state.industry_keywords = keywords[:15]
+                    st.success(f"✅ Generated {len(keywords[:15])} {industry} keywords!")
+                else:
+                    st.warning("⚠️ Could not parse keywords from response.")
+                    
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+    
+    # Display results
+    if "industry_keywords" in st.session_state and st.session_state.industry_keywords:
+        keywords = st.session_state.industry_keywords
+        
+        st.markdown(f"#### 🎯 {industry} Keywords")
+        
+        # Insights cards
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="summary-card">
+                <div class="summary-card-icon">🎯</div>
+                <div class="summary-card-title">Target Keywords</div>
+                <div class="summary-card-value">{}</div>
+                <div class="summary-card-desc">Industry-specific</div>
+            </div>
+            """.format(len(keywords)), unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="summary-card">
+                <div class="summary-card-icon">📈</div>
+                <div class="summary-card-title">Growth Potential</div>
+                <div class="summary-card-value">High</div>
+                <div class="summary-card-desc">Trending in {}</div>
+            </div>
+            """.format(industry), unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="summary-card">
+                <div class="summary-card-icon">💰</div>
+                <div class="summary-card-title">ROI Potential</div>
+                <div class="summary-card-value">Strong</div>
+                <div class="summary-card-desc">Industry-focused</div>
+    </div>
+    """, unsafe_allow_html=True)
+        
+        # Keyword list
+        st.markdown("#### 📋 Recommended Keywords")
+        for i, keyword in enumerate(keywords, 1):
+            st.markdown(f"{i}. **{keyword}**")
+        
+        # Industry insights
+        st.markdown("#### 💡 Industry Insights")
+        st.info(f"""
+        **{industry} Industry Focus:**
+        - These keywords are specifically tailored for the {industry} sector
+        - Focus on industry-specific terminology and trends
+        - Consider seasonal patterns and industry events
+        - Monitor competitor activity in this space
+        """)
+
+def render_full_strategy():
+    """🧩 Full Strategy: Run all modules together"""
+    st.markdown("### 🧩 Full Strategy Analysis")
+    st.markdown("Run all modules together for comprehensive SEO strategy.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        strategy_keyword = st.text_input(
+            "Enter main keyword for full strategy:",
+            placeholder="e.g., 'project management software'",
+            key="strategy_keyword"
+        )
+    
+    with col2:
+        if st.button("🧩 Run Full Strategy", type="primary", use_container_width=True):
+            if strategy_keyword:
+                with st.spinner("Running comprehensive analysis..."):
+                    try:
+                        # Run multiple analyses
+                        progress_bar = st.progress(0)
+                        
+                        # 1. Keyword Discovery
+                        st.info("🔍 Running Keyword Discovery...")
+                        keywords = cached_run_lightweight_agent(strategy_keyword, 20)
+                        progress_bar.progress(20)
+                        
+                        # 2. Competitor Analysis
+                        st.info("🧩 Running Competitor Gap Analysis...")
+                        competitor_results = cached_analyze_competitor_gap(strategy_keyword)
+                        progress_bar.progress(40)
+                        
+                        # 3. Topic Clustering
+                        st.info("🧠 Running Topic Clustering...")
+                        cluster_results = cached_cluster_keywords_semantically(keywords) if keywords else None
+                        progress_bar.progress(60)
+                        
+                        # 4. Trend Forecasting
+                        st.info("📈 Running Trend Forecasting...")
+                        trend_results = cached_analyze_trend_forecasting(keywords) if keywords else None
+                        progress_bar.progress(80)
+                        
+                        # 5. SERP Analysis
+                        st.info("📰 Running SERP Analysis...")
+                        serp_results = cached_analyze_serp_opportunities(strategy_keyword)
+                        progress_bar.progress(100)
+                        
+                        # Store results
+                        st.session_state.strategy_results = {
+                            "keyword": strategy_keyword,
+                            "keywords": keywords,
+                            "competitor": competitor_results,
+                            "clusters": cluster_results,
+                            "trends": trend_results,
+                            "serp": serp_results
+                        }
+                        
+                        st.success("✅ Full strategy analysis complete!")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("⚠️ Please enter a keyword first.")
+    
+    # Display results
+    if "strategy_results" in st.session_state and st.session_state.strategy_results:
+        results = st.session_state.strategy_results
+        
+        # Multi-output dashboard with expandable sections
+        st.markdown("#### 📊 Comprehensive Strategy Dashboard")
+        
+        # Summary
+        with st.expander("📋 Executive Summary", expanded=True):
+            st.markdown(f"""
+            **Keyword:** {results['keyword']}
+            **Total Keywords Found:** {len(results['keywords']) if results['keywords'] else 0}
+            **Competitor Opportunities:** {len(results['competitor'].get('opportunities', [])) if results['competitor'] and 'opportunities' in results['competitor'] else 0}
+            **Topic Clusters:** {len(results['clusters'].get('clusters', [])) if results['clusters'] and 'clusters' in results['clusters'] else 0}
+            **Trend Analysis:** {'✅ Complete' if results['trends'] else '❌ Failed'}
+            **SERP Analysis:** {'✅ Complete' if results['serp'] else '❌ Failed'}
+            """)
+        
+        # Keyword Discovery Results
+        if results['keywords']:
+            with st.expander("🔍 Keyword Discovery Results"):
+                df = pd.DataFrame(results['keywords'])
+                st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+        
+        # Competitor Gap Results
+        if results['competitor'] and 'opportunities' in results['competitor']:
+            with st.expander("🧩 Competitor Gap Opportunities"):
+                for i, opp in enumerate(results['competitor']['opportunities'][:5]):
+                    st.markdown(f"**{i+1}. {opp['keyword']}** - Score: {opp['gap_score']}")
+        
+        # Topic Clusters
+        if results['clusters'] and 'clusters' in results['clusters']:
+            with st.expander("🧠 Topic Clusters"):
+                for i, cluster in enumerate(results['clusters']['clusters'][:3]):
+                    st.markdown(f"**{i+1}. {cluster['cluster_name']}** ({cluster['keyword_count']} keywords)")
+        
+        # Trend Analysis
+        if results['trends'] and 'forecasts' in results['trends']:
+            with st.expander("📈 Trend Forecasts"):
+                for keyword, forecast in list(results['trends']['forecasts'].items())[:3]:
+                    st.markdown(f"**{keyword}:** {forecast['trend_direction']} ({forecast['predicted_growth']}%)")
+        
+        # SERP Analysis
+        if results['serp'] and 'serp_data' in results['serp']:
+            with st.expander("📰 SERP Analysis"):
+                st.markdown(f"**Top Results:** {len(results['serp']['serp_data'])} pages analyzed")
+                if results['serp']['serp_data']:
+                    st.markdown(f"**Top Result:** {results['serp']['serp_data'][0].get('title', 'No title')}")
 
 # ------------------------- CHAT INTERFACE -------------------------
 def render_chat_interface():
@@ -462,11 +1743,11 @@ def render_keyword_analysis():
                         else:
                             # Use lightweight agent for smaller sets, full agent for larger sets
                             if keyword_limit <= 5:
-                                results = run_lightweight_agent(keyword_input, keyword_limit)
+                                results = cached_run_lightweight_agent(keyword_input, keyword_limit)
                             elif keyword_limit <= 30:
-                                results = run_agent(keyword_input, keyword_limit)
+                                results = cached_run_agent(keyword_input, keyword_limit)
                             else:  # 50 keywords
-                                results = run_agent(keyword_input, keyword_limit)
+                                results = cached_run_agent(keyword_input, keyword_limit)
                             
                             if results and len(results) > 0:
                                 # Limit results based on mode
@@ -627,7 +1908,7 @@ def render_competitor_analysis():
                 with st.spinner("Analyzing competitor gaps..."):
                     try:
                         # Add timeout and better error handling
-                        results = analyze_competitor_keyword_gap(competitor_keyword)
+                        results = cached_analyze_competitor_gap(competitor_keyword)
                         if results and "error" not in results:
                             st.session_state.competitor_results = results
                             st.success("✅ Competitor analysis complete!")
@@ -705,7 +1986,7 @@ def render_serp_analysis():
                     try:
                         st.info("🔄 Fetching SERP data...")
                         # Add timeout and better error handling
-                        results = analyze_serp_opportunities(serp_keyword)
+                        results = cached_analyze_serp_opportunities(serp_keyword)
                         
                         if results and "error" not in results:
                             st.session_state.serp_results = results
@@ -804,7 +2085,7 @@ def render_topic_clustering():
                     try:
                         # Use lightweight agent for faster clustering
                         st.info("🔄 Generating keywords for clustering...")
-                        keywords = run_lightweight_agent(cluster_keyword, 10)
+                        keywords = cached_run_lightweight_agent(cluster_keyword, 10)
                         
                         if keywords and len(keywords) > 0:
                             st.info(f"✅ Generated {len(keywords)} keywords. Now clustering...")
@@ -817,7 +2098,7 @@ def render_topic_clustering():
                                 st.warning(f"⚠️ Database save failed: {db_error}")
                             
                             # Then cluster them with error handling
-                            results = cluster_keywords_semantically(keywords)
+                            results = cached_cluster_keywords_semantically(keywords)
                             
                             if results and "clusters" in results and len(results["clusters"]) > 0:
                                 st.session_state.cluster_results = results
@@ -912,10 +2193,10 @@ def render_trend_forecasting():
                 with st.spinner("Analyzing trends..."):
                     try:
                         # Use lightweight agent for faster trend analysis
-                        keywords = run_lightweight_agent(trend_keyword, 8)
+                        keywords = cached_run_lightweight_agent(trend_keyword, 8)
                         if keywords:
                             # Then analyze trends
-                            results = analyze_trend_forecasting(keywords)
+                            results = cached_analyze_trend_forecasting(keywords)
                             st.session_state.trend_results = results
                             st.success("✅ Trend analysis complete!")
                         else:
@@ -1100,9 +2381,9 @@ def render_search_history():
             st.error(f"❌ Error loading history: {str(e)}")
             st.info("💡 Make sure your MySQL database is running and properly configured")
 
-# ------------------------- PERFORMANCE OPTIMIZATION -------------------------
-def optimize_performance():
-    """Optimize app performance by reducing API calls and improving caching."""
+# ------------------------- API STATUS CHECK -------------------------
+def check_api_status():
+    """Check API keys status."""
     
     # Check API keys
     api_status = {
@@ -1118,7 +2399,7 @@ def test_api_quick():
         # Test Gemini
         gemini_key = os.getenv("GEMINI_API_KEY")
         if gemini_key:
-            model = genai.GenerativeModel("gemini-2.0-flash-lite")
+            model = genai.GenerativeModel("gemini-2.5-flash")
             result = model.generate_content("test")
             gemini_ok = hasattr(result, "text")
         else:
@@ -1141,25 +2422,27 @@ def test_api_quick():
 
 # ------------------------- ERROR HANDLING -------------------------
 def handle_api_errors():
-    """Display API status and troubleshooting tips."""
-    api_status = optimize_performance()
+    """Display API status."""
+    api_status = check_api_status()
     
     if not api_status["GEMINI_API_KEY"]:
         st.error("⚠️ **GEMINI_API_KEY not found!** Please add it to your .env file.")
-        st.info("💡 **Troubleshooting:**\n1. Create a .env file in your project root\n2. Add: `GEMINI_API_KEY=your_api_key_here`\n3. Restart the application")
     
     if not api_status["SERPAPI_KEY"]:
         st.warning("⚠️ **SERPAPI_KEY not found!** Some features may not work properly.")
-        st.info("💡 **Troubleshooting:**\n1. Get a free API key from serpapi.com\n2. Add: `SERPAPI_KEY=your_api_key_here` to .env\n3. Restart the application")
 
 # ------------------------- MAIN APP -------------------------
 def main():
     # Initialize session state
-    if "current_tab" not in st.session_state:
-        st.session_state.current_tab = "Chat Assistant"
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "home"
+    
+    # Initialize daily requests counter
+    if "daily_requests" not in st.session_state:
+        st.session_state.daily_requests = 0
     
     # Check API status and show warnings
-    api_status = optimize_performance()
+    api_status = check_api_status()
     api_test = test_api_quick()
     
     if not api_status["GEMINI_API_KEY"] or not api_status["SERPAPI_KEY"]:
@@ -1173,69 +2456,60 @@ def main():
             
             if not api_test["serpapi"]:
                 st.warning("🔑 **SerpApi Issue:** Your account has run out of searches!")
-                st.info("💡 **Solutions:**\n1. Add credits to your SerpApi account at serpapi.com\n2. Use a different SerpApi key with available credits\n3. SERP Analysis and Competitor Analysis will be unavailable until fixed")
                 st.success("✅ **Working Features:** Keyword Analysis, Topic Clustering, Trend Forecasting, Chat Assistant")
-            else:
-                st.info("💡 **Solutions:**\n1. Check your internet connection\n2. Verify API keys are correct\n3. Check your API account credits\n4. Try restarting the app")
     
     # Render sidebar
     render_sidebar()
     
-    # Render header
-    render_header()
+    # Top right navigation buttons (vertically stacked)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
-    # Main tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "💬 Chat Assistant",
-        "🔍 Keyword Analysis", 
-        "🕵️ Competitor Analysis",
-        "📊 SERP Analysis",
-        "🧩 Topic Clustering",
-        "📈 Trend Forecasting",
-        "📂 Search History"
-    ])
+    with col5:
+        if st.button("🏠 Home", use_container_width=True):
+            st.session_state.current_page = "home"
+            st.rerun()
+        
+        toggle_text = "Hide Features" if st.session_state.get("panel_open", False) else "Show Features"
+        if st.button(toggle_text, use_container_width=True):
+            st.session_state.panel_open = not st.session_state.get("panel_open", False)
+            st.rerun()
     
-    with tab1:
-        render_chat_interface()
+    # Render floating panel
+    render_floating_panel()
     
-    with tab2:
-        render_keyword_analysis()
+    # Main content area
+    current_page = st.session_state.current_page
     
-    with tab3:
-        render_competitor_analysis()
-    
-    with tab4:
-        render_serp_analysis()
-    
-    with tab5:
+    if current_page == "home":
+        render_home_overview()
+    elif current_page == "keyword_discovery":
+        render_keyword_discovery()
+    elif current_page == "competitor_gap":
+        render_competitor_gap()
+    elif current_page == "search_intent":
+        render_search_intent()
+    elif current_page == "topic_clustering":
         render_topic_clustering()
-    
-    with tab6:
+    elif current_page == "trend_forecasting":
         render_trend_forecasting()
-    
-    with tab7:
+    elif current_page == "serp_analysis":
+        render_serp_analysis()
+    elif current_page == "content_optimization":
+        render_content_optimization()
+    elif current_page == "conversion_mapping":
+        render_conversion_mapping()
+    elif current_page == "industry_focus":
+        render_industry_focus()
+    elif current_page == "full_strategy":
+        render_full_strategy()
+    elif current_page == "chat":
+        render_chat_interface()
+    elif current_page == "search_history":
         render_search_history()
+    else:
+        render_home_overview()
     
-    # Performance tips
-    with st.expander("🚀 Performance Tips", expanded=False):
-        st.markdown("""
-        **To improve performance:**
-        
-        🔧 **API Configuration:**
-        - Ensure all API keys are properly set in .env file
-        - Use 'Quick' mode for faster keyword analysis
-        - Check your internet connection for API timeouts
-        
-        ⚡ **Optimization:**
-        - Results are cached during your session
-        - Use simpler keywords for faster processing
-        - Try one feature at a time to avoid API limits
-        
-        🛠️ **Troubleshooting:**
-        - If analysis fails, try a different keyword
-        - Check the browser console for detailed error messages
-        - Restart the app if you encounter persistent issues
-        """)
+    
 
 if __name__ == "__main__":
     main()

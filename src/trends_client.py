@@ -2,7 +2,7 @@
 import time
 import random
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 from sqlalchemy import text
 from pytrends.request import TrendReq

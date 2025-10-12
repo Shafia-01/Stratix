@@ -1,5 +1,4 @@
 # intent_classifier.py
-import re
 import random
 from dotenv import load_dotenv
 from src.db_client import get_cached_intent, save_intent_to_db

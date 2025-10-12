@@ -1,5 +1,4 @@
 # topic_clusterer.py
-import re
 from collections import defaultdict
 from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call

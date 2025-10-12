@@ -1,5 +1,4 @@
 # lightweight_agent.py
-import os
 import random
 import time
 import pandas as pd
