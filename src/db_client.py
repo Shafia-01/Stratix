@@ -78,8 +78,40 @@ def save_to_db(data):
             import json
             df['competitors'] = df['competitors'].apply(lambda x: json.dumps(x) if isinstance(x, list) else json.dumps([]))
         
-        df.to_sql("keywords", con=engine, if_exists="append", index=False)
-        print(f"[OK] {len(df)} keywords saved successfully!")
+        # Use INSERT ... ON DUPLICATE KEY UPDATE to handle existing keywords
+        with engine.begin() as conn:
+            for _, row in df.iterrows():
+                conn.execute(
+                    text("""
+                        INSERT INTO keywords (seed, keyword, volume, competition, cpc, trend, score, difficulty, intent, competitors)
+                        VALUES (:seed, :keyword, :volume, :competition, :cpc, :trend, :score, :difficulty, :intent, :competitors)
+                        ON DUPLICATE KEY UPDATE
+                            seed = VALUES(seed),
+                            volume = VALUES(volume),
+                            competition = VALUES(competition),
+                            cpc = VALUES(cpc),
+                            trend = VALUES(trend),
+                            score = VALUES(score),
+                            difficulty = VALUES(difficulty),
+                            intent = VALUES(intent),
+                            competitors = VALUES(competitors),
+                            last_updated = NOW();
+                    """),
+                    {
+                        "seed": row.get("seed", "Unknown"),
+                        "keyword": row.get("keyword", ""),
+                        "volume": row.get("volume", 0),
+                        "competition": row.get("competition", 0.0),
+                        "cpc": row.get("cpc", 0.0),
+                        "trend": row.get("trend", 0),
+                        "score": row.get("score", 0.0),
+                        "difficulty": row.get("difficulty", "Unknown"),
+                        "intent": row.get("intent", "informational"),
+                        "competitors": row.get("competitors", "[]")
+                    }
+                )
+        
+        print(f"[OK] {len(df)} keywords saved/updated successfully!")
     except Exception as e:
         print("[WARNING] Database Save Error:", e)
         print("[INFO] Data will be saved to cache files instead")
@@ -98,12 +130,42 @@ def fetch_past_results(limit=50):
     try:
         engine = connect_db()
         query = text("""
-            SELECT seed, keyword, volume, competition, cpc, score, difficulty
+            SELECT 
+                COALESCE(seed, 'Unknown') as seed,
+                keyword, 
+                COALESCE(volume, 0) as volume, 
+                COALESCE(competition, 0.0) as competition, 
+                COALESCE(cpc, 0.0) as cpc, 
+                COALESCE(score, 0.0) as score, 
+                COALESCE(difficulty, 'Unknown') as difficulty
             FROM keywords
+            WHERE keyword IS NOT NULL
             ORDER BY id DESC
             LIMIT :limit;
         """)
         df = pd.read_sql(query, engine, params={"limit": limit})
+        
+        # Ensure all required columns exist with proper defaults
+        required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
+        for col in required_columns:
+            if col not in df.columns:
+                if col in ['volume', 'competition', 'cpc', 'score']:
+                    df[col] = 0.0
+                else:
+                    df[col] = 'Unknown'
+        
+        # Fill any remaining NaN values
+        df = df.fillna({
+            'seed': 'Unknown',
+            'keyword': 'Unknown',
+            'volume': 0,
+            'competition': 0.0,
+            'cpc': 0.0,
+            'score': 0.0,
+            'difficulty': 'Unknown'
+        })
+        
+        print(f"[DB] Fetched {len(df)} records from database")
         return df
     except Exception as e:
         print(f"DB Fetch Error: {e}")
@@ -115,6 +177,27 @@ def fetch_past_results(limit=50):
             if cache_files:
                 latest_file = max(cache_files, key=os.path.getctime)
                 df = pd.read_csv(latest_file)
+                
+                # Ensure required columns exist in cache data
+                required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
+                for col in required_columns:
+                    if col not in df.columns:
+                        if col in ['volume', 'competition', 'cpc', 'score']:
+                            df[col] = 0.0
+                        else:
+                            df[col] = 'Unknown'
+                
+                df = df.fillna({
+                    'seed': 'Unknown',
+                    'keyword': 'Unknown', 
+                    'volume': 0,
+                    'competition': 0.0,
+                    'cpc': 0.0,
+                    'score': 0.0,
+                    'difficulty': 'Unknown'
+                })
+                
+                print(f"[CACHE] Loaded {len(df)} records from cache file: {latest_file}")
                 return df.tail(limit)
             return pd.DataFrame()
         except Exception as cache_e:

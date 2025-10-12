@@ -22,20 +22,26 @@ def safe_gemini_call(prompt, temperature=0.7):
         try:
             model = genai.GenerativeModel(model_name)
             result = model.generate_content(prompt)
-            if hasattr(result, "text"):
-                print(f"✅ Using {model_name}")
+            if hasattr(result, "text") and result.text:
+                print(f"Using {model_name}")
                 return result.text.strip()
             else:
-                return str(result)
+                print(f"No text response from {model_name}")
+                continue
         except Exception as e:
-            if "429" in str(e) or "quota" in str(e).lower():
-                print(f"⚠️ {model_name} quota hit. Trying next model...")
+            error_str = str(e)
+            if "429" in error_str or "quota" in error_str.lower():
+                print(f"{model_name} quota hit. Trying next model...")
                 time.sleep(random.uniform(2, 5))
                 continue
-            else:
-                print(f"❌ {model_name} failed: {e}")
+            elif "safety" in error_str.lower() or "blocked" in error_str.lower():
+                print(f"{model_name} blocked by safety filters. Trying next model...")
+                time.sleep(random.uniform(1, 3))
                 continue
-    print("❌ All Gemini models failed or quota exceeded.")
+            else:
+                print(f"{model_name} failed: {error_str}")
+                continue
+    print("All Gemini models failed or quota exceeded.")
     return None
 
 def generate_keywords(seed_keyword):
@@ -46,9 +52,9 @@ def generate_keywords(seed_keyword):
     """
     response = safe_gemini_call(prompt)
     if not response:
-        print("⚠️ Gemini failed to return keywords.")
+        print("Gemini failed to return keywords.")
         return []
 
     keywords = [kw.strip() for kw in response.split(",") if kw.strip()]
-    print(f"✅ Gemini returned {len(keywords)} keywords.")
+    print(f"Gemini returned {len(keywords)} keywords.")
     return keywords

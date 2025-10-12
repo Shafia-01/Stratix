@@ -12,22 +12,22 @@ def rule_based_intent(keyword: str) -> str:
     keyword_lower = keyword.lower()
 
     if any(w in keyword_lower for w in ["buy", "price", "deal", "shop", "discount", "best"]):
-        return "🛒 Commercial Intent"
+        return "Commercial Intent"
 
     elif any(w in keyword_lower for w in ["hire", "job", "internship", "career", "apply"]):
-        return "💼 Transactional Intent"
+        return "Transactional Intent"
 
     elif any(w in keyword_lower for w in ["what is", "how to", "tutorial", "guide", "learn"]):
-        return "📘 Informational Intent"
+        return "Informational Intent"
 
     elif any(w in keyword_lower for w in ["review", "comparison", "vs", "alternative"]):
-        return "🔍 Navigational Intent"
+        return "Navigational Intent"
 
     elif any(w in keyword_lower for w in ["cheap", "affordable", "free", "budget"]):
-        return "💰 Low-Intent (Bargain)"
+        return "Low-Intent (Bargain)"
 
     # fallback
-    return "🤔 Uncertain"
+    return "Uncertain"
 
 # ---------- GEMINI BACKUP INTENT DETECTOR ----------
 def generate_intent_gemini(keyword: str) -> str:
@@ -37,10 +37,10 @@ def generate_intent_gemini(keyword: str) -> str:
     prompt = f"""
     You are an SEO assistant. Determine the **search intent** behind this keyword: "{keyword}".
     Classify into one of:
-    - 📘 Informational Intent (learning or exploring)
-    - 🔍 Navigational Intent (finding specific brand or product)
-    - 💼 Transactional Intent (taking action, buying or applying)
-    - 🛒 Commercial Intent (researching before purchase)
+    - Informational Intent (learning or exploring)
+    - Navigational Intent (finding specific brand or product)
+    - Transactional Intent (taking action, buying or applying)
+    - Commercial Intent (researching before purchase)
     Respond with the label only.
     """
     response = safe_gemini_call(prompt)  # ✅ auto-fallback logic
@@ -49,10 +49,10 @@ def generate_intent_gemini(keyword: str) -> str:
 
     # if all Gemini models fail
     return random.choice([
-        "📘 Informational Intent",
-        "💼 Transactional Intent",
-        "🛒 Commercial Intent",
-        "🔍 Navigational Intent"
+        "Informational Intent",
+        "Transactional Intent",
+        "Commercial Intent",
+        "Navigational Intent"
     ])
 
 # ---------- HYBRID INTENT CLASSIFIER ----------
@@ -69,8 +69,8 @@ def classify_intent(keyword: str) -> str:
     intent = rule_based_intent(keyword)
 
     # 3️⃣ Gemini backup if uncertain
-    if intent == "🤔 Uncertain":
-        print(f"🧠 Using Gemini to refine intent for '{keyword}'...")
+    if intent == "Uncertain":
+        print(f"Using Gemini to refine intent for '{keyword}'...")
         gemini_intent = generate_intent_gemini(keyword)
         if gemini_intent:
             intent = gemini_intent

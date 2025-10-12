@@ -23,13 +23,13 @@ def get_keyword_metrics(keyword):
     if cached is not None:
         last_updated = cached.get("last_updated")
         if last_updated and (datetime.now() - pd.to_datetime(last_updated)) < timedelta(days=7):
-            print(f"♻️ Using cached data for '{keyword}' (updated {last_updated})")
+            print(f"Using cached data for '{keyword}' (updated {last_updated})")
             return cached
         else:
-            print(f"🕒 Cache expired for '{keyword}', refreshing...")
+            print(f"Cache expired for '{keyword}', refreshing...")
 
     try:
-        print(f"🌐 Fetching fresh data from SerpApi for '{keyword}'...")
+        print(f"Fetching fresh data from SerpApi for '{keyword}'...")
         url = "https://serpapi.com/search.json"
         params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}
         res = requests.get(url, params=params, timeout=15).json()
@@ -46,7 +46,7 @@ def get_keyword_metrics(keyword):
         return metrics
 
     except Exception as e:
-        print(f"⚠️ SerpApi Error for '{keyword}': {e}")
+        print(f"SerpApi Error for '{keyword}': {e}")
         return {
             "volume": random.randint(500, 3000),
             "competition": round(random.uniform(0.2, 0.7), 2),

@@ -25,7 +25,7 @@ def analyze_serp_opportunities(keyword, num_results=10):
         return {"error": "Failed to fetch SERP data"}
     
     # Step 2: Analyze snippet opportunities
-    snippet_analysis = analyze_snippet_opportunities(serp_data)
+    snippet_analysis = analyze_snippet_opportunities(serp_data, keyword)
     
     # Step 3: Extract PAA (People Also Ask) questions
     paa_questions = extract_paa_questions(serp_data)
@@ -54,6 +54,10 @@ def analyze_serp_opportunities(keyword, num_results=10):
 
 def get_serp_data(keyword, num_results=10):
     """Get comprehensive SERP data using SerpApi."""
+    if not SERPAPI_KEY:
+        print(f"[ERROR] SERPAPI_KEY not found. Please add it to your .env file.")
+        return None
+        
     try:
         url = "https://serpapi.com/search.json"
         params = {
@@ -65,8 +69,19 @@ def get_serp_data(keyword, num_results=10):
             "hl": "en"   # Language
         }
         
+        print(f"[SERP_API] Fetching data for: {keyword}")
         response = requests.get(url, params=params, timeout=15)
+        
+        if response.status_code != 200:
+            print(f"[ERROR] SERP API returned status {response.status_code}: {response.text}")
+            return None
+            
         data = response.json()
+        
+        # Check for API errors
+        if "error" in data:
+            print(f"[ERROR] SERP API error: {data['error']}")
+            return None
         
         # Extract relevant SERP features
         serp_data = {
@@ -79,14 +94,21 @@ def get_serp_data(keyword, num_results=10):
             "featured_snippet": data.get("featured_snippet", {})
         }
         
+        print(f"[SERP_API] Successfully fetched {len(serp_data['organic_results'])} organic results")
         time.sleep(1)  # Rate limiting
         return serp_data
         
+    except requests.exceptions.Timeout:
+        print(f"[ERROR] SERP API timeout for '{keyword}'")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] SERP API request failed for '{keyword}': {e}")
+        return None
     except Exception as e:
         print(f"[ERROR] Failed to fetch SERP data for '{keyword}': {e}")
         return None
 
-def analyze_snippet_opportunities(serp_data):
+def analyze_snippet_opportunities(serp_data, keyword=""):
     """Analyze snippet optimization opportunities."""
     organic_results = serp_data.get("organic_results", [])
     featured_snippet = serp_data.get("featured_snippet", {})

@@ -14,11 +14,46 @@ def cluster_keywords_semantically(keywords_data):
     """
     print(f"[CLUSTERING] Clustering {len(keywords_data)} keywords semantically...")
     
+    # Validate input data
+    if not keywords_data or len(keywords_data) == 0:
+        print("[ERROR] No keywords data provided for clustering")
+        return {
+            "total_keywords": 0,
+            "total_clusters": 0,
+            "clusters": [],
+            "insights": [],
+            "summary": "No keywords available for clustering"
+        }
+    
     # Extract keywords from data
-    keywords = [item["keyword"] if isinstance(item, dict) else str(item) for item in keywords_data]
+    keywords = []
+    for item in keywords_data:
+        if isinstance(item, dict):
+            if "keyword" in item:
+                keywords.append(item["keyword"])
+            else:
+                print(f"[WARNING] Dictionary item missing 'keyword' field: {item}")
+        else:
+            keywords.append(str(item))
+    
+    if not keywords:
+        print("[ERROR] No valid keywords found in data")
+        return {
+            "total_keywords": 0,
+            "total_clusters": 0,
+            "clusters": [],
+            "insights": [],
+            "summary": "No valid keywords found for clustering"
+        }
+    
+    print(f"[CLUSTERING] Processing {len(keywords)} valid keywords")
     
     # Step 1: Use Gemini for semantic clustering
     clusters = perform_semantic_clustering(keywords)
+    
+    if not clusters:
+        print("[ERROR] Semantic clustering failed, using fallback")
+        clusters = rule_based_clustering(keywords)
     
     # Step 2: Enhance clusters with additional analysis
     enhanced_clusters = enhance_clusters_with_metrics(clusters, keywords_data)
@@ -61,16 +96,39 @@ def perform_semantic_clustering(keywords):
     """
     
     try:
+        print("[CLUSTERING] Calling Gemini for semantic clustering...")
         response = safe_gemini_call(prompt, temperature=0.3)
-        if response:
+        
+        if response and response.strip():
+            print("[CLUSTERING] Received response from Gemini, parsing...")
             # Try to parse JSON response
             import json
             try:
-                data = json.loads(response)
-                return data.get("clusters", [])
-            except json.JSONDecodeError:
+                # Clean the response to remove any markdown formatting
+                clean_response = response.strip()
+                if clean_response.startswith("```json"):
+                    clean_response = clean_response[7:]
+                if clean_response.endswith("```"):
+                    clean_response = clean_response[:-3]
+                clean_response = clean_response.strip()
+                
+                data = json.loads(clean_response)
+                clusters = data.get("clusters", [])
+                
+                if clusters and len(clusters) > 0:
+                    print(f"[CLUSTERING] Successfully parsed {len(clusters)} clusters from Gemini")
+                    return clusters
+                else:
+                    print("[CLUSTERING] No clusters found in Gemini response")
+                    
+            except json.JSONDecodeError as je:
+                print(f"[CLUSTERING] JSON parse error: {je}")
+                print(f"[CLUSTERING] Raw response: {response[:200]}...")
                 # Fallback: parse as text and create clusters
                 return parse_text_clusters(response, keywords_sample)
+        else:
+            print("[CLUSTERING] No response from Gemini")
+            
     except Exception as e:
         print(f"[ERROR] Semantic clustering failed: {e}")
         # Suppress Unicode errors for Windows console
@@ -78,6 +136,7 @@ def perform_semantic_clustering(keywords):
         warnings.filterwarnings("ignore", category=UnicodeWarning)
     
     # Fallback: rule-based clustering
+    print("[CLUSTERING] Using rule-based clustering fallback")
     return rule_based_clustering(keywords_sample)
 
 def parse_text_clusters(response, keywords):
@@ -88,22 +147,46 @@ def parse_text_clusters(response, keywords):
     
     for line in lines:
         line = line.strip()
-        if line.startswith('Cluster:') or line.startswith('Group:'):
+        if line.startswith('Cluster:') or line.startswith('Group:') or line.startswith('1.') or line.startswith('2.') or line.startswith('3.'):
             if current_cluster:
                 clusters.append(current_cluster)
+            # Extract cluster name
+            cluster_name = line
+            for prefix in ['Cluster:', 'Group:', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.']:
+                if cluster_name.startswith(prefix):
+                    cluster_name = cluster_name[len(prefix):].strip()
+                    break
+            
             current_cluster = {
-                "cluster_name": line.replace('Cluster:', '').replace('Group:', '').strip(),
-                "description": "",
+                "cluster_name": cluster_name or "General",
+                "description": f"Keywords related to {cluster_name.lower() if cluster_name else 'general topics'}",
                 "keywords": [],
                 "primary_intent": "informational",
                 "industry_focus": "general"
             }
         elif line.startswith('Keywords:') and current_cluster:
             keywords_text = line.replace('Keywords:', '').strip()
-            current_cluster["keywords"] = [kw.strip() for kw in keywords_text.split(',')]
+            current_cluster["keywords"] = [kw.strip() for kw in keywords_text.split(',') if kw.strip()]
+        elif current_cluster and line and not line.startswith('-') and not line.startswith('*'):
+            # Try to extract keywords from the line
+            if ',' in line:
+                potential_keywords = [kw.strip() for kw in line.split(',') if kw.strip()]
+                current_cluster["keywords"].extend(potential_keywords)
+            elif len(line.split()) <= 3:  # Likely a single keyword
+                current_cluster["keywords"].append(line)
     
     if current_cluster:
         clusters.append(current_cluster)
+    
+    # If no clusters were found, create a simple fallback
+    if not clusters:
+        clusters = [{
+            "cluster_name": "General Keywords",
+            "description": "General keyword cluster",
+            "keywords": keywords[:10],  # Take first 10 keywords
+            "primary_intent": "informational",
+            "industry_focus": "general"
+        }]
     
     return clusters
 

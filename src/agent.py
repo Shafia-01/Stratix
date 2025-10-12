@@ -11,7 +11,7 @@ from src.seo_api_client import get_keyword_metrics
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
-from src.db_client import save_to_db  # ✅ uses new SQLAlchemy method
+from src.db_client import save_to_db  # uses new SQLAlchemy method
 
 load_dotenv()
 
@@ -32,54 +32,68 @@ def compute_score(metrics):
 def classify_difficulty(score):
     """Classify keyword difficulty based on score."""
     if score >= 0.8:
-        return "🟢 Easy"
+        return "Easy"
     elif score >= 0.5:
-        return "🟡 Medium"
+        return "Medium"
     else:
-        return "🔴 Hard"
+        return "Hard"
 
 
 # ---------- MAIN AGENT ----------
-def run_agent(seed_keyword):
-    print(f"\n🚀 Running GemKey AI for: {seed_keyword}")
+def run_agent(seed_keyword, max_keywords=50):
+    print(f"\nRunning GemKey AI for: {seed_keyword}")
     keywords = generate_keywords(seed_keyword)
 
-    # ✅ Fallback if Gemini failed
+    # Fallback if Gemini failed
     if not keywords or len(keywords) == 0:
-        print(f"⚠️ Gemini failed to generate keywords for '{seed_keyword}'. Retrying with fallback set...")
+        print(f"Gemini failed to generate keywords for '{seed_keyword}'. Retrying with fallback set...")
         time.sleep(1)
         keywords = [f"{seed_keyword} ideas", f"{seed_keyword} tools", f"best {seed_keyword} resources"]
 
-    print(f"✅ Gemini returned {len(keywords)} keywords.")
+    print(f"Gemini returned {len(keywords)} keywords.")
 
     formatted_keywords = [{"rank": i, "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")}
                           for i, kw in enumerate(keywords, start=1)]
 
     sorted_keywords = sorted(formatted_keywords, key=lambda x: x["rank"])
-    full_analysis_keywords = sorted_keywords[:15]
-    quick_keywords = sorted_keywords[15:]
+    
+    # Limit to requested number of keywords
+    if max_keywords < len(sorted_keywords):
+        sorted_keywords = sorted_keywords[:max_keywords]
+    
+    # For larger keyword sets, do more full analysis
+    if max_keywords <= 15:
+        full_analysis_count = max_keywords
+    elif max_keywords <= 30:
+        full_analysis_count = 15
+    else:  # 50 keywords
+        full_analysis_count = 20
+    
+    full_analysis_keywords = sorted_keywords[:full_analysis_count]
+    quick_keywords = sorted_keywords[full_analysis_count:]
     results = []
 
-    # ---------- FULL ANALYSIS (TOP 15) ----------
-    print("\n⚙️ Running full analysis (metrics + trends + competitors) on top 15 keywords...")
+    # ---------- FULL ANALYSIS ----------
+    print(f"\nRunning full analysis (metrics + trends + competitors) on top {full_analysis_count} keywords...")
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(process_keyword, kw, seed_keyword) for kw in full_analysis_keywords]
         for future in as_completed(futures):
             res = future.result()
             if res:
                 results.append(res)
-                # ✅ Auto-save progress every 5 results
+                # Auto-save progress every 5 results
                 if len(results) % 5 == 0:
                     pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_temp.csv", index=False)
 
     # ---------- QUICK ANALYSIS (OTHERS) ----------
-    print("\n⚙️ Running quick analysis (metrics only) for remaining keywords...")
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                results.append(res)
+    if quick_keywords:
+        print(f"\nRunning quick analysis (metrics only) for remaining {len(quick_keywords)} keywords...")
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
+            for future in as_completed(futures):
+                res = future.result()
+                if res:
+                    results.append(res)
 
     # ---------- FINALIZE ----------
     results = sorted(results, key=lambda x: x["score"], reverse=True)
@@ -87,13 +101,13 @@ def run_agent(seed_keyword):
     os.makedirs("cache", exist_ok=True)
     pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
 
-    # ✅ Save to DB (SQLAlchemy)
+    # Save to DB (SQLAlchemy)
     try:
         save_to_db(results)
     except Exception as e:
-        print("⚠️ MySQL Save Error:", e)
+        print("MySQL Save Error:", e)
 
-    print(f"\n✅ {len(results)} keywords saved successfully!")
+    print(f"\n{len(results)} keywords saved successfully!")
     return results
 
 
@@ -114,7 +128,7 @@ def process_keyword(kw_item, seed_keyword):
             trend_score = get_trend_score(kw)
         except Exception as e:
             if "429" in str(e):
-                print(f"⚠️ Trend rate-limited for '{kw}'. Sleeping longer...")
+                print(f"Trend rate-limited for '{kw}'. Sleeping longer...")
                 time.sleep(random.uniform(30, 45))
                 trend_score = random.randint(20, 80)
             else:
@@ -138,7 +152,7 @@ def process_keyword(kw_item, seed_keyword):
         }
 
     except Exception as e:
-        print(f"⚠️ Error processing '{kw}':", e)
+        print(f"Error processing '{kw}':", e)
         return None
 
 
@@ -168,5 +182,5 @@ def process_keyword_quick(kw_item, seed_keyword):
         }
 
     except Exception as e:
-        print(f"⚠️ Error (quick) for '{kw}':", e)
+        print(f"Error (quick) for '{kw}':", e)
         return None

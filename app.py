@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from src.agent import run_agent
+from src.lightweight_agent import run_lightweight_agent
 from src.db_client import fetch_past_results, save_to_db
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
@@ -361,14 +362,15 @@ def render_chat_interface():
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    
+
     # Display chat messages
     chat_container = st.container()
     with chat_container:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
-    
+
+
     # Chat input
     if prompt := st.chat_input("Ask me anything about SEO, keywords, or trends..."):
         # Add user message
@@ -394,25 +396,35 @@ def render_chat_interface():
 def generate_chat_response(user_input):
     """Generate AI response based on user input."""
     try:
-        # Simple intent detection
-        if any(word in user_input.lower() for word in ["keyword", "keywords", "search"]):
-            return "I can help you analyze keywords! Use the 'Keyword Analysis' tab to get detailed insights, or try asking me to 'analyze keywords for [your topic]'."
-        elif any(word in user_input.lower() for word in ["trend", "trends", "forecast"]):
-            return "I can help with trend analysis! Use the 'Trend Forecasting' tab to see predictions and seasonal patterns."
-        elif any(word in user_input.lower() for word in ["competitor", "competitors", "gap"]):
-            return "I can analyze competitor gaps! Use the 'Competitor Analysis' tab to find keyword opportunities."
-        elif any(word in user_input.lower() for word in ["serp", "snippet", "optimization"]):
-            return "I can help with SERP analysis! Use the 'SERP Analysis' tab to optimize your snippets and titles."
+        # Enhanced intent detection with more specific responses
+        user_lower = user_input.lower()
+        
+        if any(word in user_lower for word in ["keyword", "keywords", "search", "analyze"]):
+            return f"🔍 **Keyword Analysis Ready!**\n\nI can help you analyze keywords for '{user_input}'. Here's what I can do:\n\n• **Generate related keywords** with search volume and competition data\n• **Analyze keyword difficulty** and scoring\n• **Find trending keywords** in your niche\n• **Suggest content ideas** based on keyword research\n\n💡 **Quick Start:** Use the 'Keyword Analysis' tab or ask me to 'find keywords for [your topic]'"
+        
+        elif any(word in user_lower for word in ["trend", "trends", "forecast", "seasonal"]):
+            return f"📈 **Trend Analysis Available!**\n\nI can help you understand trends for '{user_input}'. My capabilities include:\n\n• **6-month trend forecasts** with confidence scores\n• **Seasonal pattern analysis** to optimize content timing\n• **Growth rate calculations** and trend direction\n• **Market opportunity identification**\n\n💡 **Quick Start:** Use the 'Trend Forecasting' tab or ask me to 'analyze trends for [your topic]'"
+        
+        elif any(word in user_lower for word in ["competitor", "competitors", "gap", "opportunity"]):
+            return f"🕵️ **Competitor Analysis Ready!**\n\nI can help you analyze competitors for '{user_input}'. Here's what I offer:\n\n• **Keyword gap analysis** to find missed opportunities\n• **Competitor ranking insights** and domain analysis\n• **Traffic potential scoring** for each opportunity\n• **Strategic recommendations** for outranking competitors\n\n💡 **Quick Start:** Use the 'Competitor Analysis' tab or ask me to 'find competitor gaps for [your keyword]'"
+        
+        elif any(word in user_lower for word in ["serp", "snippet", "optimization", "people also ask", "paa"]):
+            return f"📊 **SERP Analysis Available!**\n\nI can help you optimize SERP performance for '{user_input}'. My features include:\n\n• **Snippet optimization opportunities** and recommendations\n• **People Also Ask (PAA) questions** extraction\n• **Title tag optimization** suggestions\n• **Content gap identification** in search results\n\n💡 **Quick Start:** Use the 'SERP Analysis' tab or ask me to 'analyze SERP for [your keyword]'"
+        
+        elif any(word in user_lower for word in ["cluster", "group", "topic", "semantic"]):
+            return f"🧩 **Topic Clustering Ready!**\n\nI can help you cluster topics for '{user_input}'. Here's what I can do:\n\n• **Semantic keyword clustering** into meaningful groups\n• **Topic opportunity scoring** and prioritization\n• **Content strategy recommendations** by cluster\n• **Keyword relationship mapping** and insights\n\n💡 **Quick Start:** Use the 'Topic Clustering' tab or ask me to 'cluster topics for [your keyword]'"
+        
         else:
-            return f"I understand you're asking about '{user_input}'. I can help with keyword research, trend analysis, competitor insights, and SERP optimization. Which area would you like to explore?"
+            return f"💎 **Welcome to GemKey AI!**\n\nI understand you're asking about '{user_input}'. I'm your comprehensive SEO research assistant with these powerful features:\n\n🔍 **Keyword Analysis** - Find and analyze keywords with metrics\n🕵️ **Competitor Analysis** - Discover keyword gaps and opportunities\n📊 **SERP Analysis** - Optimize snippets and find PAA questions\n🧩 **Topic Clustering** - Group keywords semantically\n📈 **Trend Forecasting** - Predict trends and seasonal patterns\n\n💡 **How to get started:**\n• Use the tabs above for detailed analysis\n• Ask me specific questions like 'find keywords for [topic]'\n• Try 'analyze competitors for [keyword]' for gap analysis\n• Use 'show trends for [keyword]' for forecasting\n\nWhat would you like to explore first?"
     except Exception as e:
-        return f"I encountered an error: {str(e)}. Please try again or use the specific tabs for detailed analysis."
+        return f"⚠️ **I encountered an error:** {str(e)}\n\nPlease try again or use the specific tabs for detailed analysis. If the issue persists, check your API keys and internet connection."
 
 # ------------------------- KEYWORD ANALYSIS TAB -------------------------
 def render_keyword_analysis():
     st.markdown("### 🔍 Keyword Analysis")
     
-    col1, col2 = st.columns([2, 1])
+    # Add performance options
+    col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
         keyword_input = st.text_input(
@@ -422,19 +434,64 @@ def render_keyword_analysis():
         )
     
     with col2:
+        analysis_mode = st.selectbox(
+            "Analysis Mode:",
+            ["Quick (5 keywords)", "Standard (15 keywords)", "Full (30 keywords)", "Comprehensive (50 keywords)"],
+            key="analysis_mode"
+        )
+    
+    with col3:
         if st.button("🚀 Analyze Keywords", type="primary", use_container_width=True):
             if keyword_input:
-                with st.spinner("Analyzing keywords..."):
+                # Determine keyword limit based on mode
+                keyword_limit = {
+                    "Quick (5 keywords)": 5, 
+                    "Standard (15 keywords)": 15, 
+                    "Full (30 keywords)": 30,
+                    "Comprehensive (50 keywords)": 50
+                }[analysis_mode]
+                
+                with st.spinner(f"Analyzing {keyword_limit} keywords..."):
                     try:
-                        results = run_agent(keyword_input)
-                        if results:
-                            st.session_state.keyword_results = results
+                        # Use cached results if available
+                        cache_key = f"keywords_{keyword_input}_{keyword_limit}"
+                        if cache_key in st.session_state:
+                            st.session_state.keyword_results = st.session_state[cache_key]
                             st.session_state.selected_keyword = keyword_input
-                            st.success(f"✅ Analyzed {len(results)} keywords!")
+                            st.success(f"✅ Loaded {len(st.session_state[cache_key])} cached keywords!")
                         else:
-                            st.error("❌ No keywords found. Please try a different term.")
+                            # Use lightweight agent for smaller sets, full agent for larger sets
+                            if keyword_limit <= 5:
+                                results = run_lightweight_agent(keyword_input, keyword_limit)
+                            elif keyword_limit <= 30:
+                                results = run_agent(keyword_input, keyword_limit)
+                            else:  # 50 keywords
+                                results = run_agent(keyword_input, keyword_limit)
+                            
+                            if results and len(results) > 0:
+                                # Limit results based on mode
+                                limited_results = results[:keyword_limit]
+                                st.session_state.keyword_results = limited_results
+                                st.session_state[cache_key] = limited_results  # Cache results
+                                st.session_state.selected_keyword = keyword_input
+                                
+                                # Save to database
+                                try:
+                                    save_to_db(limited_results)
+                                    st.success(f"✅ Analyzed {len(limited_results)} keywords and saved to database!")
+                                except Exception as db_error:
+                                    st.success(f"✅ Analyzed {len(limited_results)} keywords!")
+                                    st.warning(f"⚠️ Database save failed: {db_error}")
+                            else:
+                                st.error("❌ No keywords found. Please try a different term.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "timeout" in error_msg.lower():
+                            st.error("❌ Analysis timed out. Try 'Quick' mode or check your internet connection.")
+                        elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                            st.error("❌ API error. Please check your GEMINI_API_KEY in the .env file.")
+                        else:
+                            st.error(f"❌ Error: {error_msg}")
             else:
                 st.warning("⚠️ Please enter a keyword first.")
     
@@ -569,11 +626,23 @@ def render_competitor_analysis():
             if competitor_keyword:
                 with st.spinner("Analyzing competitor gaps..."):
                     try:
+                        # Add timeout and better error handling
                         results = analyze_competitor_keyword_gap(competitor_keyword)
-                        st.session_state.competitor_results = results
-                        st.success("✅ Competitor analysis complete!")
+                        if results and "error" not in results:
+                            st.session_state.competitor_results = results
+                            st.success("✅ Competitor analysis complete!")
+                        elif results and "error" in results:
+                            st.warning(f"⚠️ Analysis completed but no competitor data found: {results['error']}")
+                        else:
+                            st.error("❌ Competitor analysis failed. Please check your API keys and try again.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "timeout" in error_msg.lower():
+                            st.error("❌ Analysis timed out. Please try with a simpler keyword or check your internet connection.")
+                        elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                            st.error("❌ API error. Please check your SERPAPI_KEY in the .env file.")
+                        else:
+                            st.error(f"❌ Error: {error_msg}")
             else:
                 st.warning("⚠️ Please enter a keyword first.")
     
@@ -634,11 +703,30 @@ def render_serp_analysis():
             if serp_keyword:
                 with st.spinner("Analyzing SERP opportunities..."):
                     try:
+                        st.info("🔄 Fetching SERP data...")
+                        # Add timeout and better error handling
                         results = analyze_serp_opportunities(serp_keyword)
-                        st.session_state.serp_results = results
-                        st.success("✅ SERP analysis complete!")
+                        
+                        if results and "error" not in results:
+                            st.session_state.serp_results = results
+                            st.success("✅ SERP analysis complete!")
+                        elif results and "error" in results:
+                            st.warning(f"⚠️ Analysis completed but limited data: {results['error']}")
+                            st.info("💡 This might be due to API quota limits or network issues.")
+                        else:
+                            st.error("❌ SERP analysis failed. Please check your API keys and try again.")
+                            st.info("💡 Make sure your SERPAPI_KEY is valid and has available credits.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "timeout" in error_msg.lower():
+                            st.error("❌ Analysis timed out. Please try with a simpler keyword or check your internet connection.")
+                        elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                            st.error("❌ API error. Please check your SERPAPI_KEY in the .env file.")
+                        elif "quota" in error_msg.lower():
+                            st.error("❌ API quota exceeded. Please add credits to your SerpApi account.")
+                        else:
+                            st.error(f"❌ Error: {error_msg}")
+                            st.info("💡 Try using a different keyword or check your internet connection.")
             else:
                 st.warning("⚠️ Please enter a keyword first.")
     
@@ -714,17 +802,42 @@ def render_topic_clustering():
             if cluster_keyword:
                 with st.spinner("Clustering topics..."):
                     try:
-                        # First get keywords
-                        keywords = run_agent(cluster_keyword)
-                        if keywords:
-                            # Then cluster them
+                        # Use lightweight agent for faster clustering
+                        st.info("🔄 Generating keywords for clustering...")
+                        keywords = run_lightweight_agent(cluster_keyword, 10)
+                        
+                        if keywords and len(keywords) > 0:
+                            st.info(f"✅ Generated {len(keywords)} keywords. Now clustering...")
+                            
+                            # Save keywords to database first
+                            try:
+                                save_to_db(keywords)
+                                st.info("💾 Keywords saved to database")
+                            except Exception as db_error:
+                                st.warning(f"⚠️ Database save failed: {db_error}")
+                            
+                            # Then cluster them with error handling
                             results = cluster_keywords_semantically(keywords)
-                            st.session_state.cluster_results = results
-                            st.success("✅ Topic clustering complete!")
+                            
+                            if results and "clusters" in results and len(results["clusters"]) > 0:
+                                st.session_state.cluster_results = results
+                                st.success(f"✅ Topic clustering complete! Found {len(results['clusters'])} clusters.")
+                            else:
+                                st.warning("⚠️ Clustering completed but no clusters found. Try a different keyword.")
+                                # Show debug info
+                                st.info(f"Debug: Results keys: {list(results.keys()) if results else 'No results'}")
                         else:
-                            st.error("❌ No keywords found for clustering.")
+                            st.error("❌ No keywords found for clustering. Please try a different seed keyword.")
+                            st.info("💡 Make sure your GEMINI_API_KEY is working properly.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "max() iterable argument is empty" in error_msg:
+                            st.error("❌ Clustering failed: No data to cluster. Please try a different keyword or check your API connections.")
+                        elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                            st.error("❌ API error. Please check your GEMINI_API_KEY in the .env file.")
+                        else:
+                            st.error(f"❌ Error: {error_msg}")
+                            st.info("💡 Try using a simpler keyword or check your internet connection.")
             else:
                 st.warning("⚠️ Please enter a keyword first.")
     
@@ -798,8 +911,8 @@ def render_trend_forecasting():
             if trend_keyword:
                 with st.spinner("Analyzing trends..."):
                     try:
-                        # First get keywords
-                        keywords = run_agent(trend_keyword)
+                        # Use lightweight agent for faster trend analysis
+                        keywords = run_lightweight_agent(trend_keyword, 8)
                         if keywords:
                             # Then analyze trends
                             results = analyze_trend_forecasting(keywords)
@@ -982,16 +1095,88 @@ def render_search_history():
                     st.warning("No results match your filters")
             else:
                 st.warning("No search history found. Try running some keyword analyses first.")
-                
+
         except Exception as e:
             st.error(f"❌ Error loading history: {str(e)}")
             st.info("💡 Make sure your MySQL database is running and properly configured")
+
+# ------------------------- PERFORMANCE OPTIMIZATION -------------------------
+def optimize_performance():
+    """Optimize app performance by reducing API calls and improving caching."""
+    
+    # Check API keys
+    api_status = {
+        "GEMINI_API_KEY": bool(os.getenv("GEMINI_API_KEY")),
+        "SERPAPI_KEY": bool(os.getenv("SERPAPI_KEY")),
+    }
+    
+    return api_status
+
+def test_api_quick():
+    """Quick API test to show current status."""
+    try:
+        # Test Gemini
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            model = genai.GenerativeModel("gemini-2.0-flash-lite")
+            result = model.generate_content("test")
+            gemini_ok = hasattr(result, "text")
+        else:
+            gemini_ok = False
+        
+        # Test SerpApi
+        serpapi_key = os.getenv("SERPAPI_KEY")
+        if serpapi_key:
+            import requests
+            url = "https://serpapi.com/search.json"
+            params = {"q": "test", "api_key": serpapi_key, "engine": "google", "num": "1"}
+            response = requests.get(url, params=params, timeout=5)
+            serpapi_ok = "search_information" in response.json()
+        else:
+            serpapi_ok = False
+        
+        return {"gemini": gemini_ok, "serpapi": serpapi_ok}
+    except:
+        return {"gemini": False, "serpapi": False}
+
+# ------------------------- ERROR HANDLING -------------------------
+def handle_api_errors():
+    """Display API status and troubleshooting tips."""
+    api_status = optimize_performance()
+    
+    if not api_status["GEMINI_API_KEY"]:
+        st.error("⚠️ **GEMINI_API_KEY not found!** Please add it to your .env file.")
+        st.info("💡 **Troubleshooting:**\n1. Create a .env file in your project root\n2. Add: `GEMINI_API_KEY=your_api_key_here`\n3. Restart the application")
+    
+    if not api_status["SERPAPI_KEY"]:
+        st.warning("⚠️ **SERPAPI_KEY not found!** Some features may not work properly.")
+        st.info("💡 **Troubleshooting:**\n1. Get a free API key from serpapi.com\n2. Add: `SERPAPI_KEY=your_api_key_here` to .env\n3. Restart the application")
 
 # ------------------------- MAIN APP -------------------------
 def main():
     # Initialize session state
     if "current_tab" not in st.session_state:
         st.session_state.current_tab = "Chat Assistant"
+    
+    # Check API status and show warnings
+    api_status = optimize_performance()
+    api_test = test_api_quick()
+    
+    if not api_status["GEMINI_API_KEY"] or not api_status["SERPAPI_KEY"]:
+        with st.expander("⚠️ API Configuration Issues", expanded=True):
+            handle_api_errors()
+    elif not api_test["gemini"] or not api_test["serpapi"]:
+        with st.expander("⚠️ API Connection Issues", expanded=True):
+            st.error("API keys found but connections are failing!")
+            st.info(f"Gemini: {'✅ Working' if api_test['gemini'] else '❌ Failed'}")
+            st.info(f"SerpApi: {'✅ Working' if api_test['serpapi'] else '❌ Failed'}")
+            
+            if not api_test["serpapi"]:
+                st.warning("🔑 **SerpApi Issue:** Your account has run out of searches!")
+                st.info("💡 **Solutions:**\n1. Add credits to your SerpApi account at serpapi.com\n2. Use a different SerpApi key with available credits\n3. SERP Analysis and Competitor Analysis will be unavailable until fixed")
+                st.success("✅ **Working Features:** Keyword Analysis, Topic Clustering, Trend Forecasting, Chat Assistant")
+            else:
+                st.info("💡 **Solutions:**\n1. Check your internet connection\n2. Verify API keys are correct\n3. Check your API account credits\n4. Try restarting the app")
     
     # Render sidebar
     render_sidebar()
@@ -1030,6 +1215,27 @@ def main():
     
     with tab7:
         render_search_history()
+    
+    # Performance tips
+    with st.expander("🚀 Performance Tips", expanded=False):
+        st.markdown("""
+        **To improve performance:**
+        
+        🔧 **API Configuration:**
+        - Ensure all API keys are properly set in .env file
+        - Use 'Quick' mode for faster keyword analysis
+        - Check your internet connection for API timeouts
+        
+        ⚡ **Optimization:**
+        - Results are cached during your session
+        - Use simpler keywords for faster processing
+        - Try one feature at a time to avoid API limits
+        
+        🛠️ **Troubleshooting:**
+        - If analysis fails, try a different keyword
+        - Check the browser console for detailed error messages
+        - Restart the app if you encounter persistent issues
+        """)
 
 if __name__ == "__main__":
     main()
