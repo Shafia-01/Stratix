@@ -404,7 +404,6 @@ def get_optimized_css():
         font-weight: bold !important;
         transition: all 0.3s ease !important;
     }}
-    
     /* Sidebar Buttons */
     .stSidebar .stButton button {{
         border: 2px solid #051B4A !important;
@@ -624,7 +623,6 @@ def get_optimized_css():
     [data-testid="stSidebarNav"] * {{
         font-family: inherit !important;
     }}
-    
     /* Make sidebar dividers bold */
     .stSidebar hr {{
         border: none !important;
@@ -649,13 +647,11 @@ def get_optimized_css():
     setTimeout(fixBackButton, 500);
     setTimeout(fixBackButton, 1000);
     </script>
-    
     """
 
 def load_custom_css():
     """Load optimized CSS with light theme."""
     st.markdown(get_optimized_css(), unsafe_allow_html=True)
-
 load_custom_css()
 
 @st.cache_data(ttl=300)
