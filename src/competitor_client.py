@@ -1,4 +1,3 @@
-# competitor_client.py
 import os
 import requests
 import time
@@ -22,7 +21,6 @@ def get_competitor_data(keyword, num_results=5):
         }
         res = requests.get(url, params=params, timeout=15).json()
         organic_results = res.get("organic_results", [])
-
         competitors = []
         for i, result in enumerate(organic_results[:num_results], start=1):
             competitors.append({
@@ -32,10 +30,8 @@ def get_competitor_data(keyword, num_results=5):
                 "domain": extract_domain(result.get("link")),
                 "snippet": result.get("snippet", "No description available.")
             })
-
         time.sleep(1)
         return competitors
-
     except Exception as e:
         print(f"⚠️ Competitor fetch error for '{keyword}': {e}")
         return []

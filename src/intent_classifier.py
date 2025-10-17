@@ -1,34 +1,26 @@
-# intent_classifier.py
 import random
 from dotenv import load_dotenv
 from src.db_client import get_cached_intent, save_intent_to_db
-from src.gemini_client import safe_gemini_call  # ✅ Use the unified Gemini fallback handler
+from src.gemini_client import safe_gemini_call
 
 load_dotenv()
 
-# ---------- SIMPLE RULE-BASED INTENT DETECTOR ----------
+# SIMPLE RULE-BASED INTENT DETECTOR 
 def rule_based_intent(keyword: str) -> str:
     keyword_lower = keyword.lower()
-
     if any(w in keyword_lower for w in ["buy", "price", "deal", "shop", "discount", "best"]):
         return "Commercial Intent"
-
     elif any(w in keyword_lower for w in ["hire", "job", "internship", "career", "apply"]):
         return "Transactional Intent"
-
     elif any(w in keyword_lower for w in ["what is", "how to", "tutorial", "guide", "learn"]):
         return "Informational Intent"
-
     elif any(w in keyword_lower for w in ["review", "comparison", "vs", "alternative"]):
         return "Navigational Intent"
-
     elif any(w in keyword_lower for w in ["cheap", "affordable", "free", "budget"]):
         return "Low-Intent (Bargain)"
-
-    # fallback
     return "Uncertain"
 
-# ---------- GEMINI BACKUP INTENT DETECTOR ----------
+# GEMINI BACKUP INTENT DETECTOR
 def generate_intent_gemini(keyword: str) -> str:
     """
     Use Gemini (fallback) to refine uncertain intents with safe fallback system.
@@ -42,10 +34,9 @@ def generate_intent_gemini(keyword: str) -> str:
     - Commercial Intent (researching before purchase)
     Respond with the label only.
     """
-    response = safe_gemini_call(prompt)  # ✅ auto-fallback logic
+    response = safe_gemini_call(prompt) 
     if response:
         return response
-
     # if all Gemini models fail
     return random.choice([
         "Informational Intent",
@@ -54,7 +45,6 @@ def generate_intent_gemini(keyword: str) -> str:
         "Navigational Intent"
     ])
 
-# ---------- HYBRID INTENT CLASSIFIER ----------
 def classify_intent(keyword: str) -> str:
     """
     Hybrid classifier → checks DB → rule-based → Gemini fallback → saves to cache.

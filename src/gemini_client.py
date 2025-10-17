@@ -1,4 +1,3 @@
-# gemini_client.py
 import google.generativeai as genai
 import os
 import time
@@ -54,7 +53,6 @@ def generate_keywords(seed_keyword):
     if not response:
         print("Gemini failed to return keywords.")
         return []
-
     keywords = [kw.strip() for kw in response.split(",") if kw.strip()]
     print(f"Gemini returned {len(keywords)} keywords.")
     return keywords

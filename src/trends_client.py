@@ -1,4 +1,3 @@
-# trends_client.py
 import time
 import random
 import warnings
@@ -7,16 +6,14 @@ import pandas as pd
 from sqlalchemy import text
 from pytrends.request import TrendReq
 from dotenv import load_dotenv
-from src.db_client import connect_db  # ✅ reuse your SQLAlchemy connection
+from src.db_client import connect_db
 
 load_dotenv()
 
 # Suppress pandas FutureWarning for pytrends
 warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
-
 pytrends = TrendReq(hl='en-US', tz=360)
 
-# ------------------ TREND FETCHER ------------------
 def get_trend_score(keyword):
     """
     Fetch Google Trends average score (0–100) for a keyword.
@@ -26,7 +23,6 @@ def get_trend_score(keyword):
     if cached:
         print(f"[CACHE] Using cached trend data for '{keyword}'")
         return cached
-
     print(f"[TREND] Fetching trend data for '{keyword}'...")
     
     # Retry logic with exponential backoff
@@ -38,28 +34,22 @@ def get_trend_score(keyword):
             # Progressive delay to avoid rate-limit
             delay = base_delay * (2 ** attempt) + random.uniform(0.5, 2.0)
             time.sleep(delay)
-            
             # Reset pytrends connection to avoid stale sessions
             if attempt > 0:
                 global pytrends
                 pytrends = TrendReq(hl='en-US', tz=360)
-
             pytrends.build_payload([keyword], timeframe="today 12-m")
             data = pytrends.interest_over_time()
-
             if not data.empty:
                 score = int(data[keyword].mean())
             else:
                 score = random.randint(20, 80)
-
             save_trend_to_db(keyword, score)
             print(f"[SUCCESS] Trend data fetched for '{keyword}': {score}")
             return score
-
         except Exception as e:
             error_msg = str(e)
             print(f"[WARNING] Trend error for '{keyword}' (attempt {attempt + 1}): {error_msg}")
-            
             # Handle specific error types
             if "429" in error_msg or "rate" in error_msg.lower():
                 if attempt < max_retries - 1:
@@ -71,7 +61,6 @@ def get_trend_score(keyword):
                 if attempt < max_retries - 1:
                     print(f"[TIMEOUT] Retrying after delay...")
                     continue
-            
             # Final fallback after all retries
             if attempt == max_retries - 1:
                 print(f"[FALLBACK] Using random score for '{keyword}' after {max_retries} attempts")
@@ -79,8 +68,6 @@ def get_trend_score(keyword):
                 save_trend_to_db(keyword, score)
                 return score
 
-
-# ------------------ TREND CACHE ------------------
 def get_cached_trend(keyword):
     """
     Retrieve cached trend if less than 7 days old.
@@ -96,10 +83,8 @@ def get_cached_trend(keyword):
             LIMIT 1;
         """)
         df = pd.read_sql(query, engine, params={"kw": keyword})
-
         if df.empty:
             return None
-
         last_updated = df.iloc[0]["last_updated"]
         if pd.notnull(last_updated):
             delta = datetime.now() - pd.to_datetime(last_updated)
@@ -109,7 +94,6 @@ def get_cached_trend(keyword):
     except Exception as e:
         print(f"[ERROR] Trend cache lookup failed for '{keyword}': {e}")
         return None
-
 
 def save_trend_to_db(keyword, score):
     """

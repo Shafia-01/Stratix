@@ -1,7 +1,5 @@
-# lightweight_agent.py
 import random
 import time
-import pandas as pd
 from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call
 from src.seo_api_client import get_keyword_metrics
@@ -14,17 +12,12 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
     Generates fewer keywords and uses cached data when possible.
     """
     print(f"\nRunning Lightweight GemKey AI for: {seed_keyword}")
-    
     try:
-        # Generate keywords using Gemini
         keywords = generate_keywords_lightweight(seed_keyword, max_keywords)
-        
         if not keywords or len(keywords) == 0:
             print(f"Gemini failed, using fallback keywords...")
             keywords = [f"{seed_keyword} tools", f"{seed_keyword} guide", f"best {seed_keyword}"]
-        
         print(f"Generated {len(keywords)} keywords.")
-        
         results = []
         
         # Process keywords with lightweight analysis
@@ -38,7 +31,6 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 # Calculate simple score
                 score = compute_lightweight_score(metrics)
                 difficulty = classify_difficulty_lightweight(score)
-                
                 result = {
                     "seed": seed_keyword,
                     "keyword": kw,
@@ -51,19 +43,15 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                     "intent": "informational",  # Default intent
                     "competitors": []  # Empty for lightweight version
                 }
-                
                 results.append(result)
                 
                 # Small delay to avoid rate limits
                 time.sleep(0.2)
-                
             except Exception as e:
                 print(f"Error processing '{kw}': {e}")
                 continue
-        
         print(f"\n{len(results)} keywords processed successfully!")
         return results
-        
     except Exception as e:
         print(f"Lightweight agent error: {e}")
         return []
@@ -76,7 +64,6 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
     Return as a simple list, one keyword per line.
     Do not use numbers, bullets, or special characters.
     """
-    
     try:
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
@@ -90,11 +77,9 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
                         if line.startswith(prefix):
                             line = line[len(prefix):].strip()
                             break
-                    
                     # Only add if it looks like a keyword (not empty and reasonable length)
                     if line and len(line) > 2 and len(line) < 100:
                         keywords.append(line)
-            
             return keywords[:max_keywords]
     except Exception as e:
         print(f"Keyword generation failed: {e}")

@@ -1,4 +1,3 @@
-# seo_api_client.py
 import os
 import requests
 import random
@@ -7,12 +6,11 @@ from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy import text
 from dotenv import load_dotenv
-from src.db_client import connect_db  # ✅ Use your unified DB connection
+from src.db_client import connect_db
 
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# ---------------------- MAIN METRICS FETCHER ----------------------
 def get_keyword_metrics(keyword):
     """
     Fetch SEO metrics (volume, CPC, competition) from cache or SerpApi.
@@ -27,24 +25,20 @@ def get_keyword_metrics(keyword):
             return cached
         else:
             print(f"Cache expired for '{keyword}', refreshing...")
-
     try:
         print(f"Fetching fresh data from SerpApi for '{keyword}'...")
         url = "https://serpapi.com/search.json"
         params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}
         res = requests.get(url, params=params, timeout=15).json()
-
         info = res.get("search_information", {})
         total_results = info.get("total_results", 0)
         volume = min(int(total_results / 1000), 10000) or random.randint(500, 3000)
         competition = round(random.uniform(0.1, 0.8), 2)
         cpc = round(random.uniform(0.1, 2.5), 2)
         time.sleep(0.5)
-
         metrics = {"volume": volume, "competition": competition, "cpc": cpc}
         save_to_cache(keyword, metrics)
         return metrics
-
     except Exception as e:
         print(f"SerpApi Error for '{keyword}': {e}")
         return {
@@ -53,7 +47,6 @@ def get_keyword_metrics(keyword):
             "cpc": round(random.uniform(0.3, 2.0), 2),
         }
 
-# ---------------------- CACHE FUNCTIONS ----------------------
 def check_cache(keyword):
     """Check if keyword already exists in DB and return metrics + timestamp."""
     try:
@@ -80,7 +73,6 @@ def check_cache(keyword):
         print(f"[ERROR] Cache check failed for '{keyword}': {e}")
         return None
 
-
 def save_to_cache(keyword, metrics):
     """Insert or update metrics + refresh timestamp without overwriting complete data."""
     try:
@@ -91,9 +83,9 @@ def save_to_cache(keyword, metrics):
                     INSERT INTO keywords (keyword, volume, competition, cpc, last_updated)
                     VALUES (:kw, :volume, :competition, :cpc, NOW())
                     ON DUPLICATE KEY UPDATE
-                        volume = CASE WHEN seed IS NULL THEN VALUES(volume) ELSE volume END,
-                        competition = CASE WHEN seed IS NULL THEN VALUES(competition) ELSE competition END,
-                        cpc = CASE WHEN seed IS NULL THEN VALUES(cpc) ELSE cpc END,
+                        volume = CASE WHEN seed IS NULL OR seed = 'Unknown' THEN VALUES(volume) ELSE volume END,
+                        competition = CASE WHEN seed IS NULL OR seed = 'Unknown' THEN VALUES(competition) ELSE competition END,
+                        cpc = CASE WHEN seed IS NULL OR seed = 'Unknown' THEN VALUES(cpc) ELSE cpc END,
                         last_updated = NOW();
                 """),
                 {

@@ -1,9 +1,5 @@
-# competitor_gap_analyzer.py
 import os
 import requests
-import time
-import random
-from collections import defaultdict
 from dotenv import load_dotenv
 from src.competitor_client import get_competitor_data
 from src.gemini_client import safe_gemini_call
@@ -14,17 +10,14 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
     """
     Analyze competitor keyword gaps and opportunities.
-    
     Expected Output: Missing keywords, traffic potential, competitor rank
     """
     print(f"[GAP_ANALYSIS] Analyzing keyword gaps for: {seed_keyword}")
     
     # Step 1: Get competitor domains for the seed keyword
     competitors_data = get_competitor_data(seed_keyword, num_results=top_competitors)
-    
     if not competitors_data:
         return {"error": "No competitor data found"}
-    
     competitor_domains = [comp["domain"] for comp in competitors_data]
     print(f"[GAP_ANALYSIS] Found competitors: {competitor_domains}")
     
@@ -33,15 +26,13 @@ def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
     
     # Step 3: Analyze each competitor's ranking for related keywords
     gap_analysis = {}
-    
-    for keyword in related_keywords[:10]:  # Analyze top 10 related keywords
+    for keyword in related_keywords[:10]:
         keyword_gaps = analyze_keyword_ranking_gaps(keyword, competitor_domains)
         if keyword_gaps:
             gap_analysis[keyword] = keyword_gaps
     
     # Step 4: Identify opportunities
     opportunities = identify_keyword_opportunities(gap_analysis, seed_keyword)
-    
     return {
         "seed_keyword": seed_keyword,
         "competitors": competitors_data,
@@ -59,15 +50,13 @@ def generate_related_keywords_for_gap(seed_keyword):
     - Question-based queries
     - Product/service variations
     - Industry-specific terms
-    
     Return as a simple list, one keyword per line.
     """
-    
     try:
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
             keywords = [kw.strip() for kw in response.split('\n') if kw.strip()]
-            return keywords[:15]  # Limit to 15 keywords
+            return keywords[:15]
     except Exception as e:
         print(f"[ERROR] Failed to generate related keywords: {e}")
     
@@ -93,14 +82,11 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
             "q": keyword,
             "api_key": SERPAPI_KEY,
             "engine": "google",
-            "num": "20"  # Check top 20 results
+            "num": "20"
         }
-        
         response = requests.get(url, params=params, timeout=15)
-        data = response.json()
-        
+        data = response.json()  
         organic_results = data.get("organic_results", [])
-        
         competitor_rankings = {}
         for result in organic_results:
             domain = extract_domain_from_url(result.get("link", ""))
@@ -117,21 +103,19 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
             return {
                 "opportunity_type": "keyword_gap",
                 "competitor_rankings": {},
-                "gap_score": 100,  # High opportunity
+                "gap_score": 100,
                 "traffic_potential": "high"
             }
         
         # Calculate gap score based on competitor performance
         avg_competitor_rank = sum(r["rank"] for r in competitor_rankings.values()) / len(competitor_rankings)
         gap_score = max(0, 100 - (avg_competitor_rank * 5))  # Lower rank = higher gap score
-        
         return {
             "opportunity_type": "ranking_improvement",
             "competitor_rankings": competitor_rankings,
             "gap_score": round(gap_score, 1),
             "traffic_potential": "high" if gap_score > 70 else "medium" if gap_score > 40 else "low"
         }
-        
     except Exception as e:
         print(f"[ERROR] Failed to analyze ranking gaps for '{keyword}': {e}")
         return None
@@ -152,7 +136,6 @@ def identify_keyword_opportunities(gap_analysis, seed_keyword):
     
     # Sort by gap score (highest first)
     opportunities.sort(key=lambda x: x["gap_score"], reverse=True)
-    
     return opportunities[:5]  # Top 5 opportunities
 
 def generate_opportunity_reasoning(keyword, analysis):
@@ -168,17 +151,13 @@ def generate_gap_summary(opportunities):
     """Generate a summary of the gap analysis."""
     if not opportunities:
         return "No significant keyword gaps identified."
-    
     high_potential = [opp for opp in opportunities if opp["traffic_potential"] == "high"]
     gap_opportunities = [opp for opp in opportunities if opp["opportunity_type"] == "keyword_gap"]
-    
     summary = f"Found {len(opportunities)} keyword opportunities:\n"
     summary += f"- {len(high_potential)} high-traffic potential keywords\n"
     summary += f"- {len(gap_opportunities)} complete keyword gaps\n"
-    
     if opportunities:
         summary += f"\nTop opportunity: '{opportunities[0]['keyword']}' (Gap Score: {opportunities[0]['gap_score']})"
-    
     return summary
 
 def extract_domain_from_url(url):
@@ -207,10 +186,8 @@ def get_missing_keywords_analysis(seed_keyword):
     - Question-based queries
     - Local variations
     - Industry jargon
-    
     Return as a JSON list with each keyword having: keyword, opportunity_type, difficulty_estimate
     """
-    
     try:
         response = safe_gemini_call(prompt, temperature=0.8)
         if response:
@@ -229,5 +206,4 @@ def get_missing_keywords_analysis(seed_keyword):
                 return keywords[:10]
     except Exception as e:
         print(f"[ERROR] Failed to get missing keywords analysis: {e}")
-    
     return []

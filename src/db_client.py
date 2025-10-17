@@ -1,13 +1,10 @@
-# db_client.py
 import pandas as pd
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-# ----------------- LOAD ENVIRONMENT VARIABLES -----------------
 load_dotenv()
 
-# Default database configuration (fallback values)
 DEFAULT_DB_CONFIG = {
     'MYSQL_HOST': '127.0.0.1',
     'MYSQL_USER': 'root', 
@@ -21,18 +18,16 @@ def get_db_config():
     config = {}
     for key, default in DEFAULT_DB_CONFIG.items():
         value = os.getenv(key, default)
-        if not value and key != 'MYSQL_PASSWORD':  # Allow empty password
+        if not value and key != 'MYSQL_PASSWORD': 
             print(f"Warning: {key} not set, using default: {default}")
         config[key] = value
     return config
 
 print("MYSQL_HOST from env:", os.getenv("MYSQL_HOST", "127.0.0.1 (default)"))
 
-# ----------------- CONNECT TO MYSQL (SQLAlchemy) -----------------
 def connect_db():
     """Create and return a SQLAlchemy engine."""
     import urllib.parse
-    
     config = get_db_config()
     
     # Validate host format
@@ -43,7 +38,6 @@ def connect_db():
     
     # URL encode the password to handle special characters like @
     encoded_password = urllib.parse.quote_plus(config['MYSQL_PASSWORD'])
-    
     db_url = (
         f"mysql+mysqlconnector://{config['MYSQL_USER']}:{encoded_password}"
         f"@{host}:{config['MYSQL_PORT']}/{config['MYSQL_DATABASE']}"
@@ -66,12 +60,21 @@ def connect_db():
         print("   MYSQL_PASSWORD=your_password")
         print("   MYSQL_DATABASE=gemkey_ai")
         raise e
-# ----------------- SAVE FULL KEYWORD RESULTS -----------------
+
 def save_to_db(data):
     """Save keyword data with all computed fields."""
     try:
         engine = connect_db()
         df = pd.DataFrame(data)
+        
+        # Debug: Print sample data being saved
+        if not df.empty:
+            print(f"[DEBUG] Sample data being saved:")
+            sample_row = df.iloc[0]
+            print(f"  Seed: {sample_row.get('seed', 'MISSING')}")
+            print(f"  Keyword: {sample_row.get('keyword', 'MISSING')}")
+            print(f"  Score: {sample_row.get('score', 'MISSING')}")
+            print(f"  Difficulty: {sample_row.get('difficulty', 'MISSING')}")
         
         # Convert competitors list to JSON string for MySQL storage
         if 'competitors' in df.columns:
@@ -81,6 +84,18 @@ def save_to_db(data):
         # Use INSERT ... ON DUPLICATE KEY UPDATE to handle existing keywords
         with engine.begin() as conn:
             for _, row in df.iterrows():
+                # Ensure all required fields have proper values
+                seed_value = row.get("seed") or "Unknown"
+                keyword_value = row.get("keyword") or ""
+                volume_value = float(row.get("volume") or 0)
+                competition_value = float(row.get("competition") or 0.0)
+                cpc_value = float(row.get("cpc") or 0.0)
+                trend_value = row.get("trend") if pd.notnull(row.get("trend")) else 0
+                score_value = float(row.get("score") or 0.0)
+                difficulty_value = row.get("difficulty") or "Unknown"
+                intent_value = row.get("intent") or "informational"
+                competitors_value = row.get("competitors") or "[]"
+                
                 conn.execute(
                     text("""
                         INSERT INTO keywords (seed, keyword, volume, competition, cpc, trend, score, difficulty, intent, competitors)
@@ -98,16 +113,16 @@ def save_to_db(data):
                             last_updated = NOW();
                     """),
                     {
-                        "seed": row.get("seed", "Unknown"),
-                        "keyword": row.get("keyword", ""),
-                        "volume": row.get("volume", 0),
-                        "competition": row.get("competition", 0.0),
-                        "cpc": row.get("cpc", 0.0),
-                        "trend": row.get("trend", 0),
-                        "score": row.get("score", 0.0),
-                        "difficulty": row.get("difficulty", "Unknown"),
-                        "intent": row.get("intent", "informational"),
-                        "competitors": row.get("competitors", "[]")
+                        "seed": seed_value,
+                        "keyword": keyword_value,
+                        "volume": volume_value,
+                        "competition": competition_value,
+                        "cpc": cpc_value,
+                        "trend": trend_value,
+                        "score": score_value,
+                        "difficulty": difficulty_value,
+                        "intent": intent_value,
+                        "competitors": competitors_value
                     }
                 )
         
@@ -124,7 +139,6 @@ def save_to_db(data):
         except Exception as cache_e:
             print(f"[ERROR] Cache save also failed: {cache_e}")
 
-# ----------------- FETCH PAST RESULTS -----------------
 def fetch_past_results(limit=50):
     """Fetch recent keyword entries."""
     try:
@@ -144,6 +158,15 @@ def fetch_past_results(limit=50):
             LIMIT :limit;
         """)
         df = pd.read_sql(query, engine, params={"limit": limit})
+        
+        # Debug: Print sample data being retrieved
+        if not df.empty:
+            print(f"[DEBUG] Sample data retrieved from database:")
+            sample_row = df.iloc[0]
+            print(f"  Seed: {sample_row.get('seed', 'MISSING')}")
+            print(f"  Keyword: {sample_row.get('keyword', 'MISSING')}")
+            print(f"  Score: {sample_row.get('score', 'MISSING')}")
+            print(f"  Difficulty: {sample_row.get('difficulty', 'MISSING')}")
         
         # Ensure all required columns exist with proper defaults
         required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
@@ -204,7 +227,41 @@ def fetch_past_results(limit=50):
             print(f"⚠️ Cache load also failed: {cache_e}")
             return pd.DataFrame()
 
-# ----------------- INTENT CACHE HELPERS -----------------
+def verify_database_schema():
+    """Verify that the keywords table has all required columns."""
+    try:
+        engine = connect_db()
+        with engine.connect() as conn:
+            # Check if table exists and get column info
+            result = conn.execute(text("""
+                SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'keywords' AND TABLE_SCHEMA = DATABASE()
+                ORDER BY ORDINAL_POSITION;
+            """))
+            
+            columns = result.fetchall()
+            if not columns:
+                print("[ERROR] Keywords table does not exist!")
+                return False
+            
+            required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty', 'intent', 'trend', 'competitors']
+            existing_columns = [col[0] for col in columns]
+            
+            print(f"[SCHEMA] Keywords table has {len(existing_columns)} columns: {existing_columns}")
+            
+            missing_columns = [col for col in required_columns if col not in existing_columns]
+            if missing_columns:
+                print(f"[WARNING] Missing required columns: {missing_columns}")
+                return False
+            
+            print("[SCHEMA] All required columns are present!")
+            return True
+            
+    except Exception as e:
+        print(f"[ERROR] Schema verification failed: {e}")
+        return False
+
 def get_cached_intent(keyword):
     """
     Fetch cached intent for a given keyword from 'intent_cache' table if available.
