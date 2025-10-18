@@ -708,19 +708,44 @@ def render_sidebar():
     st.sidebar.markdown("### 💾 Database")    
     # Use a placeholder that doesn't make heavy DB calls on every render
     if st.sidebar.button("🔍 Check Database Status", use_container_width=True):
-        with st.sidebar:
-            with st.spinner("Checking database..."):
-                try:
-                    schema_ok = cached_verify_database_schema()
-                    df_test = cached_fetch_past_results(limit=1)
-                    if schema_ok and not df_test.empty:
-                        st.success(f"✅ Connected ({len(df_test)} records)")
-                    elif schema_ok:
-                        st.success("✅ Connected (0 records)")
-                    else:
-                        st.warning("⚠️ Schema issues detected")
-                except Exception as e:
-                    st.error(f"❌ Connection failed: {str(e)[:30]}...")
+        with st.spinner("Checking database..."):
+            try:
+                schema_ok = cached_verify_database_schema()
+                df_test = cached_fetch_past_results(limit=1)
+                if schema_ok and not df_test.empty:
+                    st.session_state.db_status = f"✅ Connected ({len(df_test)} records)"
+                elif schema_ok:
+                    st.session_state.db_status = "✅ Connected (0 records)"
+                else:
+                    st.session_state.db_status = "⚠️ Schema issues detected"
+            except Exception as e:
+                error_msg = str(e)
+                if "Access denied" in error_msg:
+                    st.session_state.db_status = "❌ Access denied - Check credentials"
+                elif "Can't connect" in error_msg or "Connection refused" in error_msg:
+                    st.session_state.db_status = "❌ Can't connect - Check if MySQL is running"
+                elif "Unknown database" in error_msg:
+                    st.session_state.db_status = "❌ Database 'gemkey_ai' doesn't exist"
+                else:
+                    st.session_state.db_status = f"❌ Connection failed: {error_msg[:50]}..."
+        st.rerun()
+    
+    # Display the last database check result if available
+    if 'db_status' in st.session_state:
+        col1, col2 = st.sidebar.columns([3, 1])
+        with col1:
+            if st.session_state.db_status.startswith("✅"):
+                st.sidebar.success(st.session_state.db_status)
+            elif st.session_state.db_status.startswith("⚠️"):
+                st.sidebar.warning(st.session_state.db_status)
+            elif st.session_state.db_status.startswith("❌"):
+                st.sidebar.error(st.session_state.db_status)
+            else:
+                st.sidebar.info(st.session_state.db_status)
+        with col2:
+            if st.sidebar.button("🗑️", help="Clear status", key="clear_db_status"):
+                del st.session_state.db_status
+                st.rerun()
     st.sidebar.markdown("---")    
     # Database History
     st.sidebar.markdown("### 📂 Database History")
