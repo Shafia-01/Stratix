@@ -27,22 +27,31 @@ def generate_intent_gemini(keyword: str) -> str:
     """
     prompt = f"""
     You are an SEO assistant. Determine the **search intent** behind this keyword: "{keyword}".
-    Classify into one of:
-    - Informational Intent (learning or exploring)
-    - Navigational Intent (finding specific brand or product)
-    - Transactional Intent (taking action, buying or applying)
-    - Commercial Intent (researching before purchase)
-    Respond with the label only.
+    Classify into one of these EXACT labels (respond with ONLY the label, nothing else):
+    - Informational
+    - Navigational
+    - Transactional
+    - Commercial
+    Respond with ONLY the label name, no descriptions or extra text.
     """
     response = safe_gemini_call(prompt) 
     if response:
-        return response
+        # Clean the response to extract just the intent type
+        response_clean = response.strip()
+        # Remove common prefixes/suffixes
+        for intent_type in ["Informational", "Navigational", "Transactional", "Commercial"]:
+            if intent_type in response_clean:
+                return intent_type
+        # If we got something else, try to extract
+        if "Intent" in response_clean:
+            return response_clean.split("Intent")[0].strip()
+        return response_clean[:50]  # Truncate if too long
     # if all Gemini models fail
     return random.choice([
-        "Informational Intent",
-        "Transactional Intent",
-        "Commercial Intent",
-        "Navigational Intent"
+        "Informational",
+        "Transactional",
+        "Commercial",
+        "Navigational"
     ])
 
 def classify_intent(keyword: str) -> str:

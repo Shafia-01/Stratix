@@ -1,12 +1,30 @@
+# Web Application Framework
 streamlit
+
+# AI/ML Libraries
 google-generativeai
+
+# Data Processing
 pandas
+numpy
+
+# Environment & Configuration
 python-dotenv
+
+# HTTP Requests & Web Scraping
 requests
+urllib3
+beautifulsoup4
+
+# Database
 mysql-connector-python
 SQLAlchemy
+
+# SEO & Trends Data
 pytrends
-beautifulsoup4
-tqdm
+
+# Visualization
 plotly
-numpy
+
+# Utilities
+tqdm

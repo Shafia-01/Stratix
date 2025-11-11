@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-from src.gemini_client import generate_keywords
+from src.keyword_api_client import get_enhanced_keywords, get_keyword_metrics_enhanced
 from src.seo_api_client import get_keyword_metrics
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
@@ -37,18 +37,22 @@ def classify_difficulty(score):
 
 # MAIN AGENT
 def run_agent(seed_keyword, max_keywords=50):
-    print(f"\nRunning GemKey AI for: {seed_keyword}")
-    keywords = generate_keywords(seed_keyword)
+    print(f"\nRunning Keylytics for: {seed_keyword}")
     
-    # Fallback if Gemini failed
+    # Use enhanced keyword research (DataForSEO + Gemini fallback)
+    keywords = get_enhanced_keywords(seed_keyword, max_keywords)
+    
     if not keywords or len(keywords) == 0:
-        print(f"Gemini failed to generate keywords for '{seed_keyword}'. Retrying with fallback set...")
+        print(f"Enhanced keyword research failed for '{seed_keyword}'. Using emergency fallback...")
         time.sleep(1)
-        keywords = [f"{seed_keyword} ideas", f"{seed_keyword} tools", f"best {seed_keyword} resources"]
-    print(f"Gemini returned {len(keywords)} keywords.")
-    formatted_keywords = [{"rank": i, "keyword": kw if isinstance(kw, str) else kw.get("keyword", "")}
-                          for i, kw in enumerate(keywords, start=1)]
-    sorted_keywords = sorted(formatted_keywords, key=lambda x: x["rank"])
+        keywords = [{"rank": 1, "keyword": f"{seed_keyword} ideas"}, 
+                   {"rank": 2, "keyword": f"{seed_keyword} tools"}, 
+                   {"rank": 3, "keyword": f"best {seed_keyword} resources"}]
+    
+    print(f"Enhanced keyword research returned {len(keywords)} optimized keywords.")
+    
+    # Keywords are already formatted and sorted by opportunity score
+    sorted_keywords = keywords
     
     # Limit to requested number of keywords
     if max_keywords < len(sorted_keywords):
@@ -104,9 +108,17 @@ def run_agent(seed_keyword, max_keywords=50):
 def process_keyword(kw_item, seed_keyword):
     kw = kw_item["keyword"]
     try:
-        metrics = get_keyword_metrics(kw)
-        if not metrics:
-            return None
+        # Use metrics from kw_item if available (from DataForSEO batch), otherwise fetch
+        if "volume" in kw_item and "competition" in kw_item and "cpc" in kw_item:
+            metrics = {
+                "volume": kw_item.get("volume", 0),
+                "competition": kw_item.get("competition", 0.5),
+                "cpc": kw_item.get("cpc", 0.0)
+            }
+        else:
+            metrics = get_keyword_metrics_enhanced(kw)
+            if not metrics:
+                return None
         score = compute_score(metrics)
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)
@@ -143,9 +155,17 @@ def process_keyword(kw_item, seed_keyword):
 def process_keyword_quick(kw_item, seed_keyword):
     kw = kw_item["keyword"]
     try:
-        metrics = get_keyword_metrics(kw)
-        if not metrics:
-            return None
+        # Use metrics from kw_item if available (from DataForSEO batch), otherwise fetch
+        if "volume" in kw_item and "competition" in kw_item and "cpc" in kw_item:
+            metrics = {
+                "volume": kw_item.get("volume", 0),
+                "competition": kw_item.get("competition", 0.5),
+                "cpc": kw_item.get("cpc", 0.0)
+            }
+        else:
+            metrics = get_keyword_metrics_enhanced(kw)
+            if not metrics:
+                return None
         score = compute_score(metrics)
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)

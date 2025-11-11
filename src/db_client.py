@@ -93,7 +93,15 @@ def save_to_db(data):
                 trend_value = row.get("trend") if pd.notnull(row.get("trend")) else 0
                 score_value = float(row.get("score") or 0.0)
                 difficulty_value = row.get("difficulty") or "Unknown"
-                intent_value = row.get("intent") or "informational"
+                # Normalize intent to shorter format to avoid database column size issues
+                intent_raw = row.get("intent") or "Informational"
+                # Extract just the intent type (e.g., "Informational" from "Informational Intent (learning or exploring)")
+                if "Intent" in intent_raw:
+                    intent_value = intent_raw.split("Intent")[0].strip()
+                elif len(intent_raw) > 50:  # Truncate if too long
+                    intent_value = intent_raw[:50]
+                else:
+                    intent_value = intent_raw
                 competitors_value = row.get("competitors") or "[]"
                 
                 conn.execute(

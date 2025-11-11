@@ -11,7 +11,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
     Lightweight version of the agent for faster performance.
     Generates fewer keywords and uses cached data when possible.
     """
-    print(f"\nRunning Lightweight GemKey AI for: {seed_keyword}")
+    print(f"\nRunning Lightweight Keylytics for: {seed_keyword}")
     try:
         keywords = generate_keywords_lightweight(seed_keyword, max_keywords)
         if not keywords or len(keywords) == 0:

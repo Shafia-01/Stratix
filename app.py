@@ -17,7 +17,7 @@ genai, pd, json, px, go = lazy_imports()
 
 load_dotenv()
 
-st.set_page_config(page_title="GemKey AI", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Keylytics", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
 
 @st.cache_data(ttl=3600)
 def initialize_session_state():
@@ -48,8 +48,16 @@ def cached_run_lightweight_agent(keyword, limit):
     return run_lightweight_agent(keyword, limit)
 @st.cache_data(ttl=3600)
 def cached_run_agent(keyword, limit):
+    """
+    Cached agent runner. 
+    Note: Cache key includes both keyword and limit, so different limits will have separate cache entries.
+    """
     from src.agent import run_agent
-    return run_agent(keyword, limit)
+    results = run_agent(keyword, limit)
+    # Ensure we return at least what was requested, or log if we can't
+    if results and len(results) < limit:
+        print(f"⚠️ Warning: Requested {limit} keywords but only got {len(results)}. This may be due to API limitations.")
+    return results
 @st.cache_data(ttl=1800)
 def cached_analyze_competitor_gap(keyword):
     from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
@@ -664,7 +672,7 @@ def get_system_status():
 def render_sidebar():
     st.sidebar.markdown("""
     <div class="sidebar-header">
-        <h2>The Gemini-Powered SEO Keyword Agent</h2>
+        <h2>AI-Powered SEO Keyword Intelligence System</h2>
     </div>
     """, unsafe_allow_html=True)    
     st.sidebar.markdown("### 🔧 System Status")
@@ -725,7 +733,7 @@ def render_sidebar():
                 elif "Can't connect" in error_msg or "Connection refused" in error_msg:
                     st.session_state.db_status = "❌ Can't connect - Check if MySQL is running"
                 elif "Unknown database" in error_msg:
-                    st.session_state.db_status = "❌ Database 'gemkey_ai' doesn't exist"
+                    st.session_state.db_status = "❌ Database doesn't exist"
                 else:
                     st.session_state.db_status = f"❌ Connection failed: {error_msg[:50]}..."
         st.rerun()
@@ -770,7 +778,7 @@ def render_home_overview():
     <div class="home-container">
         <div class="welcome-section">
             <div class="app-logo">💎</div>
-            <h1 class="app-title">GemKey AI</h1>
+            <h1 class="app-title">Keylytics</h1>
             <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
         </div>
     </div>
@@ -931,29 +939,50 @@ def render_keyword_discovery():
                 }[analysis_mode]
                 with st.spinner(f"Analyzing {keyword_limit} keywords..."):
                     try:
+                        # Clear cache if we need more keywords than cached result might have
+                        # Check if we have cached results and if they're sufficient
+                        cache_key_light = f"cached_run_lightweight_agent_{keyword_input}_{keyword_limit}"
+                        cache_key_full = f"cached_run_agent_{keyword_input}_{keyword_limit}"
+                        
                         if keyword_limit <= 5:
                             results = cached_run_lightweight_agent(keyword_input, keyword_limit)
                         else:
                             results = cached_run_agent(keyword_input, keyword_limit)
+                        
+                        # If results are fewer than requested, try to generate more
                         if results and len(results) > 0:
-                            st.session_state.keyword_results = results[:keyword_limit]
+                            if len(results) < keyword_limit:
+                                st.warning(f"⚠️ Only {len(results)} keywords were generated. This might be due to API limitations or caching.")
+                                # If we got fewer than requested, show what we have but note the issue
+                                st.session_state.keyword_results = results
+                            else:
+                                st.session_state.keyword_results = results[:keyword_limit]
+                            
                             st.session_state.selected_keyword = keyword_input
                             # Update global metrics
-                            update_global_metrics(results[:keyword_limit])
-                            st.success(f"✅ Analyzed {len(results[:keyword_limit])} keywords!")
+                            update_global_metrics(st.session_state.keyword_results)
+                            st.success(f"✅ Analyzed {len(st.session_state.keyword_results)} keywords!")
                         else:
                             st.error("❌ No keywords found. Please try a different term.")
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
+                        import traceback
+                        st.error(f"Details: {traceback.format_exc()}")
             else:
                 st.warning("⚠️ Please enter a keyword first.")   
     # Display results
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
         results = st.session_state.keyword_results
         df = pd.DataFrame(results) if isinstance(results, list) else results
+        
+        # Remove problematic columns that show [object Object] or are not useful for display
+        columns_to_remove = ['competitors', 'seed']
+        display_columns = [col for col in df.columns if col not in columns_to_remove]
+        df_display = df[display_columns].copy()
+        
         # Metrics table
         st.markdown("#### 📊 Metrics Table")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
         # Trend graph
         if 'volume' in df.columns and 'score' in df.columns:
             st.markdown("#### 📈 Trend Graph")
@@ -1354,15 +1383,23 @@ def render_conversion_mapping():
     # Get keyword data
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
         df = pd.DataFrame(st.session_state.keyword_results)
-        if 'cpc' in df.columns and 'score' in df.columns:
+        
+        # Remove problematic columns
+        columns_to_remove = ['competitors', 'seed']
+        display_columns = [col for col in df.columns if col not in columns_to_remove]
+        df_clean = df[display_columns].copy()
+        
+        if 'cpc' in df_clean.columns and 'score' in df_clean.columns:
             # Calculate ROI potential
-            df['roi_potential'] = df['score'] / (df['cpc'] + 0.01)  # Avoid division by zero
+            df_clean['roi_potential'] = df_clean['score'] / (df_clean['cpc'] + 0.01)  # Avoid division by zero
             # Sort by ROI potential
-            df_sorted = df.sort_values('roi_potential', ascending=False)
+            df_sorted = df_clean.sort_values('roi_potential', ascending=False)
             st.markdown("#### 📊 ROI Potential Ranking")
-            # Table sorted by ROI potential
+            # Table sorted by ROI potential - show only relevant columns
+            conversion_cols = ['keyword', 'volume', 'cpc', 'score', 'roi_potential']
+            available_cols = [col for col in conversion_cols if col in df_sorted.columns]
             st.dataframe(
-                df_sorted[['keyword', 'volume', 'cpc', 'score', 'roi_potential']].head(20),
+                df_sorted[available_cols].head(20),
                 use_container_width=True,
                 hide_index=True
             )
@@ -1399,12 +1436,20 @@ def render_conversion_mapping():
                         keywords = cached_run_lightweight_agent(quick_keyword, 10)
                         if keywords:
                             df = pd.DataFrame(keywords)
-                            if 'cpc' in df.columns:
-                                df['roi_potential'] = df['score'] / (df['cpc'] + 0.01)
-                                df_sorted = df.sort_values('roi_potential', ascending=False)
+                            # Remove problematic columns
+                            columns_to_remove = ['competitors', 'seed']
+                            display_columns = [col for col in df.columns if col not in columns_to_remove]
+                            df_clean = df[display_columns].copy()
+                            
+                            if 'cpc' in df_clean.columns and 'score' in df_clean.columns:
+                                df_clean['roi_potential'] = df_clean['score'] / (df_clean['cpc'] + 0.01)
+                                df_sorted = df_clean.sort_values('roi_potential', ascending=False)
                                 st.markdown("#### 📊 Conversion Analysis Results")
+                                # Show only relevant columns for conversion mapping
+                                conversion_cols = ['keyword', 'volume', 'cpc', 'score', 'roi_potential']
+                                available_cols = [col for col in conversion_cols if col in df_sorted.columns]
                                 st.dataframe(
-                                    df_sorted[['keyword', 'volume', 'cpc', 'score', 'roi_potential']],
+                                    df_sorted[available_cols],
                                     use_container_width=True,
                                     hide_index=True
                                 )
@@ -1572,7 +1617,11 @@ def render_full_strategy():
         if results['keywords']:
             with st.expander("🔍 Keyword Discovery Results"):
                 df = pd.DataFrame(results['keywords'])
-                st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+                # Remove problematic columns
+                columns_to_remove = ['competitors', 'seed']
+                display_columns = [col for col in df.columns if col not in columns_to_remove]
+                df_display = df[display_columns].copy()
+                st.dataframe(df_display.head(10), use_container_width=True, hide_index=True)
         # Competitor Gap Results
         if results['competitor'] and 'opportunities' in results['competitor']:
             with st.expander("🧩 Competitor Gap Opportunities"):
@@ -1640,7 +1689,7 @@ def generate_chat_response(user_input):
         elif any(word in user_lower for word in ["cluster", "group", "topic", "semantic"]):
             return f"🧩 **Topic Clustering Ready!**\n\nI can help you cluster topics for '{user_input}'. Here's what I can do:\n\n• **Semantic keyword clustering** into meaningful groups\n• **Topic opportunity scoring** and prioritization\n• **Content strategy recommendations** by cluster\n• **Keyword relationship mapping** and insights\n\n💡 **Quick Start:** Use the 'Topic Clustering' tab or ask me to 'cluster topics for [your keyword]'"
         else:
-            return f"💎 **Welcome to GemKey AI!**\n\nI understand you're asking about '{user_input}'. I'm your comprehensive SEO research assistant with these powerful features:\n\n🔍 **Keyword Analysis** - Find and analyze keywords with metrics\n🕵️ **Competitor Analysis** - Discover keyword gaps and opportunities\n📊 **SERP Analysis** - Optimize snippets and find PAA questions\n🧩 **Topic Clustering** - Group keywords semantically\n📈 **Trend Forecasting** - Predict trends and seasonal patterns\n\n💡 **How to get started:**\n• Use the tabs above for detailed analysis\n• Ask me specific questions like 'find keywords for [topic]'\n• Try 'analyze competitors for [keyword]' for gap analysis\n• Use 'show trends for [keyword]' for forecasting\n\nWhat would you like to explore first?"
+            return f"💎 **Welcome to Keylytics!**\n\nI understand you're asking about '{user_input}'. I'm your comprehensive SEO research assistant with these powerful features:\n\n🔍 **Keyword Analysis** - Find and analyze keywords with metrics\n🕵️ **Competitor Analysis** - Discover keyword gaps and opportunities\n📊 **SERP Analysis** - Optimize snippets and find PAA questions\n🧩 **Topic Clustering** - Group keywords semantically\n📈 **Trend Forecasting** - Predict trends and seasonal patterns\n\n💡 **How to get started:**\n• Use the tabs above for detailed analysis\n• Ask me specific questions like 'find keywords for [topic]'\n• Try 'analyze competitors for [keyword]' for gap analysis\n• Use 'show trends for [keyword]' for forecasting\n\nWhat would you like to explore first?"
     except Exception as e:
         return f"⚠️ **I encountered an error:** {str(e)}\n\nPlease try again or use the specific tabs for detailed analysis. If the issue persists, check your API keys and internet connection."
 
@@ -1791,19 +1840,32 @@ def render_keyword_analysis():
                 st.plotly_chart(fig, use_container_width=True)
         # Data Table
         st.markdown("### 📊 Keyword Results")
+        
+        # Remove problematic columns that show [object Object] or are not useful for display
+        columns_to_remove = ['competitors', 'seed']
+        display_columns = [col for col in df.columns if col not in columns_to_remove]
+        df_display = df[display_columns].copy()
+        
         # Style the dataframe
-        styled_df = df.style.map(
-            lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else 
-                     'background-color: #FEF3C7' if 'Medium' in str(x) else 
-                     'background-color: #FEE2E2' if 'Hard' in str(x) else '',
-            subset=['difficulty']
-        )
-        st.dataframe(
-            styled_df,
-            use_container_width=True,
-            hide_index=True
-        ) 
-        # Download button
+        if 'difficulty' in df_display.columns:
+            styled_df = df_display.style.map(
+                lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else 
+                         'background-color: #FEF3C7' if 'Medium' in str(x) else 
+                         'background-color: #FEE2E2' if 'Hard' in str(x) else '',
+                subset=['difficulty']
+            )
+            st.dataframe(
+                styled_df,
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True
+            ) 
+        # Download button (include all columns in CSV, but display only cleaned columns)
         csv = df.to_csv(index=False)
         st.download_button(
             label="📥 Download CSV",
