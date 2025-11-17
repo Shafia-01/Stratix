@@ -1,9 +1,7 @@
 # 🤖 Keylytics - AI-Powered SEO Keyword Intelligence System
-
 Keylytics is a comprehensive keyword research and SEO analysis platform powered by AI.
 
 ## ✨ Features
-
 Keylytics provides a comprehensive suite of SEO intelligence tools powered by AI. Here's what each feature offers:
 
 ### 1. 🔍 Keyword Discovery
@@ -19,8 +17,6 @@ Discover high-value keywords using advanced AI technology:
 
 **Use Cases**: Initial keyword research, expanding keyword lists, finding long-tail opportunities, identifying trending keywords
 
----
-
 ### 2. 📊 SERP Analysis
 **Deep Dive into Search Engine Results Pages**
 
@@ -33,8 +29,6 @@ Analyze what's actually ranking and identify optimization opportunities:
 - **Competition Assessment**: Evaluates competition level and difficulty for ranking
 
 **Use Cases**: Optimizing existing content, identifying featured snippet opportunities, understanding competitor strategies, finding content gaps
-
----
 
 ### 3. 🧩 Competitor Gap Analysis
 **Find Keywords Your Competitors Rank For (But You Don't)**
@@ -49,8 +43,6 @@ Discover missed opportunities by analyzing competitor keyword strategies:
 
 **Use Cases**: Competitive intelligence, finding easy wins, identifying market gaps, outranking competitors
 
----
-
 ### 4. 📝 Content Optimization
 **AI-Powered Content Analysis and Optimization**
 
@@ -64,8 +56,6 @@ Optimize your existing content for better search performance:
 
 **Use Cases**: Improving existing content, optimizing new content before publishing, A/B testing meta tags, enhancing content comprehensiveness
 
----
-
 ### 5. 🎯 Search Intent Classification
 **Understand What Users Really Want**
 
@@ -77,8 +67,6 @@ Classify keywords by search intent to align content with user needs:
 - **Intent-Based Insights**: Provides recommendations based on intent type for better content alignment
 
 **Use Cases**: Content strategy planning, aligning content with user intent, improving conversion rates, optimizing for different funnel stages
-
----
 
 ### 6. 💰 Conversion Mapping
 **Rank Keywords by ROI Potential**
@@ -93,8 +81,6 @@ Prioritize keywords that drive the highest return on investment:
 
 **Use Cases**: PPC campaign planning, prioritizing high-converting keywords, budget allocation, identifying high-ROI opportunities
 
----
-
 ### 7. 🧠 Topic Clustering
 **Group Keywords into Semantic Topic Clusters**
 
@@ -107,8 +93,6 @@ Organize keywords into meaningful topic groups for content planning:
 - **Visual Organization**: Organizes keywords into logical topic groups for easy content planning
 
 **Use Cases**: Content pillar planning, topic research, content calendar creation, semantic SEO strategy, organizing keyword research
-
----
 
 ### 8. 🌐 Industry Focus
 **Industry-Specific Keyword Intelligence**
@@ -123,8 +107,6 @@ Get tailored keyword recommendations for your specific industry:
 
 **Use Cases**: Industry research, niche keyword discovery, industry trend analysis, competitive industry analysis
 
----
-
 ### 9. 📈 Trend Forecasting
 **Predict Keyword Trends with Seasonal Analysis**
 
@@ -138,8 +120,6 @@ Forecast keyword performance and identify seasonal patterns:
 
 **Use Cases**: Content calendar planning, seasonal content strategy, identifying trending topics, timing content publication
 
----
-
 ### 10. 🧩 Full Strategy
 **Comprehensive SEO Strategy in One Analysis**
 
@@ -152,8 +132,6 @@ Run all modules together for a complete SEO strategy:
 - **Complete Picture**: Get the full SEO strategy picture for your keyword in one analysis
 
 **Use Cases**: Comprehensive SEO audits, new market entry, complete keyword strategy, strategic planning, client reporting
-
----
 
 ### 📊 Advanced Analytics
 - **Real-time Metrics**: Volume, competition, CPC, and trend data from multiple sources
@@ -192,7 +170,6 @@ streamlit run app.py
   - **Optional**: DataForSEO credentials (for enhanced keyword research)
 
 ## 🔧 Configuration
-
 ### Environment Variables
 Create a `.env` file in the project root with your API keys and database configuration:
 
@@ -207,9 +184,9 @@ DATAFORSEO_USERNAME=your_dataforseo_username
 DATAFORSEO_PASSWORD=your_dataforseo_password
 
 # DataForSEO Credit Preservation Settings (optional)
-DATAFORSEO_DEMO_MODE=false          # Set to true to use sandbox only (preserves credits)
-DATAFORSEO_FORCE_SANDBOX=false      # Set to true to force sandbox mode
-DATAFORSEO_PRESERVE_CREDITS=true    # Auto-switch to sandbox when balance is low
+DATAFORSEO_DEMO_MODE=false             # Set to true to use sandbox only (preserves credits)
+DATAFORSEO_FORCE_SANDBOX=false         # Set to true to force sandbox mode
+DATAFORSEO_PRESERVE_CREDITS=true       # Auto-switch to sandbox when balance is low
 DATAFORSEO_LOW_BALANCE_THRESHOLD=0.50  # Switch to sandbox when balance < $0.50
 
 # Optional - MySQL Database Configuration
@@ -224,7 +201,7 @@ MYSQL_PORT=3306
 The application displays real-time API status in the sidebar:
 - **Gemini API**: Status shown in System Status panel
 - **SerpAPI**: Status shown in System Status panel
-- **DataForSEO**: Works silently in the background (not shown in status panel)
+- **DataForSEO**: Works silently in the background
   - Automatically falls back to Gemini if DataForSEO is unavailable
   - Uses sandbox mode when balance is low or in demo mode
 
@@ -275,7 +252,6 @@ Automatically switches to sandbox when balance drops below threshold.
 Simply set `DATAFORSEO_DEMO_MODE=false` and `DATAFORSEO_FORCE_SANDBOX=false` to use live API with your remaining credits.
 
 ## 🎯 Usage
-
 ### 1. Basic Keyword Research
 1. Open http://localhost:8501
 2. Enter your seed keyword
@@ -315,7 +291,6 @@ keylytics/
 ```
 
 ## 📦 Dependencies
-
 All dependencies are listed in `requirements.txt`. Key packages include:
 - **streamlit**: Web application framework
 - **google-generativeai**: Gemini AI integration
@@ -332,7 +307,6 @@ pip install -r requirements.txt
 ```
 
 ## 🔍 Monitoring & Logs
-
 ### View Logs
 ```bash
 # Streamlit logs
@@ -340,7 +314,6 @@ streamlit run app.py --logger.level debug
 ```
 
 ## 🛠️ Development
-
 ### Extending Functionality
 1. Add new modules to `src/`
 2. Update `app.py` with new features
@@ -353,9 +326,7 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
 ```
 
 ## 🚨 Troubleshooting
-
 ### Common Issues
-
 1. **API key errors**
    - Verify API keys in `.env` file
    - Check API quotas and limits
@@ -392,7 +363,6 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
    - Enable sandbox mode for testing: `DATAFORSEO_DEMO_MODE=true`
 
 ## 📈 Performance Optimization
-
 ### Caching
 - Streamlit caching for expensive operations
 - API response caching
@@ -403,7 +373,6 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
 - Batch processing for large datasets
 
 ## 🔐 Security
-
 ### Production Deployment
 - Change default passwords
 - Use environment variables for secrets
@@ -418,7 +387,6 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
 - Error handling
 
 ## 🤝 Contributing
-
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
@@ -426,7 +394,6 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
 5. Submit a pull request
 
 ## 📄 License
-
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 
