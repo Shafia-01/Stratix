@@ -5,6 +5,12 @@ import random
 import re
 from datetime import datetime
 from dotenv import load_dotenv
+import base64
+
+def load_base64_image(path):
+    with open(path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+logo_base64 = load_base64_image("assets/keylytics_icon.png")
 
 def lazy_imports():
     """Import heavy modules only when needed."""
@@ -779,15 +785,20 @@ def render_sidebar():
     
 def render_home_overview():
     # Welcome section
-    st.markdown("""
-    <div class="home-container">
-        <div class="welcome-section">
-            <div class="app-logo">🔑</div>
-            <h1 class="app-title">KeyLytics</h1>
-            <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
+    st.markdown(f"""
+    <div style="width:100%; display:flex; justify-content:center;">
+        <div class="home-container">
+            <div class="welcome-section">
+                <div class="app-logo" style="margin-bottom: -35px; margin-top: -150px;" >
+                    <img src="data:image/png;base64,{logo_base64}" width="150" style="vertical-align:middle; margin:0; padding:0;" />
+                </div>
+                <h1 class="app-title">KeyLytics</h1>
+                <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
+            </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)   
+    """, unsafe_allow_html=True)
+    
     # Quick buttons using Streamlit buttons
     st.markdown("### 🚀 Quick Actions")
     col1, col2, col3, col4 = st.columns(4)
