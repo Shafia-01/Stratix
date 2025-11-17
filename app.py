@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import time
 import random
+import re
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -1095,16 +1096,41 @@ def render_search_intent():
                             # Parse response
                             intent_type = "informational"  # default
                             reasoning = response
-                            if "transactional" in response.lower():
-                                intent_type = "transactional"
-                            elif "navigational" in response.lower():
-                                intent_type = "navigational"
-                            elif "commercial" in response.lower():
-                                intent_type = "commercial"   
+                            intent_match = re.search(r"intent(?:\s*type)?\s*:\s*([a-zA-Z ]+)", response, re.IGNORECASE)
+                            if intent_match:
+                                extracted_intent = intent_match.group(1).strip().lower()
+                                for candidate in ["transactional", "commercial", "navigational", "informational"]:
+                                    if candidate in extracted_intent:
+                                        intent_type = candidate
+                                        break
+                            else:
+                                response_lower = response.lower()
+                                if "transactional" in response_lower:
+                                    intent_type = "transactional"
+                                elif "navigational" in response_lower:
+                                    intent_type = "navigational"
+                                elif "commercial" in response_lower:
+                                    intent_type = "commercial"
+                            reasoning = ""
+                            reasoning_match = re.search(r"reasoning\s*:\s*(.*)", response, re.IGNORECASE | re.DOTALL)
+                            if reasoning_match:
+                                reasoning = reasoning_match.group(1).strip()
+                            if not reasoning:
+                                reasoning = response.strip()
+                            reasoning_lines = []
+                            for line in reasoning.splitlines():
+                                stripped = line.strip()
+                                if not stripped:
+                                    continue
+                                lowered = stripped.lower()
+                                if lowered.startswith("intent type") or lowered.startswith("intent:"):
+                                    continue
+                                reasoning_lines.append(stripped)
+                            reasoning = " ".join(reasoning_lines).strip()
                             intent_results.append({
                                 "keyword": keyword,
                                 "intent_type": intent_type,
-                                "reasoning": reasoning.strip()
+                                "reasoning": reasoning
                             })
                         st.session_state.intent_results = intent_results
                         st.success(f"✅ Analyzed intent for {len(intent_results)} keywords!")
