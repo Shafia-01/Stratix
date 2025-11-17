@@ -782,7 +782,7 @@ def render_home_overview():
     st.markdown("""
     <div class="home-container">
         <div class="welcome-section">
-            <div class="app-logo">💎</div>
+            <div class="app-logo">🔑</div>
             <h1 class="app-title">KeyLytics</h1>
             <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
         </div>

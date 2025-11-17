@@ -1,4 +1,10 @@
-<h1 align="center"><strong>🔑 KeyLytics: AI-Powered SEO Keyword Intelligence System 📈</strong></h1>
+<h1 align="center">
+  <strong>
+    <img src="assets/keylytics_icon.png" width="36" style="vertical-align:middle; margin-right:6px;" />
+    KeyLytics: AI-Powered SEO Keyword Intelligence System
+  </strong>
+</h1>
+
 <p align="center">
   <strong><em>Keylytics is a comprehensive keyword research and SEO analysis platform powered by AI.</em></strong>
 </p>
