@@ -1104,7 +1104,7 @@ def render_search_intent():
                             intent_results.append({
                                 "keyword": keyword,
                                 "intent_type": intent_type,
-                                "reasoning": reasoning[:100] + "..." if len(reasoning) > 100 else reasoning
+                                "reasoning": reasoning.strip()
                             })
                         st.session_state.intent_results = intent_results
                         st.success(f"✅ Analyzed intent for {len(intent_results)} keywords!")
@@ -1126,11 +1126,9 @@ def render_search_intent():
                 "transactional": "🔴",
                 "commercial": "🟡"
             }.get(result["intent_type"], "⚪")
-            st.markdown(f"""
-            **{intent_color} {result['keyword']}**
-            - **Intent Type:** {result['intent_type'].title()}
-            - **Reasoning:** {result['reasoning']}
-            """)
+            st.markdown(f"**{intent_color} {result['keyword']}**")
+            st.markdown(f"**Intent Type:** {result['intent_type'].title()}")
+            st.markdown(f"**Reasoning:** {result['reasoning']}")
             st.divider()
 
 def render_topic_clustering():
@@ -1303,12 +1301,17 @@ def render_serp_analysis():
         results = st.session_state.serp_results
         # SERP preview cards
         if "serp_data" in results and results["serp_data"]:
-            st.markdown("#### 🔍 Top-Ranking Pages")
-            for i, result in enumerate(results["serp_data"][:5]):
-                with st.expander(f"#{i+1} {result.get('title', 'No title')[:50]}..."):
-                    st.markdown(f"**URL:** {result.get('link', 'No URL')}")
-                    st.markdown(f"**Snippet:** {result.get('snippet', 'No snippet')[:200]}...")
-                    st.markdown(f"**Domain:** {result.get('domain', 'Unknown')}")
+            serp_data = results["serp_data"]
+            organic_results = serp_data.get("organic_results", [])
+            if organic_results:
+                st.markdown("#### 🔍 Top-Ranking Pages")
+                for i, result in enumerate(organic_results[:5]):
+                    with st.expander(f"#{i+1} {result.get('title', 'No title')[:50]}..."):
+                        st.markdown(f"**URL:** {result.get('link', 'No URL')}")
+                        st.markdown(f"**Snippet:** {result.get('snippet', 'No snippet')[:200]}...")
+                        st.markdown(f"**Domain:** {result.get('displayed_link', result.get('domain', 'Unknown'))}")
+            else:
+                st.info("No organic results returned for this query.")
         # Featured snippets
         if "featured_snippets" in results and results["featured_snippets"]:
             st.markdown("#### ⭐ Featured Snippets")
