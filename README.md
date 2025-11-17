@@ -1,14 +1,8 @@
-<h1 align="center">
-  <strong>
-    <img src="assets/keylytics_icon.png" width="42" style="vertical-align:middle; margin-right:6px;" />
-    KeyLytics: AI-Powered SEO Keyword Intelligence System
-  </strong>
-</h1>
-
-<p align="center">
-  <strong><em>Keylytics is a comprehensive keyword research and SEO analysis platform powered by AI.</em></strong>
-</p>
-
+<div align="center">
+  <img src="assets/keylytics_icon.png" width="100">
+  <h1><strong>KeyLytics</strong></h1>
+  <p><strong><em>Advanced AI-Powered SEO Keyword Intelligence System</em></strong></p>
+</div>
 
 ## ✨ Features
 KeyLytics provides a comprehensive suite of SEO intelligence tools powered by AI. Here's what each feature offers:
