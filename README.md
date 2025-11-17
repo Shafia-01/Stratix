@@ -1,6 +1,6 @@
 <h1 align="center">
   <strong>
-    <img src="assets/keylytics_icon.png" width="36" style="vertical-align:middle; margin-right:6px;" />
+    <img src="assets/keylytics_icon.png" width="42" style="vertical-align:middle; margin-right:6px;" />
     KeyLytics: AI-Powered SEO Keyword Intelligence System
   </strong>
 </h1>
