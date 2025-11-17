@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/keylytics_icon.png" width="100" style="margin-bottom: -10px;">
+  <img src="assets/keylytics_icon.png" width="100" style="margin-bottom: -35px;">
   <h1><strong>KeyLytics</strong></h1>
   <p><strong><em>Advanced AI-Powered SEO Keyword Intelligence System</em></strong></p>
 </div>
