@@ -1669,10 +1669,14 @@ def render_full_strategy():
                     st.markdown(f"**{keyword}:** {forecast['trend_direction']} ({forecast['predicted_growth']}%)")
         # SERP Analysis
         if results['serp'] and 'serp_data' in results['serp']:
+            serp_data = results['serp'].get('serp_data', {})
+            organic_results = serp_data.get('organic_results', []) if isinstance(serp_data, dict) else []
             with st.expander("📰 SERP Analysis"):
-                st.markdown(f"**Top Results:** {len(results['serp']['serp_data'])} pages analyzed")
-                if results['serp']['serp_data']:
-                    st.markdown(f"**Top Result:** {results['serp']['serp_data'][0].get('title', 'No title')}")
+                st.markdown(f"**Top Results:** {len(organic_results)} pages analyzed")
+                if organic_results:
+                    st.markdown(f"**Top Result:** {organic_results[0].get('title', 'No title')}")
+                else:
+                    st.info("No organic SERP results available for this keyword.")
 
 def render_chat_interface():
     st.markdown("### 💬 Conversational SEO Assistant")
