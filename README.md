@@ -1,8 +1,8 @@
-# 🤖 Keylytics - AI-Powered SEO Keyword Intelligence System
+# 🤖 KeyLytics - AI-Powered SEO Keyword Intelligence System
 Keylytics is a comprehensive keyword research and SEO analysis platform powered by AI.
 
 ## ✨ Features
-Keylytics provides a comprehensive suite of SEO intelligence tools powered by AI. Here's what each feature offers:
+KeyLytics provides a comprehensive suite of SEO intelligence tools powered by AI. Here's what each feature offers:
 
 ### 1. 🔍 Keyword Discovery
 **AI-Powered Keyword Research with Real-Time Metrics**
