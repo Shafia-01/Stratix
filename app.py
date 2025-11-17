@@ -18,7 +18,7 @@ genai, pd, json, px, go = lazy_imports()
 
 load_dotenv()
 
-st.set_page_config(page_title="Keylytics", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="KeyLytics", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
 
 @st.cache_data(ttl=3600)
 def initialize_session_state():
@@ -779,7 +779,7 @@ def render_home_overview():
     <div class="home-container">
         <div class="welcome-section">
             <div class="app-logo">💎</div>
-            <h1 class="app-title">Keylytics</h1>
+            <h1 class="app-title">KeyLytics</h1>
             <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
         </div>
     </div>
@@ -1154,7 +1154,8 @@ def render_search_intent():
             }.get(result["intent_type"], "⚪")
             st.markdown(f"**{intent_color} {result['keyword']}**")
             st.markdown(f"**Intent Type:** {result['intent_type'].title()}")
-            st.markdown(f"**Reasoning:** {result['reasoning']}")
+            clean_reasoning = result['reasoning'].strip().strip('*').strip()
+            st.markdown(f"**Reasoning:** {clean_reasoning}")
             st.divider()
 
 def render_topic_clustering():
