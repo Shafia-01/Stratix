@@ -32,8 +32,12 @@ def initialize_session_state():
         "serp_results": None,
         "search_history": [],
         "daily_requests": 0,
+        "daily_request_date": datetime.now().date().isoformat(),
         "total_keywords": 0,
-        "opportunities": 0
+        "opportunities": 0,
+        "avg_volume": 0,
+        "trend_score": 0,
+        "metrics_initialized": False
     }
 
 session_defaults = initialize_session_state()
@@ -911,6 +915,62 @@ def update_global_metrics(keyword_results):
             if total_count > 0:
                 st.session_state.trend_score = (current_trend * (total_count - len(df)) + new_trend * len(df)) / total_count
 
+def increment_daily_requests(count=1):
+    """Increment the daily request counter with automatic daily reset."""
+    today = datetime.now().date().isoformat()
+    if st.session_state.get("daily_request_date") != today:
+        st.session_state.daily_requests = 0
+        st.session_state.daily_request_date = today
+    st.session_state.daily_requests = st.session_state.get("daily_requests", 0) + max(count, 0)
+
+def add_recent_search(keyword):
+    """Track up to the 10 most recent unique searches."""
+    if not keyword:
+        return
+    keyword = keyword.strip()
+    if not keyword:
+        return
+    history = st.session_state.get("search_history", [])
+    if keyword in history:
+        history.remove(keyword)
+    history.append(keyword)
+    st.session_state.search_history = history[-10:]
+
+def prepare_keyword_records(keyword_results, seed_keyword):
+    """Ensure keyword dictionaries include required defaults before saving."""
+    if not keyword_results:
+        return []
+    normalized = []
+    for item in keyword_results:
+        if not isinstance(item, dict):
+            continue
+        record = item.copy()
+        if seed_keyword and not record.get("seed"):
+            record["seed"] = seed_keyword
+        record["score"] = float(record.get("score") or 0)
+        record["difficulty"] = record.get("difficulty") or "Unknown"
+        record["intent"] = record.get("intent") or "Informational"
+        normalized.append(record)
+    return normalized
+
+def initialize_metrics_from_history():
+    """Seed global metrics from recent database history (runs once per session)."""
+    if st.session_state.get("metrics_initialized"):
+        return
+    try:
+        history_df = cached_fetch_past_results(limit=200)
+        if history_df is not None and not history_df.empty:
+            st.session_state.total_keywords = int(history_df.shape[0])
+            if 'score' in history_df.columns:
+                st.session_state.trend_score = float(history_df['score'].mean())
+                st.session_state.opportunities = int((history_df['score'] > 7.0).sum())
+            if 'volume' in history_df.columns:
+                st.session_state.avg_volume = float(history_df['volume'].mean())
+    except Exception as e:
+        print(f"[METRICS] Initialization skipped: {e}")
+    finally:
+        st.session_state.metrics_initialized = True
+
 def render_keyword_discovery():
     """🔍 Keyword Discovery: Find, rank, and score keywords"""
     st.markdown("### 🔍 Keyword Discovery")
@@ -960,8 +1020,18 @@ def render_keyword_discovery():
                                 st.session_state.keyword_results = results[:keyword_limit]
                             
                             st.session_state.selected_keyword = keyword_input
+                            st.session_state.keyword_results = prepare_keyword_records(
+                                st.session_state.keyword_results,
+                                keyword_input
+                            )
                             # Update global metrics
                             update_global_metrics(st.session_state.keyword_results)
+                            try:
+                                cached_save_to_db(st.session_state.keyword_results)
+                            except Exception as db_error:
+                                st.warning(f"⚠️ Database save failed: {db_error}")
+                            add_recent_search(keyword_input)
+                            increment_daily_requests()
                             st.success(f"✅ Analyzed {len(st.session_state.keyword_results)} keywords!")
                         else:
                             st.error("❌ No keywords found. Please try a different term.")
@@ -1027,6 +1097,8 @@ def render_competitor_gap():
                     results = cached_analyze_competitor_gap(your_keyword)
                     if results and "error" not in results:
                         st.session_state.competitor_results = results
+                        add_recent_search(your_keyword)
+                        increment_daily_requests()
                         st.success("✅ Competitor analysis complete!")
                     else:
                         st.warning("⚠️ Analysis completed but no competitor data found.")
@@ -1133,6 +1205,8 @@ def render_search_intent():
                                 "reasoning": reasoning
                             })
                         st.session_state.intent_results = intent_results
+                        add_recent_search(keywords[0])
+                        increment_daily_requests()
                         st.success(f"✅ Analyzed intent for {len(intent_results)} keywords!")
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
@@ -1250,6 +1324,8 @@ def render_trend_forecasting():
                         if keywords:
                             results = cached_analyze_trend_forecasting(keywords)
                             st.session_state.trend_results = results
+                            add_recent_search(trend_keyword)
+                            increment_daily_requests()
                             st.success("✅ Trend analysis complete!")
                         else:
                             st.error("❌ No keywords found for trend analysis.")
@@ -1288,11 +1364,13 @@ def render_trend_forecasting():
         if "seasonal_analysis" in results and results["seasonal_analysis"]:
             st.markdown("#### 🗓️ Seasonal Peaks")
             for keyword, analysis in list(results["seasonal_analysis"].items())[:3]:
+                growth_rate = analysis.get('growth_rate')
+                growth_text = f"{growth_rate}%" if growth_rate is not None else "N/A"
                 st.markdown(f"""
                 **{keyword}**
                 - Peak Season: Month {analysis['peak_season']}
                 - Low Season: Month {analysis['low_season']}
-                - Growth %: {analysis.get('growth_rate', 'N/A')}%
+                - Growth %: {growth_text}
                 - Recommendation: {analysis['recommendation']}
                 """)
                 st.divider()
@@ -1316,6 +1394,8 @@ def render_serp_analysis():
                         results = cached_analyze_serp_opportunities(serp_keyword)
                         if results and "error" not in results:
                             st.session_state.serp_results = results
+                            add_recent_search(serp_keyword)
+                            increment_daily_requests()
                             st.success("✅ SERP analysis complete!")
                         else:
                             st.warning("⚠️ Analysis completed but limited data available.")
@@ -1597,6 +1677,13 @@ def render_full_strategy():
                         # 1. Keyword Discovery
                         st.info("🔍 Running Keyword Discovery...")
                         keywords = cached_run_lightweight_agent(strategy_keyword, 20)
+                        keywords = prepare_keyword_records(keywords, strategy_keyword)
+                        if keywords:
+                            try:
+                                cached_save_to_db(keywords)
+                            except Exception as db_error:
+                                st.warning(f"⚠️ Keyword save skipped: {db_error}")
+                            update_global_metrics(keywords)
                         progress_bar.progress(20)                       
                         # 2. Competitor Analysis
                         st.info("🧩 Running Competitor Gap Analysis...")
@@ -1623,6 +1710,8 @@ def render_full_strategy():
                             "trends": trend_results,
                             "serp": serp_results
                         }
+                        add_recent_search(strategy_keyword)
+                        increment_daily_requests()
                         st.success("✅ Full strategy analysis complete!")
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
@@ -1777,11 +1866,14 @@ def render_keyword_analysis():
                                 st.session_state.selected_keyword = keyword_input                                
                                 # Save to database
                                 try:
-                                    cached_save_to_db(limited_results)
+                                    prepared_results = prepare_keyword_records(limited_results, keyword_input)
+                                    cached_save_to_db(prepared_results)
                                     st.success(f"✅ Analyzed {len(limited_results)} keywords and saved to database!")
                                 except Exception as db_error:
                                     st.success(f"✅ Analyzed {len(limited_results)} keywords!")
                                     st.warning(f"⚠️ Database save failed: {db_error}")
+                                add_recent_search(keyword_input)
+                                increment_daily_requests()
                             else:
                                 st.error("❌ No keywords found. Please try a different term.")
                     except Exception as e:
@@ -2070,7 +2162,8 @@ def render_topic_clustering_tab():
                     try:
                         # Use lightweight agent for faster clustering
                         st.info("🔄 Generating keywords for clustering...")
-                        keywords = cached_run_lightweight_agent(cluster_keyword, 10)                        
+                        keywords = cached_run_lightweight_agent(cluster_keyword, 10)
+                        keywords = prepare_keyword_records(keywords, cluster_keyword)
                         if keywords and len(keywords) > 0:
                             st.info(f"✅ Generated {len(keywords)} keywords. Now clustering...")                           
                             # Save keywords to database first
@@ -2380,6 +2473,9 @@ def main():
         st.session_state.current_page = "home"
     if "daily_requests" not in st.session_state:
         st.session_state.daily_requests = 0
+    if "daily_request_date" not in st.session_state:
+        st.session_state.daily_request_date = datetime.now().date().isoformat()
+    initialize_metrics_from_history()
     api_status = check_api_status()
     api_test = test_api_quick()
     if not api_status["GEMINI_API_KEY"] or not api_status["SERPAPI_KEY"]:

@@ -224,6 +224,7 @@ def analyze_seasonal_patterns(historical_data):
     seasonal_analysis = {}
     for keyword, data in historical_data.items():
         scores = data["historical_scores"]
+        score_values = [point["score"] for point in scores]
         # Calculate seasonal factors
         seasonal_factors = calculate_seasonal_factors(scores)
         # Identify peak and low seasons
@@ -234,6 +235,7 @@ def analyze_seasonal_patterns(historical_data):
             "peak_season": peak_season,
             "low_season": low_season,
             "seasonality_strength": calculate_seasonality_strength(seasonal_factors),
+            "growth_rate": calculate_growth_rate(score_values) if score_values else None,
             "recommendation": generate_seasonal_recommendation(peak_season, low_season)
         }
     return seasonal_analysis
