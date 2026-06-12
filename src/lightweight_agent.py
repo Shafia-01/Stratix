@@ -1,23 +1,26 @@
-import random
 import time
 from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call
 from src.seo_api_client import get_keyword_metrics
+from src.data_quality import DataSource
+from src.scoring import compute_score, classify_difficulty
+from src.logger_config import get_logger
 
 load_dotenv()
+logger = get_logger(__name__)
 
 def run_lightweight_agent(seed_keyword, max_keywords=5):
     """
     Lightweight version of the agent for faster performance.
     Generates fewer keywords and uses cached data when possible.
     """
-    print(f"\nRunning Lightweight Keylytics for: {seed_keyword}")
+    logger.info(f"Running Lightweight Keylytics for: {seed_keyword}")
     try:
         keywords = generate_keywords_lightweight(seed_keyword, max_keywords)
         if not keywords or len(keywords) == 0:
-            print(f"Gemini failed, using fallback keywords...")
+            logger.warning("Gemini failed, using fallback keywords...")
             keywords = [f"{seed_keyword} tools", f"{seed_keyword} guide", f"best {seed_keyword}"]
-        print(f"Generated {len(keywords)} keywords.")
+        logger.info(f"Generated {len(keywords)} keywords.")
         results = []
         
         # Process keywords with lightweight analysis
@@ -28,32 +31,34 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 if not metrics:
                     continue
                 
-                # Calculate simple score
-                score = compute_lightweight_score(metrics)
-                difficulty = classify_difficulty_lightweight(score)
+                # Calculate simple score using unified scoring module
+                score = compute_score(metrics, mode="lightweight")
+                difficulty = classify_difficulty(score, mode="lightweight")
                 result = {
                     "seed": seed_keyword,
                     "keyword": kw,
                     "volume": metrics.get("volume", 0),
-                    "competition": metrics.get("competition", 0.0),
-                    "cpc": metrics.get("cpc", 0.0),
-                    "trend": random.randint(20, 80),  # Simulated trend
+                    "competition": metrics.get("competition"),
+                    "cpc": metrics.get("cpc"),
+                    "trend": None,
                     "score": score,
                     "difficulty": difficulty,
                     "intent": "informational",  # Default intent
-                    "competitors": []  # Empty for lightweight version
+                    "competitors": [],  # Empty for lightweight version
+                    "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
+                    "trend_data_source": DataSource.UNAVAILABLE.value
                 }
                 results.append(result)
                 
                 # Small delay to avoid rate limits
                 time.sleep(0.2)
             except Exception as e:
-                print(f"Error processing '{kw}': {e}")
+                logger.error(f"Error processing '{kw}': {e}")
                 continue
-        print(f"\n{len(results)} keywords processed successfully!")
+        logger.info(f"{len(results)} keywords processed successfully!")
         return results
     except Exception as e:
-        print(f"Lightweight agent error: {e}")
+        logger.exception("Lightweight agent error occurred")
         return []
 
 def generate_keywords_lightweight(seed_keyword, max_keywords=5):
@@ -65,6 +70,7 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
     Do not use numbers, bullets, or special characters.
     """
     try:
+        # Use safe_gemini_call
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
             # Clean the response to remove numbers, bullets, and special characters
@@ -82,7 +88,7 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
                         keywords.append(line)
             return keywords[:max_keywords]
     except Exception as e:
-        print(f"Keyword generation failed: {e}")
+        logger.error(f"Keyword generation failed: {e}")
     
     # Fallback keywords
     return [
@@ -92,22 +98,3 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
         f"{seed_keyword} tips",
         f"{seed_keyword} software"
     ]
-
-def compute_lightweight_score(metrics):
-    """Compute a simple score for lightweight analysis."""
-    volume = metrics.get("volume", 0)
-    cpc = metrics.get("cpc", 0)
-    competition = metrics.get("competition", 0)
-    
-    # Simple scoring formula
-    score = (volume * 0.4 + cpc * 50 * 0.3 + (1 - competition) * 50 * 0.3) / 100
-    return round(score, 2)
-
-def classify_difficulty_lightweight(score):
-    """Classify difficulty for lightweight analysis."""
-    if score >= 0.7:
-        return "Easy"
-    elif score >= 0.4:
-        return "Medium"
-    else:
-        return "Hard"

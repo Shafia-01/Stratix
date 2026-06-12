@@ -3,10 +3,14 @@ import os
 import time
 import random
 from dotenv import load_dotenv
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+# Use active models for standard/fallback tasks
 GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -22,25 +26,25 @@ def safe_gemini_call(prompt, temperature=0.7):
             model = genai.GenerativeModel(model_name)
             result = model.generate_content(prompt)
             if hasattr(result, "text") and result.text:
-                print(f"Using {model_name}")
+                logger.info(f"Using {model_name}")
                 return result.text.strip()
             else:
-                print(f"No text response from {model_name}")
+                logger.warning(f"No text response from {model_name}")
                 continue
         except Exception as e:
             error_str = str(e)
             if "429" in error_str or "quota" in error_str.lower():
-                print(f"{model_name} quota hit. Trying next model...")
+                logger.warning(f"{model_name} quota hit. Trying next model...")
                 time.sleep(random.uniform(2, 5))
                 continue
             elif "safety" in error_str.lower() or "blocked" in error_str.lower():
-                print(f"{model_name} blocked by safety filters. Trying next model...")
+                logger.warning(f"{model_name} blocked by safety filters. Trying next model...")
                 time.sleep(random.uniform(1, 3))
                 continue
             else:
-                print(f"{model_name} failed: {error_str}")
+                logger.error(f"{model_name} failed: {error_str}", exc_info=True)
                 continue
-    print("All Gemini models failed or quota exceeded.")
+    logger.error("All Gemini models failed or quota exceeded.")
     return None
 
 def generate_keywords(seed_keyword, max_keywords=50):
@@ -62,7 +66,7 @@ def generate_keywords(seed_keyword, max_keywords=50):
     """
     response = safe_gemini_call(prompt)
     if not response:
-        print("Gemini failed to return keywords.")
+        logger.warning("Gemini failed to return keywords.")
         return []
     
     # Parse keywords - handle both comma-separated and newline-separated
@@ -104,5 +108,5 @@ def generate_keywords(seed_keyword, max_keywords=50):
                 seen.add(var.lower())
                 unique_keywords.append(var)
     
-    print(f"Gemini returned {len(unique_keywords)} keywords (requested {max_keywords}).")
+    logger.info(f"Gemini returned {len(unique_keywords)} keywords (requested {max_keywords}).")
     return unique_keywords[:max_keywords]

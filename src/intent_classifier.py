@@ -1,4 +1,3 @@
-import random
 from dotenv import load_dotenv
 from src.db_client import get_cached_intent, save_intent_to_db
 from src.gemini_client import safe_gemini_call
@@ -47,12 +46,7 @@ def generate_intent_gemini(keyword: str) -> str:
             return response_clean.split("Intent")[0].strip()
         return response_clean[:50]  # Truncate if too long
     # if all Gemini models fail
-    return random.choice([
-        "Informational",
-        "Transactional",
-        "Commercial",
-        "Navigational"
-    ])
+    return "Informational"
 
 def classify_intent(keyword: str) -> str:
     """

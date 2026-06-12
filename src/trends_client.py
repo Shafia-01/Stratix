@@ -7,6 +7,9 @@ from sqlalchemy import text
 from pytrends.request import TrendReq
 from dotenv import load_dotenv
 from src.db_client import connect_db
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -14,18 +17,11 @@ load_dotenv()
 warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
 pytrends = TrendReq(hl='en-US', tz=360)
 
-def get_trend_score(keyword):
+def _fetch_pytrends_dataframe(keyword):
     """
-    Fetch Google Trends average score (0–100) for a keyword.
-    Includes caching via MySQL and fallback values.
+    Fetch raw interest over time DataFrame from Google Trends using pytrends.
+    Reuses the retry and backoff logic. Returns None on failure.
     """
-    cached = get_cached_trend(keyword)
-    if cached:
-        print(f"[CACHE] Using cached trend data for '{keyword}'")
-        return cached
-    print(f"[TREND] Fetching trend data for '{keyword}'...")
-    
-    # Retry logic with exponential backoff
     max_retries = 3
     base_delay = 2.0
     
@@ -41,32 +37,69 @@ def get_trend_score(keyword):
             pytrends.build_payload([keyword], timeframe="today 12-m")
             data = pytrends.interest_over_time()
             if not data.empty:
-                score = int(data[keyword].mean())
-            else:
-                score = random.randint(20, 80)
-            save_trend_to_db(keyword, score)
-            print(f"[SUCCESS] Trend data fetched for '{keyword}': {score}")
-            return score
+                return data
         except Exception as e:
             error_msg = str(e)
-            print(f"[WARNING] Trend error for '{keyword}' (attempt {attempt + 1}): {error_msg}")
+            logger.warning(f"Trend error for '{keyword}' (attempt {attempt + 1}): {error_msg}")
             # Handle specific error types
             if "429" in error_msg or "rate" in error_msg.lower():
                 if attempt < max_retries - 1:
                     wait_time = base_delay * (2 ** attempt) * 3  # Longer wait for rate limits
-                    print(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before retry...")
+                    logger.info(f"Waiting {wait_time:.1f}s before retry...")
                     time.sleep(wait_time)
                     continue
             elif "timeout" in error_msg.lower():
                 if attempt < max_retries - 1:
-                    print(f"[TIMEOUT] Retrying after delay...")
+                    logger.info("Retrying after delay...")
                     continue
-            # Final fallback after all retries
-            if attempt == max_retries - 1:
-                print(f"[FALLBACK] Using random score for '{keyword}' after {max_retries} attempts")
-                score = random.randint(20, 80)
-                save_trend_to_db(keyword, score)
-                return score
+    return None
+
+def get_trend_score(keyword):
+    """
+    Fetch Google Trends average score (0–100) for a keyword.
+    Includes caching via MySQL and fallback values.
+    """
+    cached = get_cached_trend(keyword)
+    if cached is not None:
+        logger.info(f"Using cached trend data for '{keyword}'")
+        return cached
+    logger.info(f"Fetching trend data for '{keyword}'...")
+    
+    data = _fetch_pytrends_dataframe(keyword)
+    if data is not None and not data.empty and keyword in data.columns:
+        score = int(data[keyword].mean())
+        save_trend_to_db(keyword, score)
+        logger.info(f"Trend data fetched for '{keyword}': {score}")
+        return score
+    
+    logger.warning(f"Trend data fetch failed for '{keyword}' after retries")
+    return None
+
+def get_trend_history(keyword: str) -> list[dict] | None:
+    """Fetch real 12-month Google Trends history. Returns None on failure."""
+    logger.info(f"Fetching trend history for '{keyword}'...")
+    data = _fetch_pytrends_dataframe(keyword)
+    if data is not None and not data.empty and keyword in data.columns:
+        try:
+            # Resample to month end mean and round
+            monthly_data = data[keyword].resample('ME').mean()
+        except ValueError:
+            # Fallback for older pandas versions where 'ME' is not supported
+            monthly_data = data[keyword].resample('M').mean()
+            
+        history = []
+        for date, val in monthly_data.items():
+            history.append({
+                "date": date.strftime("%Y-%m"),
+                "score": int(round(val)) if pd.notnull(val) else 0
+            })
+        logger.info(f"Trend history fetched for '{keyword}': {len(history)} months")
+        return history
+    logger.warning(f"Trend history fetch failed for '{keyword}' after retries")
+    return None
+
+from sqlalchemy.orm import Session
+from src.models import Keyword
 
 def get_cached_trend(keyword):
     """
@@ -74,42 +107,40 @@ def get_cached_trend(keyword):
     """
     try:
         engine = connect_db()
-        query = text("""
-            SELECT trend, last_updated
-            FROM keywords
-            WHERE keyword = :kw
-            AND trend IS NOT NULL
-            ORDER BY last_updated DESC
-            LIMIT 1;
-        """)
-        df = pd.read_sql(query, engine, params={"kw": keyword})
-        if df.empty:
+        with Session(engine) as session:
+            row = (session.query(Keyword)
+                   .filter(Keyword.keyword == keyword)
+                   .filter(Keyword.trend.isnot(None))
+                   .order_by(Keyword.last_updated.desc())
+                   .first())
+            if not row:
+                return None
+            last_updated = row.last_updated
+            if last_updated:
+                delta = datetime.utcnow() - last_updated
+                if delta.days < 7:
+                    return int(row.trend)
             return None
-        last_updated = df.iloc[0]["last_updated"]
-        if pd.notnull(last_updated):
-            delta = datetime.now() - pd.to_datetime(last_updated)
-            if delta.days < 7:
-                return int(df.iloc[0]["trend"])
-        return None
     except Exception as e:
-        print(f"[ERROR] Trend cache lookup failed for '{keyword}': {e}")
+        logger.error(f"Trend cache lookup failed for '{keyword}': {e}", exc_info=True)
         return None
 
 def save_trend_to_db(keyword, score):
     """
     Save or update trend score in DB.
     """
+    if score is None:
+        return
     try:
         engine = connect_db()
-        with engine.begin() as conn:
-            conn.execute(
-                text("""
-                    UPDATE keywords
-                    SET trend = :score, last_updated = NOW()
-                    WHERE keyword = :kw;
-                """),
-                {"score": score, "kw": keyword}
-            )
-        print(f"[CACHE] Trend score saved for '{keyword}': {score}")
+        with Session(engine) as session:
+            row = session.query(Keyword).filter(Keyword.keyword == keyword).first()
+            if not row:
+                row = Keyword(keyword=keyword, trend=score)
+                session.add(row)
+            else:
+                row.trend = score
+            session.commit()
+        logger.info(f"Trend score saved for '{keyword}': {score}")
     except Exception as e:
-        print(f"[ERROR] Trend cache save failed for '{keyword}': {e}")
+        logger.error(f"Trend cache save failed for '{keyword}': {e}", exc_info=True)

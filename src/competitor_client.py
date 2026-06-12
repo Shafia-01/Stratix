@@ -2,6 +2,9 @@ import os
 import requests
 import time
 from dotenv import load_dotenv
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -33,7 +36,7 @@ def get_competitor_data(keyword, num_results=5):
         time.sleep(1)
         return competitors
     except Exception as e:
-        print(f"⚠️ Competitor fetch error for '{keyword}': {e}")
+        logger.error(f"Competitor fetch error for '{keyword}': {e}", exc_info=True)
         return []
 
 def extract_domain(url):
@@ -43,5 +46,6 @@ def extract_domain(url):
             return ""
         domain = url.split("/")[2]
         return domain.replace("www.", "")
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to parse domain from URL '{url}'", exc_info=True)
         return ""

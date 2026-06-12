@@ -17,7 +17,6 @@ urllib3
 beautifulsoup4
 
 # Database
-mysql-connector-python
 SQLAlchemy
 
 # SEO & Trends Data

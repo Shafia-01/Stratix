@@ -1,6 +1,9 @@
 from collections import defaultdict
 from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -9,10 +12,10 @@ def cluster_keywords_semantically(keywords_data):
     Group keywords into meaningful semantic clusters.
     Expected Output: Groups like "Content Generation," "Ad Targeting," "Customer Support AI," etc.
     """
-    print(f"[CLUSTERING] Clustering {len(keywords_data)} keywords semantically...")
+    logger.info(f"Clustering {len(keywords_data)} keywords semantically...")
     # Validate input data
     if not keywords_data or len(keywords_data) == 0:
-        print("[ERROR] No keywords data provided for clustering")
+        logger.error("No keywords data provided for clustering")
         return {
             "total_keywords": 0,
             "total_clusters": 0,
@@ -27,11 +30,11 @@ def cluster_keywords_semantically(keywords_data):
             if "keyword" in item:
                 keywords.append(item["keyword"])
             else:
-                print(f"[WARNING] Dictionary item missing 'keyword' field: {item}")
+                logger.warning(f"Dictionary item missing 'keyword' field: {item}")
         else:
             keywords.append(str(item))
     if not keywords:
-        print("[ERROR] No valid keywords found in data")
+        logger.error("No valid keywords found in data")
         return {
             "total_keywords": 0,
             "total_clusters": 0,
@@ -39,11 +42,11 @@ def cluster_keywords_semantically(keywords_data):
             "insights": [],
             "summary": "No valid keywords found for clustering"
         }
-    print(f"[CLUSTERING] Processing {len(keywords)} valid keywords")
+    logger.info(f"Processing {len(keywords)} valid keywords")
     # Step 1: Use Gemini for semantic clustering
     clusters = perform_semantic_clustering(keywords)
     if not clusters:
-        print("[ERROR] Semantic clustering failed, using fallback")
+        logger.error("Semantic clustering failed, using fallback")
         clusters = rule_based_clustering(keywords)
     # Step 2: Enhance clusters with additional analysis
     enhanced_clusters = enhance_clusters_with_metrics(clusters, keywords_data)
@@ -79,11 +82,10 @@ def perform_semantic_clustering(keywords):
     Make cluster names specific and actionable (e.g., "AI Content Generation Tools", "Fitness App Features", "SEO Analytics Software").
     """
     try:
-        print("[CLUSTERING] Calling Gemini for semantic clustering...")
+        logger.info("Calling Gemini for semantic clustering...")
         response = safe_gemini_call(prompt, temperature=0.3)
         if response and response.strip():
-            print("[CLUSTERING] Received response from Gemini, parsing...")
-            # Try to parse JSON response
+            logger.info("Received response from Gemini, parsing...")
             import json
             try:
                 # Clean the response to remove any markdown formatting
@@ -96,24 +98,24 @@ def perform_semantic_clustering(keywords):
                 data = json.loads(clean_response)
                 clusters = data.get("clusters", [])
                 if clusters and len(clusters) > 0:
-                    print(f"[CLUSTERING] Successfully parsed {len(clusters)} clusters from Gemini")
+                    logger.info(f"Successfully parsed {len(clusters)} clusters from Gemini")
                     return clusters
                 else:
-                    print("[CLUSTERING] No clusters found in Gemini response")
+                    logger.warning("No clusters found in Gemini response")
             except json.JSONDecodeError as je:
-                print(f"[CLUSTERING] JSON parse error: {je}")
-                print(f"[CLUSTERING] Raw response: {response[:200]}...")
+                logger.error(f"JSON parse error: {je}")
+                logger.debug(f"Raw response: {response}")
                 # Fallback: parse as text and create clusters
                 return parse_text_clusters(response, keywords_sample)
         else:
-            print("[CLUSTERING] No response from Gemini")
+            logger.warning("No response from Gemini")
     except Exception as e:
-        print(f"[ERROR] Semantic clustering failed: {e}")
+        logger.error(f"Semantic clustering failed: {e}", exc_info=True)
         # Suppress Unicode errors for Windows console
         import warnings
         warnings.filterwarnings("ignore", category=UnicodeWarning)
     # Fallback: rule-based clustering
-    print("[CLUSTERING] Using rule-based clustering fallback")
+    logger.info("Using rule-based clustering fallback")
     return rule_based_clustering(keywords_sample)
 
 def parse_text_clusters(response, keywords):
@@ -337,5 +339,5 @@ def get_semantic_keyword_variations(seed_keyword):
             variations = [kw.strip() for kw in response.split('\n') if kw.strip()]
             return variations[:20]
     except Exception as e:
-        print(f"[ERROR] Failed to generate semantic variations: {e}")
+        logger.error(f"Failed to generate semantic variations: {e}", exc_info=True)
     return []

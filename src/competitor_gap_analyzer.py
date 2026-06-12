@@ -3,6 +3,9 @@ import requests
 from dotenv import load_dotenv
 from src.competitor_client import get_competitor_data
 from src.gemini_client import safe_gemini_call
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -12,14 +15,14 @@ def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
     Analyze competitor keyword gaps and opportunities.
     Expected Output: Missing keywords, traffic potential, competitor rank
     """
-    print(f"[GAP_ANALYSIS] Analyzing keyword gaps for: {seed_keyword}")
+    logger.info(f"Analyzing keyword gaps for: {seed_keyword}")
     
     # Step 1: Get competitor domains for the seed keyword
     competitors_data = get_competitor_data(seed_keyword, num_results=top_competitors)
     if not competitors_data:
         return {"error": "No competitor data found"}
     competitor_domains = [comp["domain"] for comp in competitors_data]
-    print(f"[GAP_ANALYSIS] Found competitors: {competitor_domains}")
+    logger.info(f"Found competitors: {competitor_domains}")
     
     # Step 2: Generate related keywords for gap analysis
     related_keywords = generate_related_keywords_for_gap(seed_keyword)
@@ -58,7 +61,7 @@ def generate_related_keywords_for_gap(seed_keyword):
             keywords = [kw.strip() for kw in response.split('\n') if kw.strip()]
             return keywords[:15]
     except Exception as e:
-        print(f"[ERROR] Failed to generate related keywords: {e}")
+        logger.error(f"Failed to generate related keywords: {e}", exc_info=True)
     
     # Fallback keywords
     return [
@@ -117,7 +120,7 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
             "traffic_potential": "high" if gap_score > 70 else "medium" if gap_score > 40 else "low"
         }
     except Exception as e:
-        print(f"[ERROR] Failed to analyze ranking gaps for '{keyword}': {e}")
+        logger.error(f"Failed to analyze ranking gaps for '{keyword}': {e}", exc_info=True)
         return None
 
 def identify_keyword_opportunities(gap_analysis, seed_keyword):
@@ -170,7 +173,8 @@ def extract_domain_from_url(url):
         if domain.startswith('www.'):
             domain = domain[4:]
         return domain
-    except:
+    except Exception as e:
+        logger.debug(f"Failed to parse domain from URL '{url}'", exc_info=True)
         return url
 
 def get_missing_keywords_analysis(seed_keyword):
@@ -196,7 +200,8 @@ def get_missing_keywords_analysis(seed_keyword):
             try:
                 keywords_data = json.loads(response)
                 return keywords_data
-            except:
+            except Exception as je:
+                logger.error(f"JSON parsing error: {je}")
                 # Fallback: parse as text
                 lines = response.split('\n')
                 keywords = []
@@ -205,5 +210,5 @@ def get_missing_keywords_analysis(seed_keyword):
                         keywords.append({"keyword": line.strip(), "opportunity_type": "semantic_gap", "difficulty_estimate": "medium"})
                 return keywords[:10]
     except Exception as e:
-        print(f"[ERROR] Failed to get missing keywords analysis: {e}")
+        logger.error(f"Failed to get missing keywords analysis: {e}", exc_info=True)
     return []

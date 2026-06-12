@@ -1,181 +1,99 @@
 import pandas as pd
 import os
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+import json
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import Session
+from src.models import Base, Keyword, IntentCache
+from src.logger_config import get_logger
 
-load_dotenv()
+logger = get_logger(__name__)
 
-DEFAULT_DB_CONFIG = {
-    'MYSQL_HOST': '127.0.0.1',
-    'MYSQL_USER': 'root', 
-    'MYSQL_PASSWORD': '',
-    'MYSQL_DATABASE': 'gemkey_ai',
-    'MYSQL_PORT': '3306'
-}
+DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
 
-def get_db_config():
-    """Get database configuration with fallbacks."""
-    config = {}
-    for key, default in DEFAULT_DB_CONFIG.items():
-        value = os.getenv(key, default)
-        if not value and key != 'MYSQL_PASSWORD': 
-            print(f"Warning: {key} not set, using default: {default}")
-        config[key] = value
-    return config
-
-print("MYSQL_HOST from env:", os.getenv("MYSQL_HOST", "127.0.0.1 (default)"))
+_engine = None
 
 def connect_db():
-    """Create and return a SQLAlchemy engine."""
-    import urllib.parse
-    config = get_db_config()
-    
-    # Validate host format
-    host = config['MYSQL_HOST']
-    if not host or len(host.split('.')) != 4:
-        print(f"Invalid MySQL host '{host}', using localhost")
-        host = '127.0.0.1'
-    
-    # URL encode the password to handle special characters like @
-    encoded_password = urllib.parse.quote_plus(config['MYSQL_PASSWORD'])
-    db_url = (
-        f"mysql+mysqlconnector://{config['MYSQL_USER']}:{encoded_password}"
-        f"@{host}:{config['MYSQL_PORT']}/{config['MYSQL_DATABASE']}"
-    )
-    print(f"Connecting to MySQL: {config['MYSQL_USER']}@{host}:{config['MYSQL_PORT']}/{config['MYSQL_DATABASE']}")
-    
-    try:
-        engine = create_engine(db_url, pool_pre_ping=True)
-        # Test connection
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        print("Database connection successful")
-        return engine
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-        print("Please check your MySQL server is running and credentials are correct")
-        print("You can create a .env file with your database settings:")
-        print("   MYSQL_HOST=127.0.0.1")
-        print("   MYSQL_USER=root")
-        print("   MYSQL_PASSWORD=your_password")
-        print("   MYSQL_DATABASE=gemkey_ai")
-        raise e
+    """Create and return a SQLite SQLAlchemy engine and verify tables exist."""
+    global _engine
+    if _engine is None:
+        logger.info(f"Connecting to SQLite database: {os.path.basename(DB_PATH)}")
+        _engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(_engine)
+    return _engine
 
 def save_to_db(data):
-    """Save keyword data with all computed fields."""
+    """Save keyword data with all computed fields using SQLAlchemy ORM."""
     try:
         engine = connect_db()
         df = pd.DataFrame(data)
         
-        # Debug: Print sample data being saved
-        if not df.empty:
-            print(f"[DEBUG] Sample data being saved:")
-            sample_row = df.iloc[0]
-            print(f"  Seed: {sample_row.get('seed', 'MISSING')}")
-            print(f"  Keyword: {sample_row.get('keyword', 'MISSING')}")
-            print(f"  Score: {sample_row.get('score', 'MISSING')}")
-            print(f"  Difficulty: {sample_row.get('difficulty', 'MISSING')}")
-        
-        # Convert competitors list to JSON string for MySQL storage
+        if df.empty:
+            return
+            
+        # Convert competitors list to JSON string for database storage
         if 'competitors' in df.columns:
-            import json
             df['competitors'] = df['competitors'].apply(lambda x: json.dumps(x) if isinstance(x, list) else json.dumps([]))
-        
-        # Use INSERT ... ON DUPLICATE KEY UPDATE to handle existing keywords
-        with engine.begin() as conn:
+            
+        with Session(engine) as session:
             for _, row in df.iterrows():
-                # Ensure all required fields have proper values
-                seed_value = row.get("seed") or "Unknown"
-                keyword_value = row.get("keyword") or ""
-                volume_value = float(row.get("volume") or 0)
-                competition_value = float(row.get("competition") or 0.0)
-                cpc_value = float(row.get("cpc") or 0.0)
-                trend_value = row.get("trend") if pd.notnull(row.get("trend")) else 0
-                score_value = float(row.get("score") or 0.0)
-                difficulty_value = row.get("difficulty") or "Unknown"
-                # Normalize intent to shorter format to avoid database column size issues
+                kw = row.get("keyword")
+                if not kw:
+                    continue
+                
+                # Fetch existing by unique keyword or merge
+                db_row = session.query(Keyword).filter(Keyword.keyword == kw).first()
+                if not db_row:
+                    db_row = Keyword(keyword=kw)
+                    session.add(db_row)
+                
+                db_row.seed = row.get("seed") or "Unknown"
+                db_row.volume = float(row.get("volume")) if pd.notnull(row.get("volume")) else 0.0
+                db_row.competition = float(row.get("competition")) if pd.notnull(row.get("competition")) else None
+                db_row.cpc = float(row.get("cpc")) if pd.notnull(row.get("cpc")) else None
+                db_row.trend = float(row.get("trend")) if pd.notnull(row.get("trend")) else None
+                db_row.score = float(row.get("score")) if pd.notnull(row.get("score")) else 0.0
+                db_row.difficulty = row.get("difficulty") or "Unknown"
+                
+                # Normalize intent
                 intent_raw = row.get("intent") or "Informational"
-                # Extract just the intent type (e.g., "Informational" from "Informational Intent (learning or exploring)")
                 if "Intent" in intent_raw:
                     intent_value = intent_raw.split("Intent")[0].strip()
-                elif len(intent_raw) > 50:  # Truncate if too long
+                elif len(intent_raw) > 50:
                     intent_value = intent_raw[:50]
                 else:
                     intent_value = intent_raw
-                competitors_value = row.get("competitors") or "[]"
-                
-                conn.execute(
-                    text("""
-                        INSERT INTO keywords (seed, keyword, volume, competition, cpc, trend, score, difficulty, intent, competitors)
-                        VALUES (:seed, :keyword, :volume, :competition, :cpc, :trend, :score, :difficulty, :intent, :competitors)
-                        ON DUPLICATE KEY UPDATE
-                            seed = VALUES(seed),
-                            volume = VALUES(volume),
-                            competition = VALUES(competition),
-                            cpc = VALUES(cpc),
-                            trend = VALUES(trend),
-                            score = VALUES(score),
-                            difficulty = VALUES(difficulty),
-                            intent = VALUES(intent),
-                            competitors = VALUES(competitors),
-                            last_updated = NOW();
-                    """),
-                    {
-                        "seed": seed_value,
-                        "keyword": keyword_value,
-                        "volume": volume_value,
-                        "competition": competition_value,
-                        "cpc": cpc_value,
-                        "trend": trend_value,
-                        "score": score_value,
-                        "difficulty": difficulty_value,
-                        "intent": intent_value,
-                        "competitors": competitors_value
-                    }
-                )
-        
-        print(f"[OK] {len(df)} keywords saved/updated successfully!")
+                db_row.intent = intent_value
+                db_row.competitors = row.get("competitors") or "[]"
+            
+            session.commit()
+        logger.info(f"{len(df)} keywords saved/updated successfully!")
     except Exception as e:
-        print("[WARNING] Database Save Error:", e)
-        print("[INFO] Data will be saved to cache files instead")
-        # Fallback: save to CSV cache
+        logger.error(f"Database Save Error: {e}", exc_info=True)
+        logger.info("Data will be saved to cache files instead")
         try:
+            os.makedirs("cache", exist_ok=True)
             cache_file = f"cache/keywords_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
             df = pd.DataFrame(data)
             df.to_csv(cache_file, index=False)
-            print(f"[OK] Saved to cache file: {cache_file}")
+            logger.info(f"Saved to cache file: {cache_file}")
         except Exception as cache_e:
-            print(f"[ERROR] Cache save also failed: {cache_e}")
+            logger.error(f"Cache save also failed: {cache_e}", exc_info=True)
 
 def fetch_past_results(limit=50):
     """Fetch recent keyword entries."""
     try:
         engine = connect_db()
-        query = text("""
-            SELECT 
-                COALESCE(seed, 'Unknown') as seed,
-                keyword, 
-                COALESCE(volume, 0) as volume, 
-                COALESCE(competition, 0.0) as competition, 
-                COALESCE(cpc, 0.0) as cpc, 
-                COALESCE(score, 0.0) as score, 
-                COALESCE(difficulty, 'Unknown') as difficulty
-            FROM keywords
-            WHERE keyword IS NOT NULL
-            ORDER BY id DESC
-            LIMIT :limit;
-        """)
-        df = pd.read_sql(query, engine, params={"limit": limit})
-        
-        # Debug: Print sample data being retrieved
-        if not df.empty:
-            print(f"[DEBUG] Sample data retrieved from database:")
-            sample_row = df.iloc[0]
-            print(f"  Seed: {sample_row.get('seed', 'MISSING')}")
-            print(f"  Keyword: {sample_row.get('keyword', 'MISSING')}")
-            print(f"  Score: {sample_row.get('score', 'MISSING')}")
-            print(f"  Difficulty: {sample_row.get('difficulty', 'MISSING')}")
-        
+        with Session(engine) as session:
+            rows = session.query(Keyword).order_by(Keyword.id.desc()).limit(limit).all()
+            
+            # Convert to list of dicts and strip internal _sa_instance_state
+            data = []
+            for row in rows:
+                d = {k: v for k, v in row.__dict__.items() if k != '_sa_instance_state'}
+                data.append(d)
+                
+            df = pd.DataFrame(data)
+            
         # Ensure all required columns exist with proper defaults
         required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
         for col in required_columns:
@@ -196,12 +114,11 @@ def fetch_past_results(limit=50):
             'difficulty': 'Unknown'
         })
         
-        print(f"[DB] Fetched {len(df)} records from database")
+        logger.info(f"Fetched {len(df)} records from database")
         return df
     except Exception as e:
-        print(f"DB Fetch Error: {e}")
-        print("📂 Trying to load from cache files instead...")
-        # Fallback: load from cache files
+        logger.error(f"DB Fetch Error: {e}", exc_info=True)
+        logger.info("Trying to load from cache files instead...")
         try:
             import glob
             cache_files = glob.glob("cache/*.csv")
@@ -209,7 +126,6 @@ def fetch_past_results(limit=50):
                 latest_file = max(cache_files, key=os.path.getctime)
                 df = pd.read_csv(latest_file)
                 
-                # Ensure required columns exist in cache data
                 required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
                 for col in required_columns:
                     if col not in df.columns:
@@ -228,83 +144,64 @@ def fetch_past_results(limit=50):
                     'difficulty': 'Unknown'
                 })
                 
-                print(f"[CACHE] Loaded {len(df)} records from cache file: {latest_file}")
+                logger.info(f"Loaded {len(df)} records from cache file: {latest_file}")
                 return df.tail(limit)
             return pd.DataFrame()
         except Exception as cache_e:
-            print(f"⚠️ Cache load also failed: {cache_e}")
+            logger.error(f"Cache load also failed: {cache_e}", exc_info=True)
             return pd.DataFrame()
 
 def verify_database_schema():
     """Verify that the keywords table has all required columns."""
     try:
         engine = connect_db()
-        with engine.connect() as conn:
-            # Check if table exists and get column info
-            result = conn.execute(text("""
-                SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE 
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = 'keywords' AND TABLE_SCHEMA = DATABASE()
-                ORDER BY ORDINAL_POSITION;
-            """))
+        inspector = inspect(engine)
+        columns = inspector.get_columns("keywords")
+        if not columns:
+            logger.error("Keywords table does not exist!")
+            return False
             
-            columns = result.fetchall()
-            if not columns:
-                print("[ERROR] Keywords table does not exist!")
-                return False
+        existing_columns = [col["name"] for col in columns]
+        required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty', 'intent', 'trend', 'competitors']
+        
+        logger.info(f"Keywords table has {len(existing_columns)} columns: {existing_columns}")
+        
+        missing_columns = [col for col in required_columns if col not in existing_columns]
+        if missing_columns:
+            logger.warning(f"Missing required columns: {missing_columns}")
+            return False
             
-            required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty', 'intent', 'trend', 'competitors']
-            existing_columns = [col[0] for col in columns]
-            
-            print(f"[SCHEMA] Keywords table has {len(existing_columns)} columns: {existing_columns}")
-            
-            missing_columns = [col for col in required_columns if col not in existing_columns]
-            if missing_columns:
-                print(f"[WARNING] Missing required columns: {missing_columns}")
-                return False
-            
-            print("[SCHEMA] All required columns are present!")
-            return True
-            
+        logger.info("All required columns are present!")
+        return True
     except Exception as e:
-        print(f"[ERROR] Schema verification failed: {e}")
+        logger.error(f"Schema verification failed: {e}", exc_info=True)
         return False
 
 def get_cached_intent(keyword):
-    """
-    Fetch cached intent for a given keyword from 'intent_cache' table if available.
-    """
+    """Fetch cached intent for a given keyword from 'intent_cache' table if available."""
     try:
         engine = connect_db()
-        query = text("SELECT intent FROM intent_cache WHERE keyword = :kw LIMIT 1;")
-        result = pd.read_sql(query, engine, params={"kw": keyword})
-        if not result.empty:
-            intent = result.iloc[0]["intent"]
-            print(f"♻️ Cached intent found for '{keyword}': {intent}")
-            return intent
+        with Session(engine) as session:
+            row = session.query(IntentCache).filter(IntentCache.keyword == keyword).first()
+            if row:
+                logger.info(f"Cached intent found for '{keyword}': {row.intent}")
+                return row.intent
         return None
     except Exception as e:
-        print(f"⚠️ Intent cache lookup error for '{keyword}': {e}")
-        # Database unavailable, continue without cache
+        logger.error(f"Intent cache lookup error for '{keyword}': {e}", exc_info=True)
         return None
 
 def save_intent_to_db(keyword, intent):
-    """
-    Save new intent into 'intent_cache' table.
-    """
+    """Save new intent into 'intent_cache' table."""
     try:
         engine = connect_db()
-        with engine.begin() as conn:
-            conn.execute(
-                text("""
-                    INSERT INTO intent_cache (keyword, intent)
-                    VALUES (:kw, :intent)
-                    ON DUPLICATE KEY UPDATE intent = VALUES(intent);
-                """),
-                {"kw": keyword, "intent": intent}
-            )
-        print(f"💾 Cached intent saved for '{keyword}': {intent}")
+        with Session(engine) as session:
+            row = session.query(IntentCache).filter(IntentCache.keyword == keyword).first()
+            if not row:
+                row = IntentCache(keyword=keyword)
+                session.add(row)
+            row.intent = intent
+            session.commit()
+        logger.info(f"Cached intent saved for '{keyword}': {intent}")
     except Exception as e:
-        print(f"⚠️ Error saving intent to DB for '{keyword}': {e}")
-        # Database unavailable, continue without caching
-        print("ℹ️ Continuing without intent caching")
+        logger.error(f"Error saving intent to DB for '{keyword}': {e}", exc_info=True)

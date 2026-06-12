@@ -6,6 +6,9 @@ import re
 from datetime import datetime
 from dotenv import load_dotenv
 import base64
+from src.logger_config import get_logger
+
+logger = get_logger("app")
 
 def load_base64_image(path):
     with open(path, "rb") as image_file:
@@ -26,7 +29,6 @@ load_dotenv()
 
 st.set_page_config(page_title="KeyLytics", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
 
-@st.cache_data(ttl=3600)
 def initialize_session_state():
     """Initialize session state variables."""
     return {
@@ -67,7 +69,7 @@ def cached_run_agent(keyword, limit):
     results = run_agent(keyword, limit)
     # Ensure we return at least what was requested, or log if we can't
     if results and len(results) < limit:
-        print(f"⚠️ Warning: Requested {limit} keywords but only got {len(results)}. This may be due to API limitations.")
+        logger.warning(f"Requested {limit} keywords but only got {len(results)}. This may be due to API limitations.")
     return results
 @st.cache_data(ttl=1800)
 def cached_analyze_competitor_gap(keyword):
@@ -94,15 +96,15 @@ def safe_gemini_call(prompt, temperature=0.7):
             model = genai.GenerativeModel(model_name)
             result = model.generate_content(prompt)
             if hasattr(result, "text"):
-                print(f"✅ Using {model_name}")
+                logger.info(f"Using {model_name}")
                 return result.text.strip()
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
-                print(f"⚠️ {model_name} quota hit. Trying next...")
+                logger.warning(f"{model_name} quota hit. Trying next...")
                 time.sleep(random.uniform(1, 3))
                 continue
             else:
-                print(f"❌ {model_name} failed: {e}")
+                logger.error(f"{model_name} failed: {e}")
                 continue
     return "⚠️ All Gemini models are currently unavailable. Try again later."
 
@@ -120,12 +122,14 @@ def cached_verify_database_schema():
 def cached_check_api_status():
     """Cached version of API status check."""
     return check_api_status()
-@st.cache_data(ttl=300)
-def cached_save_to_db(data):
-    """Cached version of save_to_db function."""
+def save_keyword_results(data):
+    """Save keyword results to DB without caching."""
     from src.db_client import save_to_db
     return save_to_db(data)
-@st.cache_data(ttl=3600)
+
+# TODO: rename call sites to save_keyword_results in a follow-up cleanup
+cached_save_to_db = save_keyword_results
+
 def get_performance_stats():
     """Get performance statistics for monitoring."""
     return {
@@ -978,7 +982,7 @@ def initialize_metrics_from_history():
             if 'volume' in history_df.columns:
                 st.session_state.avg_volume = float(history_df['volume'].mean())
     except Exception as e:
-        print(f"[METRICS] Initialization skipped: {e}")
+        logger.exception("Metrics initialization skipped")
     finally:
         st.session_state.metrics_initialized = True
 
@@ -2448,10 +2452,10 @@ def test_api_quick():
                         results["gemini"] = True
                         break
                 except Exception as e:
-                    print(f"Gemini model {model_name} failed: {e}")
+                    logger.warning(f"Gemini model {model_name} failed: {e}")
                     continue
         except Exception as e:
-            print(f"Gemini test failed: {e}")
+            logger.exception("Gemini test failed")
     
     # Test SerpApi
     serpapi_key = os.getenv("SERPAPI_KEY")
@@ -2465,9 +2469,9 @@ def test_api_quick():
                 data = response.json()
                 results["serpapi"] = "search_information" in data or "error" not in data
             else:
-                print(f"SerpApi HTTP error: {response.status_code}")
+                logger.error(f"SerpApi HTTP error: {response.status_code}")
         except Exception as e:
-            print(f"SerpApi test failed: {e}")
+            logger.exception("SerpApi test failed")
     
     return results
 

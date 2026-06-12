@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,46 +9,27 @@ from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
 from src.db_client import save_to_db 
+from src.data_quality import DataSource 
+from src.scoring import compute_score, classify_difficulty
+from src.logger_config import get_logger
 
-load_dotenv()
-
-# SCORE COMPUTATION
-def compute_score(metrics):
-    """
-    Compute base SEO score using volume, CPC, and competition.
-    Weighted formula.
-    """
-    volume = metrics.get("volume", 0)
-    cpc = metrics.get("cpc", 0)
-    competition = metrics.get("competition", 0)
-
-    score = (volume * 0.5 + cpc * 100 * 0.3 + (1 - competition) * 100 * 0.2) / 100
-    return round(score, 3)
-
-def classify_difficulty(score):
-    """Classify keyword difficulty based on score."""
-    if score >= 0.8:
-        return "Easy"
-    elif score >= 0.5:
-        return "Medium"
-    else:
-        return "Hard"
+logger = get_logger(__name__)
 
 # MAIN AGENT
 def run_agent(seed_keyword, max_keywords=50):
-    print(f"\nRunning Keylytics for: {seed_keyword}")
+    logger.info(f"Running Keylytics for: {seed_keyword}")
     
     # Use enhanced keyword research (DataForSEO + Gemini fallback)
     keywords = get_enhanced_keywords(seed_keyword, max_keywords)
     
     if not keywords or len(keywords) == 0:
-        print(f"Enhanced keyword research failed for '{seed_keyword}'. Using emergency fallback...")
+        logger.warning(f"Enhanced keyword research failed for '{seed_keyword}'. Using emergency fallback...")
         time.sleep(1)
         keywords = [{"rank": 1, "keyword": f"{seed_keyword} ideas"}, 
                    {"rank": 2, "keyword": f"{seed_keyword} tools"}, 
                    {"rank": 3, "keyword": f"best {seed_keyword} resources"}]
     
-    print(f"Enhanced keyword research returned {len(keywords)} optimized keywords.")
+    logger.info(f"Enhanced keyword research returned {len(keywords)} optimized keywords.")
     
     # Keywords are already formatted and sorted by opportunity score
     sorted_keywords = keywords
@@ -70,7 +50,7 @@ def run_agent(seed_keyword, max_keywords=50):
     results = []
 
     # FULL ANALYSIS
-    print(f"\nRunning full analysis (metrics + trends + competitors) on top {full_analysis_count} keywords...")
+    logger.info(f"Running full analysis (metrics + trends + competitors) on top {full_analysis_count} keywords...")
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(process_keyword, kw, seed_keyword) for kw in full_analysis_keywords]
         for future in as_completed(futures):
@@ -83,7 +63,7 @@ def run_agent(seed_keyword, max_keywords=50):
 
     # QUICK ANALYSIS (OTHERS)
     if quick_keywords:
-        print(f"\nRunning quick analysis (metrics only) for remaining {len(quick_keywords)} keywords...")
+        logger.info(f"Running quick analysis (metrics only) for remaining {len(quick_keywords)} keywords...")
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(process_keyword_quick, kw, seed_keyword) for kw in quick_keywords]
             for future in as_completed(futures):
@@ -100,8 +80,8 @@ def run_agent(seed_keyword, max_keywords=50):
     try:
         save_to_db(results)
     except Exception as e:
-        print("MySQL Save Error:", e)
-    print(f"\n{len(results)} keywords saved successfully!")
+        logger.error(f"Database Save Error: {e}", exc_info=True)
+    logger.info(f"{len(results)} keywords saved successfully!")
     return results
 
 # FULL PROCESS (TOP 15)
@@ -127,28 +107,25 @@ def process_keyword(kw_item, seed_keyword):
         try:
             trend_score = get_trend_score(kw)
         except Exception as e:
-            if "429" in str(e):
-                print(f"Trend rate-limited for '{kw}'. Sleeping longer...")
-                time.sleep(random.uniform(30, 45))
-                trend_score = random.randint(20, 80)
-            else:
-                trend_score = random.randint(20, 80)
+            trend_score = None
         competitors = get_competitor_data(kw)
-        final_score = round((0.8 * score + 0.2 * (trend_score or score)), 3)
+        final_score = round((0.8 * score + 0.2 * (trend_score if trend_score is not None else score)), 3)
         return {
             "seed": seed_keyword,
             "keyword": kw,
             "volume": metrics.get("volume", 0),
-            "competition": metrics.get("competition", 0.0),
-            "cpc": metrics.get("cpc", 0.0),
+            "competition": metrics.get("competition"),
+            "cpc": metrics.get("cpc"),
             "trend": trend_score,
             "score": final_score,
             "difficulty": difficulty,
             "intent": intent,
-            "competitors": competitors
+            "competitors": competitors,
+            "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
+            "trend_data_source": DataSource.LIVE.value if trend_score is not None else DataSource.UNAVAILABLE.value
         }
     except Exception as e:
-        print(f"Error processing '{kw}':", e)
+        logger.error(f"Error processing '{kw}': {e}", exc_info=True)
         return None
 
 # QUICK PROCESS (OTHERS)
@@ -159,8 +136,9 @@ def process_keyword_quick(kw_item, seed_keyword):
         if "volume" in kw_item and "competition" in kw_item and "cpc" in kw_item:
             metrics = {
                 "volume": kw_item.get("volume", 0),
-                "competition": kw_item.get("competition", 0.5),
-                "cpc": kw_item.get("cpc", 0.0)
+                "competition": kw_item.get("competition"),
+                "cpc": kw_item.get("cpc"),
+                "data_source": kw_item.get("data_source", DataSource.LIVE.value)
             }
         else:
             metrics = get_keyword_metrics_enhanced(kw)
@@ -173,14 +151,16 @@ def process_keyword_quick(kw_item, seed_keyword):
             "seed": seed_keyword,
             "keyword": kw,
             "volume": metrics.get("volume", 0),
-            "competition": metrics.get("competition", 0.0),
-            "cpc": metrics.get("cpc", 0.0),
+            "competition": metrics.get("competition"),
+            "cpc": metrics.get("cpc"),
             "trend": None,
             "score": score,
             "difficulty": difficulty,
             "intent": intent,
-            "competitors": []
+            "competitors": [],
+            "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
+            "trend_data_source": DataSource.UNAVAILABLE.value
         }
     except Exception as e:
-        print(f"Error (quick) for '{kw}':", e)
+        logger.error(f"Error (quick) for '{kw}': {e}", exc_info=True)
         return None

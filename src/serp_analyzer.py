@@ -5,18 +5,26 @@ import re
 from collections import defaultdict
 from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call
+from src.logger_config import get_logger
+from src.exceptions import KeylyticsAPIError
 
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+logger = get_logger(__name__)
 
 def analyze_serp_opportunities(keyword, num_results=10):
     """
     Analyze SERP opportunities and snippet optimization chances.
     Expected Output: Snippet titles, PAA questions, top-ranking pages
     """
-    print(f"[SERP_ANALYSIS] Analyzing SERP opportunities for: {keyword}")
+    logger.info(f"Analyzing SERP opportunities for: {keyword}")
     # Step 1: Get SERP data
-    serp_data = get_serp_data(keyword, num_results)
+    try:
+        serp_data = get_serp_data(keyword, num_results)
+    except Exception as e:
+        logger.error(f"Error fetching SERP data for {keyword}: {e}")
+        return {"error": str(e)}
+
     if not serp_data:
         return {"error": "Failed to fetch SERP data"}
     # Step 2: Analyze snippet opportunities
@@ -45,8 +53,8 @@ def analyze_serp_opportunities(keyword, num_results=10):
 def get_serp_data(keyword, num_results=10):
     """Get comprehensive SERP data using SerpApi."""
     if not SERPAPI_KEY:
-        print(f"[ERROR] SERPAPI_KEY not found. Please add it to your .env file.")
-        return None
+        logger.error("SERPAPI_KEY not found. Please add it to your .env file.")
+        raise KeylyticsAPIError("SERPAPI_KEY not found in environment.")
     try:
         url = "https://serpapi.com/search.json"
         params = {
@@ -57,16 +65,16 @@ def get_serp_data(keyword, num_results=10):
             "gl": "us",  # Country
             "hl": "en"   # Language
         }
-        print(f"[SERP_API] Fetching data for: {keyword}")
+        logger.info(f"Fetching SERP data for keyword: {keyword}")
         response = requests.get(url, params=params, timeout=15)
         if response.status_code != 200:
-            print(f"[ERROR] SERP API returned status {response.status_code}: {response.text}")
-            return None
+            logger.error(f"SERP API returned status {response.status_code}: {response.text}")
+            raise KeylyticsAPIError(f"SERP API returned status {response.status_code}")
         data = response.json()
         # Check for API errors
         if "error" in data:
-            print(f"[ERROR] SERP API error: {data['error']}")
-            return None
+            logger.error(f"SERP API error: {data['error']}")
+            raise KeylyticsAPIError(f"SERP API error: {data['error']}")
         # Extract relevant SERP features
         serp_data = {
             "organic_results": data.get("organic_results", []),
@@ -77,18 +85,20 @@ def get_serp_data(keyword, num_results=10):
             "knowledge_graph": data.get("knowledge_graph", {}),
             "featured_snippet": data.get("featured_snippet", {})
         }
-        print(f"[SERP_API] Successfully fetched {len(serp_data['organic_results'])} organic results")
+        logger.info(f"Successfully fetched {len(serp_data['organic_results'])} organic results")
         time.sleep(1)  # Rate limiting
         return serp_data
-    except requests.exceptions.Timeout:
-        print(f"[ERROR] SERP API timeout for '{keyword}'")
-        return None
+    except KeylyticsAPIError:
+        raise
+    except requests.exceptions.Timeout as e:
+        logger.error(f"SERP API timeout for '{keyword}'")
+        raise KeylyticsAPIError(f"SERP API timeout for '{keyword}'") from e
     except requests.exceptions.RequestException as e:
-        print(f"[ERROR] SERP API request failed for '{keyword}': {e}")
-        return None
+        logger.error(f"SERP API request failed for '{keyword}': {e}")
+        raise KeylyticsAPIError(f"SERP API request failed for '{keyword}'") from e
     except Exception as e:
-        print(f"[ERROR] Failed to fetch SERP data for '{keyword}': {e}")
-        return None
+        logger.error(f"Failed to fetch SERP data for '{keyword}': {e}")
+        raise KeylyticsAPIError(f"Failed to fetch SERP data for '{keyword}'") from e
 
 def analyze_snippet_opportunities(serp_data, keyword=""):
     """Analyze snippet optimization opportunities."""
@@ -303,7 +313,7 @@ def generate_content_idea_from_paa(question, snippet):
         if response:
             return response.strip()
     except Exception as e:
-        print(f"[ERROR] Failed to generate content idea: {e}")
+        logger.error(f"Failed to generate content idea: {e}")
     # Fallback
     return f"Complete Guide to {question.replace('?', '').title()}"
 

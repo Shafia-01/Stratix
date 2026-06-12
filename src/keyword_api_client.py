@@ -1,10 +1,10 @@
 import os
 import requests
-import random
 import json
 import base64
 from dotenv import load_dotenv
 from src.gemini_client import generate_keywords
+from src.data_quality import DataSource
 
 load_dotenv()
 
@@ -264,20 +264,18 @@ class KeywordAPIClient:
                         suggestions, location_code, language_code
                     )
 
-            # If no metrics but we have suggestions, use suggestions with estimated metrics
+            # If no metrics but we have suggestions, use suggestions with unavailable metrics
             if not metrics_data or len(metrics_data) == 0:
-                print("⚠️ No metrics from DataForSEO, but we have suggestions. Using suggestions with estimated metrics...")
-                # Create metrics from suggestions with estimated values
+                print(f"⚠️ No metrics from DataForSEO, but we have {len(suggestions)} suggestions. Setting unavailable metrics...")
                 metrics_data = []
                 for kw in suggestions:
-                    # Estimate metrics based on keyword characteristics
                     metrics_data.append({
                         "keyword": kw,
-                        "search_volume": self._estimate_volume(kw),
-                        "competition": self._estimate_competition(kw),
-                        "cpc": self._estimate_cpc(kw)
+                        "search_volume": 0,
+                        "competition": None,
+                        "cpc": None,
+                        "data_source": DataSource.UNAVAILABLE.value
                     })
-                print(f"✅ Using {len(metrics_data)} keywords with estimated metrics")
 
             # Step 3: Sort by opportunity score
             sorted_keywords = self._sort_keywords_by_opportunity(metrics_data, max_keywords)
@@ -301,9 +299,10 @@ class KeywordAPIClient:
                         sorted_keywords.append({
                             "keyword": kw,
                             "search_volume": item.get("volume", 0),
-                            "competition": item.get("competition", 0.5),
-                            "cpc": item.get("cpc", 0.0),
-                            "opportunity_score": item.get("opportunity_score", 0.0)
+                            "competition": item.get("competition"),
+                            "cpc": item.get("cpc"),
+                            "opportunity_score": item.get("opportunity_score", 0.0),
+                            "data_source": item.get("data_source", DataSource.UNAVAILABLE.value)
                         })
                         existing_keywords.add(kw.lower())
                         if len(sorted_keywords) >= max_keywords:
@@ -319,9 +318,10 @@ class KeywordAPIClient:
                     "rank": i,
                     "keyword": item.get("keyword", ""),
                     "volume": item.get("search_volume", 0),
-                    "competition": item.get("competition", 0.5),
-                    "cpc": item.get("cpc", 0.0),
-                    "opportunity_score": item.get("opportunity_score", 0.0)
+                    "competition": item.get("competition"),
+                    "cpc": item.get("cpc"),
+                    "opportunity_score": item.get("opportunity_score", 0.0),
+                    "data_source": item.get("data_source", DataSource.LIVE.value)
                 })
             
             print(f"✅ Successfully retrieved {len(formatted_keywords)} keywords (requested {max_keywords})")
@@ -554,8 +554,9 @@ class KeywordAPIClient:
                                             metrics.append({
                                                 "keyword": str(keyword),
                                                 "search_volume": int(search_volume) if search_volume else 0,
-                                                "competition": float(competition) if competition else 0.5,
-                                                "cpc": float(cpc) if cpc else 0.0
+                                                "competition": float(competition) if competition is not None else None,
+                                                "cpc": float(cpc) if cpc is not None else None,
+                                                "data_source": DataSource.LIVE.value
                                             })
                             
                             if metrics:
@@ -612,40 +613,14 @@ class KeywordAPIClient:
         print(f"⚠️ Could not parse metrics from response. Status: {status_code}")
         return [], None
 
-    def _estimate_volume(self, keyword):
-        """Estimate search volume based on keyword characteristics."""
-        # Simple heuristic: longer keywords typically have lower volume
-        words = len(keyword.split())
-        if words == 1:
-            return random.randint(1000, 10000)
-        elif words == 2:
-            return random.randint(500, 5000)
-        else:
-            return random.randint(100, 2000)
-    
-    def _estimate_competition(self, keyword):
-        """Estimate competition based on keyword characteristics."""
-        # Common/competitive keywords tend to have higher competition
-        competitive_terms = ["best", "top", "review", "buy", "cheap", "free"]
-        if any(term in keyword.lower() for term in competitive_terms):
-            return round(random.uniform(0.6, 0.9), 2)
-        else:
-            return round(random.uniform(0.3, 0.7), 2)
-    
-    def _estimate_cpc(self, keyword):
-        """Estimate CPC based on keyword characteristics."""
-        # Commercial keywords tend to have higher CPC
-        commercial_terms = ["buy", "price", "cheap", "discount", "deal", "sale"]
-        if any(term in keyword.lower() for term in commercial_terms):
-            return round(random.uniform(1.5, 3.0), 2)
-        else:
-            return round(random.uniform(0.5, 2.0), 2)
-
     def _sort_keywords_by_opportunity(self, metrics_data, max_keywords):
         """Rank keywords by opportunity score (volume high, competition low)."""
         for item in metrics_data:
-            vol = max(item.get("search_volume", 0), 0)
-            comp = min(max(item.get("competition", 0.5), 0.0), 1.0)
+            vol = max(item.get("search_volume", 0) or 0, 0)
+            comp = item.get("competition")
+            if comp is None:
+                comp = 0.5  # neutral assumption
+            comp = min(max(comp, 0.0), 1.0)
             
             # Normalize volume (assume max 100k for scoring)
             normalized_volume = min(vol / 100000, 1.0)
@@ -732,14 +707,14 @@ class KeywordAPIClient:
             
             formatted = []
             for i, kw in enumerate(keywords, 1):
-                # Generate realistic-looking metrics for Gemini keywords
                 formatted.append({
                     "rank": i,
                     "keyword": kw,
-                    "volume": random.randint(100, 5000),
-                    "competition": round(random.uniform(0.3, 0.7), 2),
-                    "cpc": round(random.uniform(0.5, 3.0), 2),
-                    "opportunity_score": round(random.uniform(0.4, 0.8), 3)
+                    "volume": 0,
+                    "competition": None,
+                    "cpc": None,
+                    "opportunity_score": 0.0,
+                    "data_source": DataSource.UNAVAILABLE.value
                 })
             
             print(f"✅ Gemini generated {len(formatted)} keywords (requested {max_keywords})")
@@ -751,10 +726,11 @@ class KeywordAPIClient:
             return [{
                 "rank": 1,
                 "keyword": seed_keyword,
-                "volume": 1000,
-                "competition": 0.5,
-                "cpc": 1.0,
-                "opportunity_score": 0.5
+                "volume": 0,
+                "competition": None,
+                "cpc": None,
+                "opportunity_score": 0.0,
+                "data_source": DataSource.UNAVAILABLE.value
             }]
 
     def get_keyword_metrics(self, keyword, location_code=2840, language_code="en"):
@@ -770,15 +746,17 @@ class KeywordAPIClient:
             metric = metrics_data[0]
             return {
                 "volume": metric.get("search_volume", 0),
-                "competition": metric.get("competition", 0.5),
-                "cpc": metric.get("cpc", 0.0)
+                "competition": metric.get("competition"),
+                "cpc": metric.get("cpc"),
+                "data_source": DataSource.LIVE.value
             }
         
         # Fallback: return default metrics
         return {
-            "volume": random.randint(100, 2000),
-            "competition": round(random.uniform(0.3, 0.7), 2),
-            "cpc": round(random.uniform(0.5, 2.5), 2)
+            "volume": 0,
+            "competition": None,
+            "cpc": None,
+            "data_source": DataSource.UNAVAILABLE.value
         }
 
 

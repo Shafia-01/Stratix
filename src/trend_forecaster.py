@@ -2,7 +2,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings
 from dotenv import load_dotenv
-from src.trends_client import get_trend_score
+from src.trends_client import get_trend_score, get_trend_history
 
 load_dotenv()
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -18,7 +18,7 @@ def analyze_trend_forecasting(keywords_data):
     # Step 2: Perform trend analysis
     trend_analysis = perform_trend_analysis(historical_data)
     # Step 3: Generate forecasts
-    forecasts = generate_trend_forecasts(trend_analysis)
+    forecasts, unavailable_keywords = generate_trend_forecasts(trend_analysis)
     # Step 4: Identify seasonal patterns
     seasonal_analysis = analyze_seasonal_patterns(historical_data)
     # Step 5: Generate insights
@@ -27,9 +27,11 @@ def analyze_trend_forecasting(keywords_data):
         "historical_data": historical_data,
         "trend_analysis": trend_analysis,
         "forecasts": forecasts,
+        "unavailable_keywords": unavailable_keywords,
         "seasonal_analysis": seasonal_analysis,
         "insights": insights,
-        "summary": generate_forecast_summary(forecasts, seasonal_analysis)
+        "summary": generate_forecast_summary(forecasts, seasonal_analysis),
+        "disclaimer": "Forecasts are a linear projection based on up to 12 months of real Google Trends data and are directional estimates, not guarantees."
     }
 
 def get_historical_trends(keywords_data):
@@ -39,56 +41,27 @@ def get_historical_trends(keywords_data):
         keyword = item["keyword"] if isinstance(item, dict) else str(item)
         # Get current trend score
         current_trend = get_trend_score(keyword)
-        # Simulate historical data (in real implementation, you'd use Google Trends API with historical data)
-        historical_scores = simulate_historical_trends(keyword, current_trend)
-        historical_data[keyword] = {
-            "current_trend": current_trend,
-            "historical_scores": historical_scores,
-            "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
-            "competition": item.get("competition", 0) if isinstance(item, dict) else 0
-        }
+        # Fetch actual historical data (weekly/monthly series) from pytrends
+        historical_scores = get_trend_history(keyword)
+        
+        if historical_scores is None:
+            # Mark as unavailable
+            historical_data[keyword] = {
+                "current_trend": None,
+                "historical_scores": [],
+                "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
+                "competition": item.get("competition", 0) if isinstance(item, dict) else 0,
+                "data_source": "unavailable"
+            }
+        else:
+            historical_data[keyword] = {
+                "current_trend": current_trend,
+                "historical_scores": historical_scores,
+                "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
+                "competition": item.get("competition", 0) if isinstance(item, dict) else 0,
+                "data_source": "live"
+            }
     return historical_data
-
-def simulate_historical_trends(keyword, current_trend):
-    """Simulate historical trend data (replace with real Google Trends API calls)."""
-    # Generate 12 months of historical data
-    months = 12
-    base_trend = current_trend or 50
-    # Add some realistic variation and seasonality
-    historical_scores = []
-    for month in range(months):
-        # Add seasonal variation based on keyword type
-        seasonal_factor = get_seasonal_factor(keyword, month)
-        # Add random variation
-        random_variation = np.random.normal(0, 10)
-        # Calculate trend score for this month
-        trend_score = max(0, min(100, base_trend + seasonal_factor + random_variation))
-        historical_scores.append({
-            "month": month + 1,
-            "score": round(trend_score, 1),
-            "date": (datetime.now() - timedelta(days=30*(months-month))).strftime("%Y-%m")
-        })
-    return historical_scores
-
-def get_seasonal_factor(keyword, month):
-    """Get seasonal factor based on keyword type and month."""
-    keyword_lower = keyword.lower()
-    # Define seasonal patterns
-    seasonal_patterns = {
-        "fitness": [10, 15, 20, 15, 10, 5, -5, 0, 5, 10, 15, 20],  # Peak in summer/winter
-        "christmas": [-20, -20, -20, -20, -20, -20, -20, -20, -20, -20, 30, 40],
-        "back to school": [-20, -20, 40, 30, -20, -20, -20, -20, -20, -20, -20, -20],
-        "tax": [-20, -20, -20, 40, 30, -20, -20, -20, -20, -20, -20, -20],
-        "travel": [5, 10, 15, 20, 25, 30, 35, 30, 20, 10, 5, 0],
-        "ai": [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],  # Growing trend
-        "software": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]  # Steady growth
-    }
-    # Find matching pattern
-    for pattern_key, pattern_values in seasonal_patterns.items():
-        if pattern_key in keyword_lower:
-            return pattern_values[month % 12]
-    # Default: slight growth trend
-    return month * 1.5
 
 def perform_trend_analysis(historical_data):
     """Analyze trends in the historical data."""
@@ -100,6 +73,8 @@ def perform_trend_analysis(historical_data):
         # Determine trend direction
         trend_direction = determine_trend_direction(trend_metrics)
         trend_analysis[keyword] = {
+            "current_trend": data["current_trend"],
+            "historical_scores": data["historical_scores"],
             "metrics": trend_metrics,
             "direction": trend_direction,
             "volatility": calculate_volatility(scores),
@@ -119,7 +94,7 @@ def calculate_trend_metrics(scores):
     slope = np.polyfit(x, y, 1)[0]
     # Calculate R-squared (trend strength)
     correlation_matrix = np.corrcoef(x, y)
-    r_squared = correlation_matrix[0, 1] ** 2
+    r_squared = correlation_matrix[0, 1] ** 2 if not np.isnan(correlation_matrix[0, 1]) else 0.0
     # Calculate average change
     changes = np.diff(scores)
     avg_change = np.mean(changes)
@@ -146,12 +121,16 @@ def determine_trend_direction(metrics):
 
 def calculate_volatility(scores):
     """Calculate volatility (standard deviation)."""
+    if not scores:
+        return 0.0
     return round(np.std(scores), 2)
 
 def find_peak_month(historical_scores):
     """Find the month with the highest score."""
+    if not historical_scores:
+        return None
     peak_point = max(historical_scores, key=lambda x: x["score"])
-    return peak_point["month"]
+    return peak_point.get("month") or peak_point.get("date")
 
 def calculate_growth_rate(scores):
     """Calculate compound growth rate."""
@@ -167,15 +146,23 @@ def calculate_growth_rate(scores):
 def generate_trend_forecasts(trend_analysis):
     """Generate forecasts for the next 6 months."""
     forecasts = {}
+    unavailable_keywords = []
     for keyword, analysis in trend_analysis.items():
-        current_trend = analysis.get("current_trend", 50)
+        hist_scores = analysis.get("historical_scores", [])
+        if not hist_scores:
+            unavailable_keywords.append(keyword)
+            continue
+            
+        current_trend = analysis.get("current_trend")
+        if current_trend is None:
+            current_trend = hist_scores[-1]["score"] if hist_scores else 50
+            
         slope = analysis["metrics"]["slope"]
         growth_rate = analysis["growth_rate"]
-        # Generate 6-month forecast
+        # Generate 6-month forecast (deterministic)
         forecast_scores = []
         for month in range(1, 7):
-            # Apply trend continuation with some uncertainty
-            forecast_score = current_trend + (slope * month) + np.random.normal(0, 5)
+            forecast_score = current_trend + (slope * month)
             forecast_score = max(0, min(100, forecast_score))
             forecast_scores.append({
                 "month": month,
@@ -188,7 +175,7 @@ def generate_trend_forecasts(trend_analysis):
             "trend_direction": analysis["direction"],
             "recommendation": generate_trend_recommendation(analysis)
         }
-    return forecasts
+    return forecasts, unavailable_keywords
 
 def calculate_forecast_confidence(analysis, month):
     """Calculate confidence level for forecast."""
@@ -227,6 +214,17 @@ def analyze_seasonal_patterns(historical_data):
         score_values = [point["score"] for point in scores]
         # Calculate seasonal factors
         seasonal_factors = calculate_seasonal_factors(scores)
+        if not seasonal_factors:
+            seasonal_analysis[keyword] = {
+                "seasonal_factors": [],
+                "peak_season": None,
+                "low_season": None,
+                "seasonality_strength": 0.0,
+                "growth_rate": 0.0,
+                "recommendation": "No seasonal data available."
+            }
+            continue
+            
         # Identify peak and low seasons
         peak_season = max(seasonal_factors, key=lambda x: x["factor"])["month"]
         low_season = min(seasonal_factors, key=lambda x: x["factor"])["month"]
@@ -242,10 +240,19 @@ def analyze_seasonal_patterns(historical_data):
 
 def calculate_seasonal_factors(historical_scores):
     """Calculate seasonal factors for each month."""
+    if not historical_scores:
+        return []
     monthly_scores = {}
-    # Group scores by month
+    # Group scores by month or extract from date if available
     for point in historical_scores:
-        month = point["month"]
+        month = point.get("month")
+        if not month:
+            # extract month from YYYY-MM
+            date_str = point.get("date")
+            if date_str:
+                month = int(date_str.split("-")[1])
+            else:
+                continue
         score = point["score"]
         if month not in monthly_scores:
             monthly_scores[month] = []
@@ -273,6 +280,8 @@ def calculate_seasonality_strength(seasonal_factors):
 
 def generate_seasonal_recommendation(peak_season, low_season):
     """Generate seasonal recommendation."""
+    if peak_season is None or low_season is None:
+        return "No seasonal pattern could be established."
     month_names = {
         1: "January", 2: "February", 3: "March", 4: "April",
         5: "May", 6: "June", 7: "July", 8: "August",
@@ -342,6 +351,8 @@ def generate_trend_insights(forecasts, seasonal_analysis):
 def generate_forecast_summary(forecasts, seasonal_analysis):
     """Generate a summary of the forecasting analysis."""
     total_keywords = len(forecasts)
+    if total_keywords == 0:
+        return "No forecastable keywords available."
     # Count trend directions
     trend_counts = {}
     for forecast in forecasts.values():
@@ -366,13 +377,13 @@ def get_trend_visualization_data(historical_data, forecasts):
         # Historical data
         historical = historical_data[keyword]["historical_scores"]
         # Forecast data
-        forecast = forecasts[keyword]["forecast_scores"]
-        # Combine for visualization
+        forecast = forecasts.get(keyword, {}).get("forecast_scores", [])
+        
         all_data = []
         # Add historical data
         for point in historical:
             all_data.append({
-                "period": f"Historical-{point['month']}",
+                "period": point.get("date") or f"Historical-{point['month']}",
                 "score": point["score"],
                 "type": "historical"
             })
