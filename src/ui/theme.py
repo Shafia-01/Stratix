@@ -296,7 +296,7 @@ def get_optimized_css():
         border-radius: 8px !important;
         font-family: 'Cambria', serif !important;
         font-weight: bold !important;
-        }
+        }}
         /* Primary Buttons */
     .stButton > button:first-child {{
         border: 2px solid #051B4A !important;
