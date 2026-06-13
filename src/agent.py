@@ -2,9 +2,7 @@ import os
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dotenv import load_dotenv
 from src.keyword_api_client import get_enhanced_keywords, get_keyword_metrics_enhanced
-from src.seo_api_client import get_keyword_metrics
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
@@ -110,7 +108,7 @@ def process_keyword(kw_item, seed_keyword):
         # Trend data
         try:
             trend_score = get_trend_score(kw)
-        except Exception as e:
+        except Exception:
             trend_score = None
         
         competitors_raw = get_competitor_data(kw)

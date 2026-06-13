@@ -1,6 +1,5 @@
 import os
 import requests
-import time
 import re
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -633,7 +632,7 @@ def generate_optimization_suggestions(snippet_analysis, paa_questions, ranking_a
 
 def generate_serp_summary(snippet_analysis, paa_questions, content_gaps):
     """Generate summary of SERP analysis."""
-    summary = f"SERP Analysis Summary:\n"
+    summary = "SERP Analysis Summary:\n"
     # Snippet opportunities
     snippet_opps = len(snippet_analysis["snippet_opportunities"])
     summary += f"Snippet opportunities: {snippet_opps}\n"    

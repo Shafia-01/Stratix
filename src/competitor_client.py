@@ -1,6 +1,5 @@
 import os
 import requests
-import time
 from dotenv import load_dotenv
 from src.logger_config import get_logger
 
@@ -48,6 +47,6 @@ def extract_domain(url):
             return ""
         domain = url.split("/")[2]
         return domain.replace("www.", "")
-    except Exception as e:
+    except Exception:
         logger.debug(f"Failed to parse domain from URL '{url}'", exc_info=True)
         return ""

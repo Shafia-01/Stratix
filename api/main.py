@@ -10,7 +10,6 @@ Global exception handlers ensure all tool errors map to appropriate HTTP codes:
   - Any other Exception               → 500 Internal Server Error
 """
 
-import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

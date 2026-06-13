@@ -65,7 +65,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 continue
         logger.info(f"{len(results)} keywords processed successfully!")
         return results
-    except Exception as e:
+    except Exception:
         logger.exception("Lightweight agent error occurred")
         return []
 

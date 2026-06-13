@@ -3,7 +3,7 @@ Prompt safety and input validation utilities to prevent prompt injection and han
 """
 
 import re
-from typing import Dict, Any
+from typing import Any
 
 # Common role markers or override instruction phrases to neutralize
 INJECTION_PATTERNS = [

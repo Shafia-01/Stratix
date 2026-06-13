@@ -1,5 +1,4 @@
 import numpy as np
-from datetime import datetime, timedelta
 import warnings
 from dotenv import load_dotenv
 from src.trends_client import get_trend_score, get_trend_history
@@ -364,7 +363,7 @@ def generate_forecast_summary(forecasts, seasonal_analysis):
     # Count seasonal keywords
     seasonal_count = sum(1 for analysis in seasonal_analysis.values() 
                         if analysis["seasonality_strength"] > 15)
-    summary = f"Trend Analysis Summary:\n"
+    summary = "Trend Analysis Summary:\n"
     summary += f"Analyzed {total_keywords} keywords\n"
     summary += f"Seasonal keywords: {seasonal_count}\n\n"
     summary += "Trend Distribution:\n"

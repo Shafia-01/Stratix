@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import Literal
 from src.intent_classifier import classify_intent_with_source
 from src.schemas import IntentClassification
 from src.exceptions import KeylyticsAPIError

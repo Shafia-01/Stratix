@@ -1,6 +1,5 @@
 import os
 import requests
-import time
 from datetime import datetime, timedelta
 import pandas as pd
 from dotenv import load_dotenv

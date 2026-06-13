@@ -9,13 +9,13 @@ def test_compute_score_happy_path():
     # (100 * 0.5 + 2.0 * 100 * 0.3 + (1 - 0.3) * 100 * 0.2) / 100
     # = (50 + 60 + 14) / 100 = 124 / 100 = 1.24
     score_standard = compute_score(metrics, mode="standard")
-    assert score_standard == 1.24
+    assert score_standard.score == 1.24
 
     # Lightweight mode
     # (100 * 0.4 + 2.0 * 50 * 0.3 + (1 - 0.3) * 50 * 0.3) / 100
     # = (40 + 30 + 10.5) / 100 = 80.5 / 100 = 0.805
     score_light = compute_score(metrics, mode="lightweight")
-    assert score_light == 0.805
+    assert score_light.score == 0.805
 
 
 @pytest.mark.unit
@@ -24,7 +24,7 @@ def test_compute_score_missing_competition():
     # competition defaults to 0.5
     # (100 * 0.5 + 60 + 0.5 * 100 * 0.2) / 100 = (50 + 60 + 10) / 100 = 1.2
     score = compute_score(metrics, mode="standard")
-    assert score == 1.2
+    assert score.score == 1.2
 
 
 @pytest.mark.unit
@@ -33,7 +33,7 @@ def test_compute_score_missing_cpc_and_volume():
     # treated as 0, competition = 0.5
     # (0 + 0 + 0.5 * 100 * 0.2) / 100 = 10 / 100 = 0.1
     score = compute_score(metrics, mode="standard")
-    assert score == 0.1
+    assert score.score == 0.1
 
 
 @pytest.mark.unit
@@ -44,7 +44,7 @@ def test_compute_score_exception_path(caplog):
     src.scoring.logger.propagate = True
     with caplog.at_level(logging.ERROR):
         score = compute_score(metrics, mode="standard")
-        assert score == 0.0
+        assert score.score == 0.0
         assert "Score computation error" in caplog.text
 
 

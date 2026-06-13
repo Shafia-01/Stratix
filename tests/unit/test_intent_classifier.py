@@ -1,6 +1,5 @@
 import pytest
-from src.intent_classifier import rule_based_intent, classify_intent, generate_intent_gemini
-import src.intent_classifier
+from src.intent_classifier import rule_based_intent, classify_intent
 
 @pytest.mark.unit
 def test_rule_based_intent_classification():

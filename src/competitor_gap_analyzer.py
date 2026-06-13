@@ -177,7 +177,7 @@ def extract_domain_from_url(url):
         if domain.startswith('www.'):
             domain = domain[4:]
         return domain
-    except Exception as e:
+    except Exception:
         logger.debug(f"Failed to parse domain from URL '{url}'", exc_info=True)
         return url
 

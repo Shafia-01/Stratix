@@ -69,7 +69,7 @@ def initialize_metrics_from_history():
                 st.session_state.opportunities = int((history_df['score'] > 7.0).sum())
             if 'volume' in history_df.columns:
                 st.session_state.avg_volume = float(history_df['volume'].mean())
-    except Exception as e:
+    except Exception:
         logger.exception("Metrics initialization skipped")
     finally:
         st.session_state.metrics_initialized = True

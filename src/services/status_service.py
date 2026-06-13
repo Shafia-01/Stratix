@@ -33,7 +33,7 @@ def test_api_quick():
                 except Exception as e:
                     logger.warning(f"Gemini model {model_name} failed: {e}")
                     continue
-        except Exception as e:
+        except Exception:
             logger.exception("Gemini test failed")
     
     # Test SerpApi
@@ -49,7 +49,7 @@ def test_api_quick():
                 results["serpapi"] = "search_information" in data or "error" not in data
             else:
                 logger.error(f"SerpApi HTTP error: {response.status_code}")
-        except Exception as e:
+        except Exception:
             logger.exception("SerpApi test failed")
     
     return results

@@ -5,7 +5,6 @@ used to structure validation, representation, and serialization of pipeline stag
 """
 
 from datetime import datetime
-from enum import Enum
 from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from src.data_quality import DataSource

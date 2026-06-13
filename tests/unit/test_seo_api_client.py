@@ -1,7 +1,7 @@
 import pytest
 import requests
 from datetime import datetime, timedelta
-from src.seo_api_client import get_keyword_metrics, check_cache, save_to_cache
+from src.seo_api_client import get_keyword_metrics, save_to_cache
 from src.data_quality import DataSource
 from src.db_client import connect_db
 from sqlalchemy.orm import Session

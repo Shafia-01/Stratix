@@ -24,16 +24,16 @@ def compute_score(metrics: dict, mode: str = "standard") -> OpportunityScore:
     Returns score=0.0 when required metrics are missing / data_source="unavailable".
     """
     # TODO(Phase 2+): reconcile standard vs lightweight scoring formulas into one
-    volume = float(metrics.get("volume") or 0)
-    cpc = float(metrics.get("cpc") or 0)
-    competition = metrics.get("competition")
-
-    # If competition data is unavailable, assume neutral 0.5
-    if competition is None:
-        competition = 0.5
-    competition = float(competition)
-
     try:
+        volume = float(metrics.get("volume") or 0)
+        cpc = float(metrics.get("cpc") or 0)
+        competition = metrics.get("competition")
+
+        # If competition data is unavailable, assume neutral 0.5
+        if competition is None:
+            competition = 0.5
+        competition = float(competition)
+
         if mode == "lightweight":
             raw = (volume * 0.4 + cpc * 50 * 0.3 + (1 - competition) * 50 * 0.3) / 100
         else:
@@ -42,6 +42,9 @@ def compute_score(metrics: dict, mode: str = "standard") -> OpportunityScore:
         score = round(max(0.0, raw), 3)
     except Exception:
         logger.exception("Score computation error")
+        volume = 0.0
+        cpc = None
+        competition = 0.5
         score = 0.0
 
     difficulty = classify_difficulty(score, mode)

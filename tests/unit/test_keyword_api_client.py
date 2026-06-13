@@ -1,7 +1,6 @@
 import pytest
-import os
 import requests
-from src.keyword_api_client import KeywordAPIClient, get_enhanced_keywords
+from src.keyword_api_client import KeywordAPIClient
 from src.data_quality import DataSource
 
 @pytest.mark.unit

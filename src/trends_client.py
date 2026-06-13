@@ -1,9 +1,7 @@
 import time
-import random
 import warnings
 from datetime import datetime
 import pandas as pd
-from sqlalchemy import text
 from pytrends.request import TrendReq
 from dotenv import load_dotenv
 from src.db_client import connect_db
