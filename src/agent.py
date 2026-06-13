@@ -15,6 +15,9 @@ from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
+from pydantic import ValidationError
+from src.schemas import KeywordFinding, CompetitorEntry
+
 # MAIN AGENT
 def run_agent(seed_keyword, max_keywords=50):
     logger.info(f"Running Keylytics for: {seed_keyword}")
@@ -59,7 +62,7 @@ def run_agent(seed_keyword, max_keywords=50):
                 results.append(res)
                 # Auto-save progress every 5 results
                 if len(results) % 5 == 0:
-                    pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_temp.csv", index=False)
+                    pd.DataFrame([r.model_dump() for r in results]).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_temp.csv", index=False)
 
     # QUICK ANALYSIS (OTHERS)
     if quick_keywords:
@@ -72,9 +75,9 @@ def run_agent(seed_keyword, max_keywords=50):
                     results.append(res)
 
     # FINALIZE
-    results = sorted(results, key=lambda x: x["score"], reverse=True)
+    results = sorted(results, key=lambda x: x.score, reverse=True)
     os.makedirs("cache", exist_ok=True)
-    pd.DataFrame(results).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
+    pd.DataFrame([r.model_dump() for r in results]).to_csv(f"cache/{seed_keyword.replace(' ', '_')}_results.csv", index=False)
 
     # Save to DB (SQLAlchemy)
     try:
@@ -108,22 +111,37 @@ def process_keyword(kw_item, seed_keyword):
             trend_score = get_trend_score(kw)
         except Exception as e:
             trend_score = None
-        competitors = get_competitor_data(kw)
+        
+        competitors_raw = get_competitor_data(kw)
+        competitors = [
+            CompetitorEntry(
+                domain=c.get("domain", ""),
+                rank=c.get("rank", 0),
+                title=c.get("title"),
+                url=c.get("link")
+            )
+            for c in competitors_raw
+        ]
+        
         final_score = round((0.8 * score + 0.2 * (trend_score if trend_score is not None else score)), 3)
-        return {
-            "seed": seed_keyword,
-            "keyword": kw,
-            "volume": metrics.get("volume", 0),
-            "competition": metrics.get("competition"),
-            "cpc": metrics.get("cpc"),
-            "trend": trend_score,
-            "score": final_score,
-            "difficulty": difficulty,
-            "intent": intent,
-            "competitors": competitors,
-            "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
-            "trend_data_source": DataSource.LIVE.value if trend_score is not None else DataSource.UNAVAILABLE.value
-        }
+        
+        return KeywordFinding(
+            seed=seed_keyword,
+            keyword=kw,
+            volume=float(metrics.get("volume", 0)),
+            competition=metrics.get("competition"),
+            cpc=metrics.get("cpc"),
+            trend=trend_score,
+            score=final_score,
+            difficulty=difficulty,
+            intent=intent,
+            competitors=competitors,
+            data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
+            trend_data_source=DataSource.LIVE.value if trend_score is not None else DataSource.UNAVAILABLE.value
+        )
+    except ValidationError as ve:
+        logger.warning(f"Validation failed for keyword '{kw}': {ve}")
+        return None
     except Exception as e:
         logger.error(f"Error processing '{kw}': {e}", exc_info=True)
         return None
@@ -147,20 +165,24 @@ def process_keyword_quick(kw_item, seed_keyword):
         score = compute_score(metrics)
         difficulty = classify_difficulty(score)
         intent = classify_intent(kw)
-        return {
-            "seed": seed_keyword,
-            "keyword": kw,
-            "volume": metrics.get("volume", 0),
-            "competition": metrics.get("competition"),
-            "cpc": metrics.get("cpc"),
-            "trend": None,
-            "score": score,
-            "difficulty": difficulty,
-            "intent": intent,
-            "competitors": [],
-            "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
-            "trend_data_source": DataSource.UNAVAILABLE.value
-        }
+        
+        return KeywordFinding(
+            seed=seed_keyword,
+            keyword=kw,
+            volume=float(metrics.get("volume", 0)),
+            competition=metrics.get("competition"),
+            cpc=metrics.get("cpc"),
+            trend=None,
+            score=score,
+            difficulty=difficulty,
+            intent=intent,
+            competitors=[],
+            data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
+            trend_data_source=DataSource.UNAVAILABLE.value
+        )
+    except ValidationError as ve:
+        logger.warning(f"Validation failed (quick) for keyword '{kw}': {ve}")
+        return None
     except Exception as e:
         logger.error(f"Error (quick) for '{kw}': {e}", exc_info=True)
         return None
