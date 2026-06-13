@@ -342,6 +342,9 @@ class KeywordAPIClient:
     # ------------------------------------------------------------
     # INTERNAL FUNCTIONS
     # ------------------------------------------------------------
+    from src.retry import with_retries
+
+    @with_retries()
     def _get_dataforseo_suggestions(self, seed_keyword, location_code, language_code):
         """
         Fetch keyword suggestions from DataForSEO.
@@ -352,6 +355,7 @@ class KeywordAPIClient:
             "dataforseo_labs/google/keyword_ideas/live"
         ]
 
+        last_error = None
         for endpoint in endpoints:
             url = f"{self.base_url}/{endpoint}"
             logger.info(f"🔎 Trying endpoint: {endpoint}")
@@ -365,20 +369,17 @@ class KeywordAPIClient:
 
             try:
                 response = self.session.post(url, json=payload, timeout=30)
+                response.raise_for_status()
                 status_code = response.status_code
                 logger.info(f"📡 Response status: {status_code}")
-
-                # Handle different status codes
-                if status_code == 404:
-                    logger.warning(f"Endpoint not found: {endpoint}")
-                    continue  # Try next endpoint
 
                 # Parse response
                 try:
                     data = response.json()
                 except json.JSONDecodeError:
                     logger.error(f"Invalid JSON response: {response.text[:200]}")
-                    return [], (status_code, {"error": "invalid_json"})
+                    last_error = KeylyticsAPIError(f"Invalid JSON response: {response.text[:200]}")
+                    continue
 
                 # Check for account/balance errors
                 error_info = (status_code, data)
@@ -403,23 +404,33 @@ class KeywordAPIClient:
                                 logger.info(f"Found {len(suggestions)} suggestions")
                                 return suggestions[:100], None
                 
-                # If we get here, there was an error but not account-limited
                 if status_code != 200:
                     logger.warning(f"API error (status {status_code}): {response.text[:200]}")
+                    last_error = KeylyticsAPIError(f"API error (status {status_code}): {response.text[:200]}")
+                    continue
+                else:
+                    df_msg = data.get("status_message", "Unknown API error")
+                    last_error = KeylyticsAPIError(f"DataForSEO API error: {df_msg}")
                     continue
 
-            except requests.exceptions.Timeout:
+            except requests.exceptions.Timeout as e:
                 logger.info(f"⏱️ Timeout connecting to {endpoint}")
+                last_error = e
                 continue
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
                 logger.info(f"🔌 Connection error to {endpoint}")
-                return [], (0, {"error": "connection_error"})
+                last_error = e
+                continue
             except Exception as e:
                 logger.warning(f"Error with {endpoint}: {e}")
+                last_error = e
                 continue
 
+        if last_error:
+            raise last_error
         return [], None
 
+    @with_retries()
     def _get_keyword_metrics_batch(self, keywords, location_code, language_code):
         """
         Get search volume, CPC, and competition metrics.
@@ -442,13 +453,7 @@ class KeywordAPIClient:
                 data = response.json()
             except json.JSONDecodeError:
                 logger.error(f"Invalid JSON in metrics response: {response.text[:200]}")
-                return [], (status_code, {"error": "invalid_json"})
-            
-            # Debug: Save raw response if in debug mode (optional)
-            if os.getenv("DATAFORSEO_DEBUG") == "true":
-                with open("dataforseo_metrics_response.json", "w") as f:
-                    json.dump(data, f, indent=2)
-                logger.info(f"🔍 Debug: Saved raw response to dataforseo_metrics_response.json")
+                raise KeylyticsAPIError(f"Invalid JSON in metrics response: {response.text[:200]}")
 
             # Check for account/balance errors
             error_info = (status_code, data)
@@ -457,6 +462,15 @@ class KeywordAPIClient:
             if is_limited and error_type in ["balance_zero", "rate_limited"]:
                 logger.warning(f"Account issue in metrics API: {error_type}")
                 return [], error_info
+
+            # Check for HTTP status errors (if not account-limited)
+            response.raise_for_status()
+
+            # Debug: Save raw response if in debug mode (optional)
+            if os.getenv("DATAFORSEO_DEBUG") == "true":
+                with open("dataforseo_metrics_response.json", "w") as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"🔍 Debug: Saved raw response to dataforseo_metrics_response.json")
 
             # Debug: Log response structure for troubleshooting
             if status_code == 200:
@@ -598,19 +612,21 @@ class KeywordAPIClient:
             # Error but not account-limited
             if status_code != 200:
                 logger.warning(f"Metrics API HTTP error {status_code}: {response.text[:500]}")
-                return [], error_info
+                raise KeylyticsAPIError(f"Metrics API HTTP error {status_code}: {response.text[:500]}")
 
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             logger.info(f"⏱️ Metrics API timeout")
-            return [], (0, {"error": "timeout"})
-        except requests.exceptions.ConnectionError:
+            raise e
+        except requests.exceptions.ConnectionError as e:
             logger.info(f"🔌 Metrics API connection error")
-            return [], (0, {"error": "connection_error"})
+            raise e
         except Exception as e:
             logger.warning(f"Metrics fetch error: {e}")
-            import traceback
-            logger.info(f"🔍 Traceback: {traceback.format_exc()}")
-            return [], (0, {"error": str(e)})
+            raise e
+
+        # If we get here, response was 200 but we didn't parse metrics
+        logger.warning(f"Could not parse metrics from response. Status: {status_code}")
+        return [], None
 
         # If we get here, response was 200 but we didn't parse metrics
         logger.warning(f"Could not parse metrics from response. Status: {status_code}")
