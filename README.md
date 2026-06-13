@@ -160,7 +160,13 @@ pip install -r requirements.txt
 
 # Start Streamlit app
 streamlit run app.py
+
+# Start FastAPI Server (independent API layer, runs on port 8000)
+uvicorn api.main:app --reload --port 8000
 ```
+
+Both the Streamlit UI and the FastAPI server can run simultaneously. They share the same database (`keylytics.db`) and underlying `src/` logic.
+
 
 ## 📋 Prerequisites
 
