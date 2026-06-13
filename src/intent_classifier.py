@@ -54,25 +54,38 @@ def generate_intent_gemini(keyword: str) -> str:
     # if all Gemini models fail
     return "Informational"
 
-def classify_intent(keyword: str) -> str:
+def classify_intent_with_source(keyword: str) -> tuple[str, str]:
     """
     Hybrid classifier → checks DB → rule-based → Gemini fallback → saves to cache.
+    Returns a tuple (intent, source) indicating which path resolved it.
     """
     # 1️⃣ Check Cache
     cached_intent = get_cached_intent(keyword)
     if cached_intent:
-        return cached_intent
+        return cached_intent, "cache"
 
     # 2️⃣ Rule-based intent
     intent = rule_based_intent(keyword)
+    if intent != "Uncertain":
+        save_intent_to_db(keyword, intent)
+        return intent, "rule"
 
     # 3️⃣ Gemini backup if uncertain
-    if intent == "Uncertain":
-        logger.info(f"Using Gemini to refine intent for '{keyword}'...")
-        gemini_intent = generate_intent_gemini(keyword)
-        if gemini_intent:
-            intent = gemini_intent
+    logger.info(f"Using Gemini to refine intent for '{keyword}'...")
+    gemini_intent = generate_intent_gemini(keyword)
+    if gemini_intent:
+        intent = gemini_intent
+        save_intent_to_db(keyword, intent)
+        return intent, "gemini"
 
-    # 4️⃣ Save to cache
+    # 4️⃣ Fallback if Gemini failed
+    intent = "Informational"
     save_intent_to_db(keyword, intent)
+    return intent, "gemini"
+
+def classify_intent(keyword: str) -> str:
+    """
+    Hybrid classifier → checks DB → rule-based → Gemini fallback → saves to cache.
+    """
+    intent, _ = classify_intent_with_source(keyword)
     return intent
