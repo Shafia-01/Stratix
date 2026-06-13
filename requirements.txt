@@ -34,3 +34,7 @@ pytest
 pytest-mock
 pytest-cov
 
+# New additions for Phase 2B
+tenacity
+fastapi
+uvicorn[standard]
