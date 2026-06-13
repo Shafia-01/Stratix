@@ -5,6 +5,9 @@ import base64
 from dotenv import load_dotenv
 from src.gemini_client import generate_keywords
 from src.data_quality import DataSource
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -42,12 +45,12 @@ class KeywordAPIClient:
         
         # Credit preservation modes
         if FORCE_SANDBOX:
-            print("🔒 FORCE_SANDBOX mode enabled - Using sandbox only (preserves credits)")
+            logger.info(f"🔒 FORCE_SANDBOX mode enabled - Using sandbox only (preserves credits)")
             self.base_url = SANDBOX_URL
             self.using_sandbox = True
             self.credits_preserved = True
         elif DEMO_MODE:
-            print("🎭 DEMO_MODE enabled - Using sandbox/cached data (preserves credits)")
+            logger.info(f"🎭 DEMO_MODE enabled - Using sandbox/cached data (preserves credits)")
             self.base_url = SANDBOX_URL
             self.using_sandbox = True
             self.credits_preserved = True
@@ -66,12 +69,12 @@ class KeywordAPIClient:
             if PRESERVE_CREDITS and not self.using_sandbox:
                 balance = self._check_balance()
                 if balance is not None and balance < LOW_BALANCE_THRESHOLD:
-                    print(f"💰 Low balance detected (${balance:.3f} < ${LOW_BALANCE_THRESHOLD})")
-                    print(f"🔒 Auto-switching to sandbox mode to preserve credits")
+                    logger.info(f"💰 Low balance detected (${balance:.3f} < ${LOW_BALANCE_THRESHOLD})")
+                    logger.info(f"🔒 Auto-switching to sandbox mode to preserve credits")
                     self._switch_to_sandbox()
                     self.credits_preserved = True
         else:
-            print("⚠️ Missing DataForSEO credentials. Will use Gemini fallback only.")
+            logger.warning(f"Missing DataForSEO credentials. Will use Gemini fallback only.")
     
     def _check_balance(self):
         """
@@ -96,7 +99,7 @@ class KeywordAPIClient:
             return None
         except Exception as e:
             # If we can't check balance, return None
-            print(f"⚠️ Could not check balance: {e}")
+            logger.warning(f"Could not check balance: {e}")
             return None
 
     def _is_account_limited_error(self, status_code, response_data):
@@ -148,7 +151,7 @@ class KeywordAPIClient:
     def _switch_to_sandbox(self):
         """Switch client to Sandbox environment for testing/mock data."""
         if not self.using_sandbox:
-            print("🧩 Switching to DataForSEO Sandbox mode (mock results)...")
+            logger.info(f"🧩 Switching to DataForSEO Sandbox mode (mock results)...")
             self.base_url = SANDBOX_URL
             self.using_sandbox = True
             self.credits_preserved = True
@@ -163,14 +166,14 @@ class KeywordAPIClient:
         if is_limited:
             if error_type == "balance_zero":
                 self.balance_zero = True
-                print("💳 Account balance is zero. Switching to Sandbox...")
+                logger.info(f"💳 Account balance is zero. Switching to Sandbox...")
                 return True
             elif error_type == "rate_limited":
                 self.account_limited = True
-                print("⏱️ Account rate limited. Switching to Sandbox...")
+                logger.info(f"⏱️ Account rate limited. Switching to Sandbox...")
                 return True
             elif error_type == "unauthorized":
-                print("🔐 Authentication failed. Check your credentials.")
+                logger.info(f"🔐 Authentication failed. Check your credentials.")
                 return False  # Don't use sandbox for auth errors
         
         return False
@@ -187,12 +190,12 @@ class KeywordAPIClient:
         """
         # Skip DataForSEO if no credentials
         if not DATAFORSEO_USERNAME or not DATAFORSEO_PASSWORD:
-            print("⚠️ No DataForSEO credentials. Using Gemini fallback...")
+            logger.warning(f"No DataForSEO credentials. Using Gemini fallback...")
             return self._fallback_to_gemini(seed_keyword, max_keywords)
 
         # Don't reset if in preserve credits mode
         if self.credits_preserved or self.using_sandbox:
-            print(f"💾 Credits preservation mode active - Using {'sandbox' if self.using_sandbox else 'cached'} data")
+            logger.info(f"💾 Credits preservation mode active - Using {'sandbox' if self.using_sandbox else 'cached'} data")
         
         # Reset state for new request (unless we know account is limited or preserving credits)
         if not self.balance_zero and not self.account_limited and not self.credits_preserved:
@@ -202,9 +205,9 @@ class KeywordAPIClient:
                 self.using_sandbox = False
 
         try:
-            print(f"\n🔍 Fetching keywords for: '{seed_keyword}'")
+            logger.info(f"Fetching keywords for: '{seed_keyword}'")
             mode_indicator = "🔒 SANDBOX (Credits Preserved)" if self.credits_preserved else "🌐 Live DataForSEO"
-            print(f"{mode_indicator}: {'Sandbox' if self.using_sandbox else 'Live API'}")
+            logger.info(f"{mode_indicator}: {'Sandbox' if self.using_sandbox else 'Live API'}")
             
             # Step 1: Get keyword suggestions
             suggestions, error_info = self._get_dataforseo_suggestions(
@@ -234,19 +237,19 @@ class KeywordAPIClient:
                     if (seed_words & sug_words) or any(word in sug_lower for word in seed_words if len(word) > 3):
                         relevant_suggestions.append(sug)
                     else:
-                        print(f"⚠️ Filtered out irrelevant suggestion: '{sug}' (not related to '{seed_keyword}')")
+                        logger.warning(f"Filtered out irrelevant suggestion: '{sug}' (not related to '{seed_keyword}')")
                 
                 if len(relevant_suggestions) < max_keywords * 0.3:  # If less than 30% are relevant, likely bad data
-                    print(f"⚠️ Only {len(relevant_suggestions)}/{len(suggestions)} suggestions are relevant to '{seed_keyword}'")
-                    print("⚠️ DataForSEO may be returning irrelevant data. Falling back to Gemini...")
+                    logger.warning(f"Only {len(relevant_suggestions)}/{len(suggestions)} suggestions are relevant to '{seed_keyword}'")
+                    logger.warning(f"DataForSEO may be returning irrelevant data. Falling back to Gemini...")
                     suggestions = []  # Force fallback to Gemini
                 else:
                     suggestions = relevant_suggestions[:max_keywords * 2]  # Keep more for metrics filtering
-                    print(f"✅ Filtered to {len(suggestions)} relevant suggestions")
+                    logger.info(f"Filtered to {len(suggestions)} relevant suggestions")
             
             # If still no suggestions, try Gemini
             if not suggestions or len(suggestions) == 0:
-                print("⚠️ No relevant suggestions from DataForSEO. Falling back to Gemini...")
+                logger.warning(f"No relevant suggestions from DataForSEO. Falling back to Gemini...")
                 return self._fallback_to_gemini(seed_keyword, max_keywords)
 
             # Step 2: Get keyword metrics (volume, CPC, competition)
@@ -266,7 +269,7 @@ class KeywordAPIClient:
 
             # If no metrics but we have suggestions, use suggestions with unavailable metrics
             if not metrics_data or len(metrics_data) == 0:
-                print(f"⚠️ No metrics from DataForSEO, but we have {len(suggestions)} suggestions. Setting unavailable metrics...")
+                logger.warning(f"No metrics from DataForSEO, but we have {len(suggestions)} suggestions. Setting unavailable metrics...")
                 metrics_data = []
                 for kw in suggestions:
                     metrics_data.append({
@@ -283,8 +286,8 @@ class KeywordAPIClient:
             # Ensure we have at least the requested number of keywords
             # If we have fewer, try to pad with Gemini-generated keywords
             if len(sorted_keywords) < max_keywords:
-                print(f"⚠️ DataForSEO returned {len(sorted_keywords)} keywords, but {max_keywords} requested.")
-                print(f"💡 Generating additional keywords with Gemini...")
+                logger.warning(f"DataForSEO returned {len(sorted_keywords)} keywords, but {max_keywords} requested.")
+                logger.info(f"💡 Generating additional keywords with Gemini...")
                 
                 # Try to get more from Gemini for the missing ones
                 existing_keywords = {item.get("keyword", "").lower() for item in sorted_keywords}
@@ -324,16 +327,16 @@ class KeywordAPIClient:
                     "data_source": item.get("data_source", DataSource.LIVE.value)
                 })
             
-            print(f"✅ Successfully retrieved {len(formatted_keywords)} keywords (requested {max_keywords})")
+            logger.info(f"Successfully retrieved {len(formatted_keywords)} keywords (requested {max_keywords})")
             return formatted_keywords
 
         except requests.exceptions.RequestException as e:
-            print(f"❌ Network error connecting to DataForSEO: {e}")
-            print("⚙️ Falling back to Gemini...")
+            logger.error(f"Network error connecting to DataForSEO: {e}")
+            logger.info(f"⚙️ Falling back to Gemini...")
             return self._fallback_to_gemini(seed_keyword, max_keywords)
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
-            print("⚙️ Falling back to Gemini...")
+            logger.error(f"Unexpected error: {e}")
+            logger.info(f"⚙️ Falling back to Gemini...")
             return self._fallback_to_gemini(seed_keyword, max_keywords)
 
     # ------------------------------------------------------------
@@ -351,7 +354,7 @@ class KeywordAPIClient:
 
         for endpoint in endpoints:
             url = f"{self.base_url}/{endpoint}"
-            print(f"🔎 Trying endpoint: {endpoint}")
+            logger.info(f"🔎 Trying endpoint: {endpoint}")
             
             payload = [{
                 "keywords": [seed_keyword],
@@ -363,18 +366,18 @@ class KeywordAPIClient:
             try:
                 response = self.session.post(url, json=payload, timeout=30)
                 status_code = response.status_code
-                print(f"📡 Response status: {status_code}")
+                logger.info(f"📡 Response status: {status_code}")
 
                 # Handle different status codes
                 if status_code == 404:
-                    print(f"⚠️ Endpoint not found: {endpoint}")
+                    logger.warning(f"Endpoint not found: {endpoint}")
                     continue  # Try next endpoint
 
                 # Parse response
                 try:
                     data = response.json()
                 except json.JSONDecodeError:
-                    print(f"❌ Invalid JSON response: {response.text[:200]}")
+                    logger.error(f"Invalid JSON response: {response.text[:200]}")
                     return [], (status_code, {"error": "invalid_json"})
 
                 # Check for account/balance errors
@@ -382,7 +385,7 @@ class KeywordAPIClient:
                 is_limited, error_type = self._is_account_limited_error(status_code, data)
                 
                 if is_limited and error_type in ["balance_zero", "rate_limited"]:
-                    print(f"⚠️ Account issue detected: {error_type}")
+                    logger.warning(f"Account issue detected: {error_type}")
                     return [], error_info
 
                 # Check for successful response
@@ -397,22 +400,22 @@ class KeywordAPIClient:
                                 if "keyword" in item and item.get("keyword")
                             ]
                             if suggestions:
-                                print(f"✅ Found {len(suggestions)} suggestions")
+                                logger.info(f"Found {len(suggestions)} suggestions")
                                 return suggestions[:100], None
                 
                 # If we get here, there was an error but not account-limited
                 if status_code != 200:
-                    print(f"⚠️ API error (status {status_code}): {response.text[:200]}")
+                    logger.warning(f"API error (status {status_code}): {response.text[:200]}")
                     continue
 
             except requests.exceptions.Timeout:
-                print(f"⏱️ Timeout connecting to {endpoint}")
+                logger.info(f"⏱️ Timeout connecting to {endpoint}")
                 continue
             except requests.exceptions.ConnectionError:
-                print(f"🔌 Connection error to {endpoint}")
+                logger.info(f"🔌 Connection error to {endpoint}")
                 return [], (0, {"error": "connection_error"})
             except Exception as e:
-                print(f"⚠️ Error with {endpoint}: {e}")
+                logger.warning(f"Error with {endpoint}: {e}")
                 continue
 
         return [], None
@@ -432,33 +435,33 @@ class KeywordAPIClient:
         try:
             response = self.session.post(url, json=payload, timeout=30)
             status_code = response.status_code
-            print(f"📊 Metrics API status: {status_code}")
+            logger.info(f"📊 Metrics API status: {status_code}")
 
             # Parse response
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                print(f"❌ Invalid JSON in metrics response: {response.text[:200]}")
+                logger.error(f"Invalid JSON in metrics response: {response.text[:200]}")
                 return [], (status_code, {"error": "invalid_json"})
             
             # Debug: Save raw response if in debug mode (optional)
             if os.getenv("DATAFORSEO_DEBUG") == "true":
                 with open("dataforseo_metrics_response.json", "w") as f:
                     json.dump(data, f, indent=2)
-                print("🔍 Debug: Saved raw response to dataforseo_metrics_response.json")
+                logger.info(f"🔍 Debug: Saved raw response to dataforseo_metrics_response.json")
 
             # Check for account/balance errors
             error_info = (status_code, data)
             is_limited, error_type = self._is_account_limited_error(status_code, data)
             
             if is_limited and error_type in ["balance_zero", "rate_limited"]:
-                print(f"⚠️ Account issue in metrics API: {error_type}")
+                logger.warning(f"Account issue in metrics API: {error_type}")
                 return [], error_info
 
             # Debug: Log response structure for troubleshooting
             if status_code == 200:
                 df_status = data.get("status_code")
-                print(f"🔍 DataForSEO status_code: {df_status}")
+                logger.info(f"🔍 DataForSEO status_code: {df_status}")
                 
                 # Process successful response
                 if df_status == 20000:
@@ -467,18 +470,18 @@ class KeywordAPIClient:
                         task = tasks[0]
                         task_status = task.get("status_code")
                         task_message = task.get("status_message", "")
-                        print(f"🔍 Task status_code: {task_status}, message: {task_message}")
+                        logger.info(f"🔍 Task status_code: {task_status}, message: {task_message}")
                         
                         # Check if task has results - try multiple structures
                         result = task.get("result", [])
                         
                         # Also check if result is None (task might not be complete)
                         if result is None:
-                            print(f"⚠️ Task result is None. Task might still be processing.")
-                            print(f"🔍 Task status: {task_status}, message: {task_message}")
+                            logger.warning(f"Task result is None. Task might still be processing.")
+                            logger.info(f"🔍 Task status: {task_status}, message: {task_message}")
                             # Check if we need to wait and retry (for async APIs)
                             if task_status and task_status != 20000:
-                                print(f"⚠️ Task not completed. Status: {task_status}")
+                                logger.warning(f"Task not completed. Status: {task_status}")
                             return [], None
                         
                         if result and len(result) > 0:
@@ -560,57 +563,57 @@ class KeywordAPIClient:
                                             })
                             
                             if metrics:
-                                print(f"✅ Retrieved metrics for {len(metrics)} keywords")
+                                logger.info(f"Retrieved metrics for {len(metrics)} keywords")
                                 return metrics, None
                             else:
                                 # Log the actual structure for debugging
-                                print(f"⚠️ No metrics parsed. Trying to understand response structure...")
-                                print(f"🔍 Result type: {type(result)}, length: {len(result) if result else 0}")
+                                logger.warning(f"No metrics parsed. Trying to understand response structure...")
+                                logger.info(f"🔍 Result type: {type(result)}, length: {len(result) if result else 0}")
                                 if result and len(result) > 0:
-                                    print(f"🔍 First result_item type: {type(result[0])}")
+                                    logger.info(f"🔍 First result_item type: {type(result[0])}")
                                     if isinstance(result[0], dict):
-                                        print(f"🔍 First result_item keys: {list(result[0].keys())[:10]}")
+                                        logger.info(f"🔍 First result_item keys: {list(result[0].keys())[:10]}")
                                         # Try to print a sample
-                                        print(f"🔍 Sample result_item: {str(result[0])[:300]}")
+                                        logger.info(f"🔍 Sample result_item: {str(result[0])[:300]}")
                         else:
-                            print(f"⚠️ Task result is empty or invalid.")
-                            print(f"🔍 Task keys: {list(task.keys())}")
-                            print(f"🔍 Task status_code: {task.get('status_code')}")
-                            print(f"🔍 Task status_message: {task.get('status_message', 'N/A')}")
+                            logger.warning(f"Task result is empty or invalid.")
+                            logger.info(f"🔍 Task keys: {list(task.keys())}")
+                            logger.info(f"🔍 Task status_code: {task.get('status_code')}")
+                            logger.info(f"🔍 Task status_message: {task.get('status_message', 'N/A')}")
                             # Check if there's error info
                             if task.get("status_code") != 20000:
-                                print(f"⚠️ Task failed with status: {task.get('status_code')}")
+                                logger.warning(f"Task failed with status: {task.get('status_code')}")
                     else:
-                        print(f"⚠️ No tasks in response. Data keys: {list(data.keys())}")
+                        logger.warning(f"No tasks in response. Data keys: {list(data.keys())}")
                 else:
                     # Log the error status
                     status_message = data.get("status_message", "Unknown error")
-                    print(f"⚠️ DataForSEO API returned status_code {df_status}: {status_message}")
+                    logger.warning(f"DataForSEO API returned status_code {df_status}: {status_message}")
                     # Check if it's a balance/limit error
                     if self._should_use_sandbox(status_code, data):
                         return [], (status_code, data)
                     # Log response for debugging
-                    print(f"🔍 Response preview: {str(data)[:500]}")
+                    logger.info(f"🔍 Response preview: {str(data)[:500]}")
 
             # Error but not account-limited
             if status_code != 200:
-                print(f"⚠️ Metrics API HTTP error {status_code}: {response.text[:500]}")
+                logger.warning(f"Metrics API HTTP error {status_code}: {response.text[:500]}")
                 return [], error_info
 
         except requests.exceptions.Timeout:
-            print("⏱️ Metrics API timeout")
+            logger.info(f"⏱️ Metrics API timeout")
             return [], (0, {"error": "timeout"})
         except requests.exceptions.ConnectionError:
-            print("🔌 Metrics API connection error")
+            logger.info(f"🔌 Metrics API connection error")
             return [], (0, {"error": "connection_error"})
         except Exception as e:
-            print(f"⚠️ Metrics fetch error: {e}")
+            logger.warning(f"Metrics fetch error: {e}")
             import traceback
-            print(f"🔍 Traceback: {traceback.format_exc()}")
+            logger.info(f"🔍 Traceback: {traceback.format_exc()}")
             return [], (0, {"error": str(e)})
 
         # If we get here, response was 200 but we didn't parse metrics
-        print(f"⚠️ Could not parse metrics from response. Status: {status_code}")
+        logger.warning(f"Could not parse metrics from response. Status: {status_code}")
         return [], None
 
     def _sort_keywords_by_opportunity(self, metrics_data, max_keywords):
@@ -642,8 +645,8 @@ class KeywordAPIClient:
 
     def _fallback_to_gemini(self, seed_keyword, max_keywords):
         """Use Gemini for backup keyword generation when DataForSEO fails."""
-        print(f"💡 Using Gemini AI fallback for: '{seed_keyword}'")
-        print(f"📝 Generating {max_keywords} relevant keywords related to '{seed_keyword}' with AI...")
+        logger.info(f"💡 Using Gemini AI fallback for: '{seed_keyword}'")
+        logger.info(f"📝 Generating {max_keywords} relevant keywords related to '{seed_keyword}' with AI...")
         
         try:
             # Pass max_keywords to ensure we get enough keywords
@@ -661,10 +664,10 @@ class KeywordAPIClient:
                     if (seed_words & kw_words) or any(word in kw_lower for word in seed_words if len(word) > 2):
                         validated_keywords.append(kw)
                     else:
-                        print(f"⚠️ Filtered out irrelevant Gemini keyword: '{kw}'")
+                        logger.warning(f"Filtered out irrelevant Gemini keyword: '{kw}'")
                 
                 if len(validated_keywords) < max_keywords * 0.5:  # If less than 50% are relevant, regenerate
-                    print(f"⚠️ Only {len(validated_keywords)}/{len(keywords)} Gemini keywords are relevant. Regenerating...")
+                    logger.warning(f"Only {len(validated_keywords)}/{len(keywords)} Gemini keywords are relevant. Regenerating...")
                     keywords = generate_keywords(seed_keyword, max_keywords * 2)  # Generate more to filter
                     # Re-validate
                     validated_keywords = []
@@ -677,7 +680,7 @@ class KeywordAPIClient:
                 keywords = validated_keywords[:max_keywords]
             
             if not keywords or len(keywords) < max_keywords:
-                print(f"⚠️ Gemini returned {len(keywords) if keywords else 0} keywords, expected {max_keywords}. Generating variations...")
+                logger.warning(f"Gemini returned {len(keywords) if keywords else 0} keywords, expected {max_keywords}. Generating variations...")
                 # Generate more variations to reach max_keywords
                 base_variations = [
                     f"{seed_keyword} guide", f"{seed_keyword} tips", f"best {seed_keyword}",
@@ -717,11 +720,11 @@ class KeywordAPIClient:
                     "data_source": DataSource.UNAVAILABLE.value
                 })
             
-            print(f"✅ Gemini generated {len(formatted)} keywords (requested {max_keywords})")
+            logger.info(f"Gemini generated {len(formatted)} keywords (requested {max_keywords})")
             return formatted
             
         except Exception as e:
-            print(f"❌ Gemini fallback error: {e}")
+            logger.error(f"Gemini fallback error: {e}")
             # Emergency fallback
             return [{
                 "rank": 1,

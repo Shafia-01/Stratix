@@ -61,9 +61,12 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
         logger.exception("Lightweight agent error occurred")
         return []
 
+from src.prompt_safety import build_safe_prompt, cap_text_length
+
 def generate_keywords_lightweight(seed_keyword, max_keywords=5):
     """Generate keywords using Gemini with lightweight prompt."""
-    prompt = f"""
+    seed_keyword = cap_text_length(seed_keyword, 100)
+    prompt_template = """
     Generate {max_keywords} related keywords for "{seed_keyword}".
     Focus on high-value, searchable terms.
     Return as a simple list, one keyword per line.
@@ -71,6 +74,7 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
     """
     try:
         # Use safe_gemini_call
+        prompt = build_safe_prompt(prompt_template, max_keywords=max_keywords, seed_keyword=seed_keyword)
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
             # Clean the response to remove numbers, bullets, and special characters

@@ -1,6 +1,10 @@
 from dotenv import load_dotenv
 from src.db_client import get_cached_intent, save_intent_to_db
 from src.gemini_client import safe_gemini_call
+from src.prompt_safety import build_safe_prompt, cap_text_length
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -24,7 +28,8 @@ def generate_intent_gemini(keyword: str) -> str:
     """
     Use Gemini (fallback) to refine uncertain intents with safe fallback system.
     """
-    prompt = f"""
+    keyword = cap_text_length(keyword, 100)
+    prompt_template = """
     You are an SEO assistant. Determine the **search intent** behind this keyword: "{keyword}".
     Classify into one of these EXACT labels (respond with ONLY the label, nothing else):
     - Informational
@@ -33,6 +38,7 @@ def generate_intent_gemini(keyword: str) -> str:
     - Commercial
     Respond with ONLY the label name, no descriptions or extra text.
     """
+    prompt = build_safe_prompt(prompt_template, keyword=keyword)
     response = safe_gemini_call(prompt) 
     if response:
         # Clean the response to extract just the intent type
@@ -62,7 +68,7 @@ def classify_intent(keyword: str) -> str:
 
     # 3️⃣ Gemini backup if uncertain
     if intent == "Uncertain":
-        print(f"Using Gemini to refine intent for '{keyword}'...")
+        logger.info(f"Using Gemini to refine intent for '{keyword}'...")
         gemini_intent = generate_intent_gemini(keyword)
         if gemini_intent:
             intent = gemini_intent

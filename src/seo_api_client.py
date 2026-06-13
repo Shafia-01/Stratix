@@ -8,7 +8,9 @@ from src.db_client import connect_db
 from src.data_quality import DataSource
 from sqlalchemy.orm import Session
 from src.models import Keyword
+from src.logger_config import get_logger
 
+logger = get_logger(__name__)
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
@@ -22,12 +24,12 @@ def get_keyword_metrics(keyword):
     if cached is not None:
         last_updated = cached.get("last_updated")
         if last_updated and (datetime.now() - pd.to_datetime(last_updated)) < timedelta(days=7):
-            print(f"Using cached data for '{keyword}' (updated {last_updated})")
+            logger.info(f"Using cached data for '{keyword}' (updated {last_updated})")
             return cached
         else:
-            print(f"Cache expired for '{keyword}', refreshing...")
+            logger.info(f"Cache expired for '{keyword}', refreshing...")
     try:
-        print(f"Fetching fresh data from SerpApi for '{keyword}'...")
+        logger.info(f"Fetching fresh data from SerpApi for '{keyword}'...")
         url = "https://serpapi.com/search.json"
         params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}
         res = requests.get(url, params=params, timeout=15).json()
@@ -46,7 +48,7 @@ def get_keyword_metrics(keyword):
         save_to_cache(keyword, metrics)
         return metrics
     except Exception as e:
-        print(f"SerpApi Error for '{keyword}': {e}")
+        logger.error(f"SerpApi Error for '{keyword}': {e}", exc_info=True)
         return {
             "volume": 0,
             "competition": None,
@@ -74,7 +76,7 @@ def check_cache(keyword):
                 }
         return None
     except Exception as e:
-        print(f"[ERROR] Cache check failed for '{keyword}': {e}")
+        logger.error(f"Cache check failed for '{keyword}': {e}", exc_info=True)
         return None
 
 def save_to_cache(keyword, metrics):
@@ -97,7 +99,6 @@ def save_to_cache(keyword, metrics):
                     row.competition = metrics.get("competition")
                     row.cpc = metrics.get("cpc")
             session.commit()
-        print(f"[CACHE] Metrics cached for '{keyword}' (preserving complete data)")
+        logger.info(f"Metrics cached for '{keyword}' (preserving complete data)")
     except Exception as e:
-        print(f"[ERROR] Cache save failed for '{keyword}': {e}")
-
+        logger.error(f"Cache save failed for '{keyword}': {e}", exc_info=True)

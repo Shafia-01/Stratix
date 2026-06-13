@@ -299,9 +299,13 @@ def classify_paa_opportunity(snippet):
     else:
         return "informational_content"
 
+from src.prompt_safety import build_safe_prompt, cap_text_length
+
 def generate_content_idea_from_paa(question, snippet):
     """Generate content idea from PAA question and snippet."""
-    prompt = f"""
+    question = cap_text_length(question, 200)
+    snippet = cap_text_length(snippet, 500)
+    prompt_template = """
     Based on this People Also Ask question and snippet, suggest a content idea:
     Question: {question}
     Snippet: {snippet}
@@ -309,6 +313,7 @@ def generate_content_idea_from_paa(question, snippet):
     Return just the content idea title.
     """
     try:
+        prompt = build_safe_prompt(prompt_template, question=question, snippet=snippet)
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
             return response.strip()

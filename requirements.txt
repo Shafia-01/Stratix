@@ -27,3 +27,10 @@ plotly
 
 # Utilities
 tqdm
+
+# Pydantic & Testing Dependencies
+pydantic>=2.0.0
+pytest
+pytest-mock
+pytest-cov
+

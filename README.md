@@ -15,7 +15,7 @@ Discover high-value keywords using advanced AI technology:
 - **Scalable Analysis**: Choose between Quick Analysis (5 keywords) or Comprehensive Analysis (50+ keywords)
 - **Smart Scoring**: AI-powered keyword scoring system ranks keywords by opportunity potential
 - **Batch Processing**: Parallel processing for fast results on large keyword sets
-- **Database Integration**: Automatically saves discovered keywords to MySQL for future reference
+- **Database Integration**: Automatically saves discovered keywords to SQLite for future reference
 
 **Use Cases**: Initial keyword research, expanding keyword lists, finding long-tail opportunities, identifying trending keywords
 
@@ -138,7 +138,7 @@ Run all modules together for a complete SEO strategy:
 ### 📊 Advanced Analytics
 - **Real-time Metrics**: Volume, competition, CPC, and trend data from multiple sources
 - **Performance Scoring**: AI-powered keyword scoring system ranks keywords by opportunity
-- **Database Storage**: MySQL database for persistent storage and historical analysis
+- **Database Storage**: SQLite database for persistent storage and historical analysis
 - **Export Options**: CSV export with comprehensive data for external analysis
 - **Interactive Charts**: Plotly-powered visualizations for data exploration
 
@@ -165,7 +165,7 @@ streamlit run app.py
 ## 📋 Prerequisites
 
 - **Python 3.8+**
-- **MySQL Database** (optional but recommended for data persistence)
+- **SQLite** (standard Python library, auto-configured local DB)
 - **API Keys**:
   - **Required**: Google Gemini API key
   - **Required**: SerpAPI key
@@ -191,12 +191,9 @@ DATAFORSEO_FORCE_SANDBOX=false         # Set to true to force sandbox mode
 DATAFORSEO_PRESERVE_CREDITS=true       # Auto-switch to sandbox when balance is low
 DATAFORSEO_LOW_BALANCE_THRESHOLD=0.50  # Switch to sandbox when balance < $0.50
 
-# Optional - MySQL Database Configuration
-MYSQL_HOST=127.0.0.1
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=gemkey_ai
-MYSQL_PORT=3306
+# Database Configuration
+# SQLite is used by default with a local database file: instance/keylytics.db
+DATABASE_URL=sqlite:///instance/keylytics.db
 ```
 
 ### System Status Monitoring
@@ -353,10 +350,8 @@ python -c "from src.agent import run_agent; print('Agent imported successfully')
    ```
 
 5. **Database connection errors**
-   - Verify MySQL is running
-   - Check database credentials in `.env` file
-   - Ensure the database `gemkey_ai` exists
-   - Create database: `CREATE DATABASE gemkey_ai;`
+   - Verify that the local `instance/` folder exists and has write permissions.
+   - SQLite automatically handles database creation, but verify that the `DATABASE_URL` in `.env` is formatted correctly (e.g. `sqlite:///instance/keylytics.db`).
 
 6. **DataForSEO not working**
    - Verify credentials are correct in `.env` file

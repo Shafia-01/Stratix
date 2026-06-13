@@ -60,13 +60,20 @@ def cluster_keywords_semantically(keywords_data):
         "summary": generate_clustering_summary(enhanced_clusters)
     }
 
+from src.prompt_safety import build_safe_prompt, cap_text_length
+
 def perform_semantic_clustering(keywords):
     """Use Gemini AI to perform semantic clustering of keywords."""
     # Limit to 50 keywords for better clustering
     keywords_sample = keywords[:50]
-    prompt = f"""
+    
+    # Sanitize each keyword item for safety
+    cleaned_keywords = [cap_text_length(kw, 100) for kw in keywords_sample]
+    keywords_text = chr(10).join(cleaned_keywords)
+    
+    prompt_template = """
     Analyze these keywords and group them into 3-8 semantic clusters based on meaning and intent:
-    {chr(10).join(keywords_sample)}
+    {keywords_text}
     Return a JSON response with this structure:
     {{
         "clusters": [
@@ -83,6 +90,7 @@ def perform_semantic_clustering(keywords):
     """
     try:
         logger.info("Calling Gemini for semantic clustering...")
+        prompt = build_safe_prompt(prompt_template, keywords_text=keywords_text)
         response = safe_gemini_call(prompt, temperature=0.3)
         if response and response.strip():
             logger.info("Received response from Gemini, parsing...")
@@ -324,7 +332,8 @@ def generate_clustering_summary(clusters):
 
 def get_semantic_keyword_variations(seed_keyword):
     """Get semantic variations of a keyword for clustering."""
-    prompt = f"""
+    seed_keyword = cap_text_length(seed_keyword, 100)
+    prompt_template = """
     Generate 20 semantic variations of "{seed_keyword}" including:
     - Synonyms and related terms
     - Long-tail versions
@@ -334,10 +343,11 @@ def get_semantic_keyword_variations(seed_keyword):
     Return as a simple list, one keyword per line.
     """
     try:
+        prompt = build_safe_prompt(prompt_template, seed_keyword=seed_keyword)
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
-            variations = [kw.strip() for kw in response.split('\n') if kw.strip()]
-            return variations[:20]
+             variations = [kw.strip() for kw in response.split('\n') if kw.strip()]
+             return variations[:20]
     except Exception as e:
         logger.error(f"Failed to generate semantic variations: {e}", exc_info=True)
     return []

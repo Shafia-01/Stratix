@@ -44,9 +44,12 @@ def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
         "summary": generate_gap_summary(opportunities)
     }
 
+from src.prompt_safety import build_safe_prompt, cap_text_length
+
 def generate_related_keywords_for_gap(seed_keyword):
     """Generate related keywords for gap analysis using Gemini."""
-    prompt = f"""
+    seed_keyword = cap_text_length(seed_keyword, 100)
+    prompt_template = """
     Generate 15 related keywords for "{seed_keyword}" that competitors might be targeting.
     Include variations like:
     - Long-tail versions
@@ -56,6 +59,7 @@ def generate_related_keywords_for_gap(seed_keyword):
     Return as a simple list, one keyword per line.
     """
     try:
+        prompt = build_safe_prompt(prompt_template, seed_keyword=seed_keyword)
         response = safe_gemini_call(prompt, temperature=0.7)
         if response:
             keywords = [kw.strip() for kw in response.split('\n') if kw.strip()]
@@ -182,7 +186,8 @@ def get_missing_keywords_analysis(seed_keyword):
     Get missing keywords that competitors are targeting but you're not.
     This is a simplified version focusing on semantic gaps.
     """
-    prompt = f"""
+    seed_keyword = cap_text_length(seed_keyword, 100)
+    prompt_template = """
     Analyze "{seed_keyword}" and identify 10 keywords that competitors might be targeting
     but are often overlooked. Focus on:
     - Semantic variations
@@ -193,6 +198,7 @@ def get_missing_keywords_analysis(seed_keyword):
     Return as a JSON list with each keyword having: keyword, opportunity_type, difficulty_estimate
     """
     try:
+        prompt = build_safe_prompt(prompt_template, seed_keyword=seed_keyword)
         response = safe_gemini_call(prompt, temperature=0.8)
         if response:
             # Try to parse JSON response

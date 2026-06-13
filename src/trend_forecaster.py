@@ -3,6 +3,9 @@ from datetime import datetime, timedelta
 import warnings
 from dotenv import load_dotenv
 from src.trends_client import get_trend_score, get_trend_history
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -12,7 +15,7 @@ def analyze_trend_forecasting(keywords_data):
     Analyze and forecast keyword trends with seasonal patterns.
     Expected Output: Trend graphs, growth %, seasonality insights
     """
-    print(f"[FORECASTING] Analyzing trends for {len(keywords_data)} keywords...")
+    logger.info(f"Analyzing trends for {len(keywords_data)} keywords...")
     # Step 1: Get historical trend data
     historical_data = get_historical_trends(keywords_data)
     # Step 2: Perform trend analysis

@@ -47,23 +47,27 @@ def safe_gemini_call(prompt, temperature=0.7):
     logger.error("All Gemini models failed or quota exceeded.")
     return None
 
+from src.prompt_safety import build_safe_prompt, cap_text_length
+
 def generate_keywords(seed_keyword, max_keywords=50):
     """Generate SEO keywords using Gemini with automatic fallback."""
-    prompt = f"""
-    Generate {max_keywords} high-quality SEO keywords that are DIRECTLY RELATED to: '{seed_keyword}'.
+    seed_keyword = cap_text_length(seed_keyword, 100)
+    prompt_template = """
+    Generate {max_keywords} high-quality SEO keywords that are DIRECTLY RELATED to: {seed_keyword}.
     
-    IMPORTANT: All keywords MUST be relevant to '{seed_keyword}'. Do not generate random or unrelated keywords.
+    IMPORTANT: All keywords MUST be relevant to the seed keyword. Do not generate random or unrelated keywords.
     
     Include a mix of:
-    - Short-tail keywords (1-2 words) related to '{seed_keyword}'
-    - Long-tail keywords (3-5 words) related to '{seed_keyword}'
-    - Question-based keywords about '{seed_keyword}'
-    - Commercial intent keywords for '{seed_keyword}'
-    - Informational keywords about '{seed_keyword}'
+    - Short-tail keywords (1-2 words) related to the seed keyword
+    - Long-tail keywords (3-5 words) related to the seed keyword
+    - Question-based keywords about the seed keyword
+    - Commercial intent keywords for the seed keyword
+    - Informational keywords about the seed keyword
     
     Return only keywords, one per line or comma-separated. Avoid duplicates.
-    Make sure ALL keywords are relevant to '{seed_keyword}' and generate at least {max_keywords} keywords.
+    Make sure ALL keywords are relevant to the seed keyword and generate at least {max_keywords} keywords.
     """
+    prompt = build_safe_prompt(prompt_template, max_keywords=max_keywords, seed_keyword=seed_keyword)
     response = safe_gemini_call(prompt)
     if not response:
         logger.warning("Gemini failed to return keywords.")
