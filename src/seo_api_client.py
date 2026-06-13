@@ -14,6 +14,10 @@ logger = get_logger(__name__)
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
+from src.retry import with_retries, with_rate_limit_delay
+
+@with_retries()
+@with_rate_limit_delay(seconds=0.5)
 def get_keyword_metrics(keyword):
     """
     Fetch SEO metrics (volume, CPC, competition) from cache or SerpApi.
@@ -28,33 +32,26 @@ def get_keyword_metrics(keyword):
             return cached
         else:
             logger.info(f"Cache expired for '{keyword}', refreshing...")
-    try:
-        logger.info(f"Fetching fresh data from SerpApi for '{keyword}'...")
-        url = "https://serpapi.com/search.json"
-        params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}
-        res = requests.get(url, params=params, timeout=15).json()
-        info = res.get("search_information", {})
-        total_results = info.get("total_results", 0)
-        volume = min(int(total_results / 1000), 10000) or 0
-        competition = None
-        cpc = None
-        time.sleep(0.5)
-        metrics = {
-            "volume": volume,
-            "competition": competition,
-            "cpc": cpc,
-            "data_source": DataSource.ESTIMATED.value
-        }
-        save_to_cache(keyword, metrics)
-        return metrics
-    except Exception as e:
-        logger.error(f"SerpApi Error for '{keyword}': {e}", exc_info=True)
-        return {
-            "volume": 0,
-            "competition": None,
-            "cpc": None,
-            "data_source": DataSource.UNAVAILABLE.value
-        }
+    
+    logger.info(f"Fetching fresh data from SerpApi for '{keyword}'...")
+    url = "https://serpapi.com/search.json"
+    params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}
+    res = requests.get(url, params=params, timeout=15)
+    res.raise_for_status()
+    res_json = res.json()
+    info = res_json.get("search_information", {})
+    total_results = info.get("total_results", 0)
+    volume = min(int(total_results / 1000), 10000) or 0
+    competition = None
+    cpc = None
+    metrics = {
+        "volume": volume,
+        "competition": competition,
+        "cpc": cpc,
+        "data_source": DataSource.ESTIMATED.value
+    }
+    save_to_cache(keyword, metrics)
+    return metrics
 
 def check_cache(keyword):
     """Check if keyword already exists in DB and return metrics + timestamp."""
