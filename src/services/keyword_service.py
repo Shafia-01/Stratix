@@ -6,7 +6,9 @@ logger = get_logger(__name__)
 @st.cache_data(ttl=1800)
 def cached_run_lightweight_agent(keyword, limit):
     from src.lightweight_agent import run_lightweight_agent
-    return run_lightweight_agent(keyword, limit)
+    from src.schemas import schemas_to_legacy_dicts
+    results = run_lightweight_agent(keyword, limit)
+    return schemas_to_legacy_dicts(results)
 
 @st.cache_data(ttl=3600)
 def cached_run_agent(keyword, limit):
@@ -14,10 +16,11 @@ def cached_run_agent(keyword, limit):
     Cached agent runner.
     """
     from src.agent import run_agent
+    from src.schemas import schemas_to_legacy_dicts
     results = run_agent(keyword, limit)
     if results and len(results) < limit:
         logger.warning(f"Requested {limit} keywords but only got {len(results)}. This may be due to API limitations.")
-    return results
+    return schemas_to_legacy_dicts(results)
 
 def prepare_keyword_records(keyword_results, seed_keyword):
     """Ensure keyword dictionaries include required defaults before saving."""
