@@ -9,35 +9,36 @@ logger = get_logger(__name__)
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
+from src.retry import with_retries, with_rate_limit_delay
+
+@with_retries()
+@with_rate_limit_delay(seconds=1.0)
 def get_competitor_data(keyword, num_results=5):
     """
     Fetch top-ranking competitors for a given keyword using SerpApi.
     Returns a list of dicts with domain, title, snippet, and position.
     """
-    try:
-        url = "https://serpapi.com/search.json"
-        params = {
-            "q": keyword,
-            "api_key": SERPAPI_KEY,
-            "engine": "google",
-            "num": num_results,
-        }
-        res = requests.get(url, params=params, timeout=15).json()
-        organic_results = res.get("organic_results", [])
-        competitors = []
-        for i, result in enumerate(organic_results[:num_results], start=1):
-            competitors.append({
-                "rank": i,
-                "title": result.get("title"),
-                "link": result.get("link"),
-                "domain": extract_domain(result.get("link")),
-                "snippet": result.get("snippet", "No description available.")
-            })
-        time.sleep(1)
-        return competitors
-    except Exception as e:
-        logger.error(f"Competitor fetch error for '{keyword}': {e}", exc_info=True)
-        return []
+    url = "https://serpapi.com/search.json"
+    params = {
+        "q": keyword,
+        "api_key": SERPAPI_KEY,
+        "engine": "google",
+        "num": num_results,
+    }
+    res = requests.get(url, params=params, timeout=15)
+    res.raise_for_status()
+    res_json = res.json()
+    organic_results = res_json.get("organic_results", [])
+    competitors = []
+    for i, result in enumerate(organic_results[:num_results], start=1):
+        competitors.append({
+            "rank": i,
+            "title": result.get("title"),
+            "link": result.get("link"),
+            "domain": extract_domain(result.get("link")),
+            "snippet": result.get("snippet", "No description available.")
+        })
+    return competitors
 
 def extract_domain(url):
     """Simple domain parser from URL."""
