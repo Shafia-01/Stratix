@@ -95,7 +95,7 @@ class StrategyReport(BaseModel):
     top_opportunities: List[KeywordFinding] = Field(..., description="Curated high-scoring keyword opportunities")
     recommendations: List[str] = Field(..., description="List of actionable strategic recommendations")
     generated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of report generation")
-    version: str = Field("phase2a", description="Schema/platform version")
+    version: str = Field("phase2c", description="Schema/platform version")
 
 
 class ResearchPlan(BaseModel):
@@ -135,7 +135,7 @@ class MarketState(BaseModel):
 class KeywordSuggestion(BaseModel):
     """Lightweight suggestion before full scoring/intent/difficulty are determined."""
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
-    
+
     keyword: str = Field(..., description="The suggested keyword")
     volume: float = Field(0.0, description="Monthly search volume")
     cpc: Optional[float] = Field(None, description="CPC in USD")
@@ -146,7 +146,7 @@ class KeywordSuggestion(BaseModel):
 class SerpAnalysisResult(BaseModel):
     """SERP analysis results."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     keyword: str = Field(..., description="The keyword analyzed")
     serp_data: Dict[str, Any] = Field(..., description="Raw SERP data fields")
     snippet_analysis: Dict[str, Any] = Field(..., description="Snippet analysis details")
@@ -157,30 +157,108 @@ class SerpAnalysisResult(BaseModel):
     summary: str = Field(..., description="Text summary of SERP findings")
 
 
+# ---------------------------------------------------------------------------
+# Typed sub-models for CompetitorGapResult
+# ---------------------------------------------------------------------------
+
+class CompetitorOpportunity(BaseModel):
+    """A single keyword opportunity identified in competitor gap analysis."""
+    model_config = ConfigDict(from_attributes=True)
+
+    keyword: str = Field(..., description="The keyword representing the gap opportunity")
+    opportunity_type: str = Field(..., description="Type of opportunity (e.g. 'keyword_gap', 'ranking_improvement')")
+    gap_score: float = Field(..., description="Opportunity gap score (0–100; higher = better opportunity)")
+    traffic_potential: Literal["high", "medium", "low"] = Field(..., description="Estimated traffic potential tier")
+    reasoning: str = Field(..., description="Human-readable rationale for this opportunity")
+
+
 class CompetitorGapResult(BaseModel):
     """Competitor keyword gap analysis results."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     competitors: List[CompetitorEntry] = Field(..., description="Analyzed competitors")
-    opportunities: List[Dict[str, Any]] = Field(..., description="Keyword opportunities found")
+    opportunities: List[CompetitorOpportunity] = Field(..., description="Typed keyword opportunities found")
     summary: str = Field(..., description="Executive summary of the keyword gap")
+
+
+# ---------------------------------------------------------------------------
+# Typed sub-models for TrendForecastResult
+# ---------------------------------------------------------------------------
+
+class ForecastPoint(BaseModel):
+    """A single monthly forecast data point."""
+    model_config = ConfigDict(from_attributes=True)
+
+    month: int = Field(..., description="Forecast month index (1 = next month, 6 = 6 months out)")
+    score: float = Field(..., description="Predicted trend score (0–100)")
+    confidence: float = Field(..., description="Forecast confidence percentage (0–100)")
+
+
+class ForecastEntry(BaseModel):
+    """Forecast data for a single keyword."""
+    model_config = ConfigDict(from_attributes=True)
+
+    forecast_scores: List[ForecastPoint] = Field(..., description="Month-by-month forecast points")
+    predicted_growth: float = Field(..., description="Predicted growth rate as a percentage")
+    trend_direction: str = Field(..., description="Direction label (e.g. 'strong_growth', 'stable')")
+    recommendation: str = Field(..., description="Actionable recommendation based on forecast")
+
+
+class SeasonalAnalysisEntry(BaseModel):
+    """Seasonal pattern analysis for a single keyword."""
+    model_config = ConfigDict(from_attributes=True)
+
+    peak_season: Optional[int] = Field(None, description="Month number of peak interest (1–12)")
+    low_season: Optional[int] = Field(None, description="Month number of lowest interest (1–12)")
+    seasonality_strength: float = Field(..., description="Standard deviation of seasonal factors (higher = more seasonal)")
+    growth_rate: Optional[float] = Field(None, description="Compound growth rate over the historical period")
+    recommendation: Optional[str] = Field(None, description="Seasonal content calendar recommendation")
 
 
 class TrendForecastResult(BaseModel):
     """Trend forecasting results."""
     model_config = ConfigDict(from_attributes=True)
-    
-    forecasts: Any = Field(..., description="Forecast data points or dataframe representation")
-    seasonal_analysis: Dict[str, Any] = Field(..., description="Seasonality analysis details")
+
+    forecasts: Dict[str, ForecastEntry] = Field(..., description="Per-keyword typed forecast entries")
+    seasonal_analysis: Dict[str, SeasonalAnalysisEntry] = Field(..., description="Per-keyword seasonal analysis")
     insights: List[str] = Field(..., description="Actionable insights from forecasting")
     summary: str = Field(..., description="Text summary of trends")
+
+
+# ---------------------------------------------------------------------------
+# Typed sub-models for TopicClusterResult
+# ---------------------------------------------------------------------------
+
+class ClusterMetrics(BaseModel):
+    """Aggregated search metrics for a keyword cluster."""
+    model_config = ConfigDict(from_attributes=True)
+
+    avg_volume: float = Field(..., description="Average monthly search volume across cluster keywords")
+    avg_competition: float = Field(..., description="Average competition density (0–1)")
+    avg_cpc: float = Field(..., description="Average cost-per-click in USD")
+    avg_score: float = Field(..., description="Average opportunity score")
+    total_volume: float = Field(..., description="Total combined monthly search volume")
+
+
+class TopicClusterEntry(BaseModel):
+    """A single semantic topic cluster with enriched metrics."""
+    model_config = ConfigDict(from_attributes=True)
+
+    cluster_name: str = Field(..., description="Descriptive name for the cluster (e.g. 'AI Content Generation Tools')")
+    description: str = Field(..., description="Brief description of what this cluster represents")
+    keywords: List[str] = Field(..., description="Keywords belonging to this cluster")
+    primary_intent: str = Field(..., description="Dominant search intent (commercial/informational/transactional/navigational)")
+    industry_focus: str = Field(..., description="Main industry or use case")
+    keyword_count: int = Field(..., description="Number of keywords in the cluster")
+    opportunity_score: float = Field(..., description="Composite opportunity score for the cluster")
+    metrics: ClusterMetrics = Field(..., description="Aggregated search metrics for the cluster")
 
 
 class TopicClusterResult(BaseModel):
     """Semantic topic clustering results."""
     model_config = ConfigDict(from_attributes=True)
-    
-    clusters: Any = Field(..., description="Semantic cluster definitions")
+
+    clusters: List[TopicClusterEntry] = Field(..., description="Typed semantic cluster definitions")
     insights: List[str] = Field(..., description="Topic level insights")
     summary: str = Field(..., description="Executive summary of clusters")
 
@@ -188,7 +266,7 @@ class TopicClusterResult(BaseModel):
 class IntentClassification(BaseModel):
     """Intent classification result."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     keyword: str = Field(..., description="The keyword classified")
     intent: str = Field(..., description="The classified intent label")
     source: Literal["cache", "rule", "gemini"] = Field(..., description="Classification path source")
@@ -212,4 +290,3 @@ def schemas_to_legacy_dicts(findings: List[KeywordFinding]) -> List[dict]:
         d["competitors"] = legacy_comps
         legacy_list.append(d)
     return legacy_list
-

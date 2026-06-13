@@ -102,8 +102,9 @@ def process_keyword(kw_item, seed_keyword):
             metrics = get_keyword_metrics_enhanced(kw)
             if not metrics:
                 return None
-        score = compute_score(metrics)
-        difficulty = classify_difficulty(score)
+        opportunity = compute_score(metrics)
+        score = opportunity.score
+        difficulty = classify_difficulty(opportunity)
         intent = classify_intent(kw)
 
         # Trend data
@@ -162,8 +163,9 @@ def process_keyword_quick(kw_item, seed_keyword):
             metrics = get_keyword_metrics_enhanced(kw)
             if not metrics:
                 return None
-        score = compute_score(metrics)
-        difficulty = classify_difficulty(score)
+        opportunity = compute_score(metrics)
+        score = opportunity.score
+        difficulty = classify_difficulty(opportunity)
         intent = classify_intent(kw)
         
         return KeywordFinding(

@@ -53,7 +53,8 @@ def analyze_serp_opportunities(keyword, num_results=10):
 from src.retry import with_retries, with_rate_limit_delay
 
 @with_retries()
-@with_rate_limit_delay(seconds=1.0)
+# SerpAPI rate limit: ~1 req/s per API key; pre_delay avoids 429s on rapid keyword calls.
+@with_rate_limit_delay(pre_delay=1.0)
 def get_serp_data(keyword, num_results=10):
     """Get comprehensive SERP data using SerpApi."""
     if not SERPAPI_KEY:

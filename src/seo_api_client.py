@@ -17,7 +17,8 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 from src.retry import with_retries, with_rate_limit_delay
 
 @with_retries()
-@with_rate_limit_delay(seconds=0.5)
+# SerpAPI rate limit: no strict per-request limit but 0.5s gap prevents burst 429s.
+@with_rate_limit_delay(pre_delay=0.5)
 def get_keyword_metrics(keyword):
     """
     Fetch SEO metrics (volume, CPC, competition) from cache or SerpApi.

@@ -12,7 +12,8 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 from src.retry import with_retries, with_rate_limit_delay
 
 @with_retries()
-@with_rate_limit_delay(seconds=1.0)
+# SerpAPI rate limit: ~1 req/s per API key; pre_delay avoids 429s on rapid competitor lookups.
+@with_rate_limit_delay(pre_delay=1.0)
 def get_competitor_data(keyword, num_results=5):
     """
     Fetch top-ranking competitors for a given keyword using SerpApi.

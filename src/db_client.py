@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import json
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.orm import Session
 from src.models import Base, Keyword, IntentCache
 from src.logger_config import get_logger
@@ -12,14 +12,36 @@ DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
 
 _engine = None
 
+
+def _configure_sqlite_pragmas(dbapi_connection, connection_record):
+    """
+    Configure SQLite PRAGMAs required for concurrent agent tool calls.
+
+    WAL (Write-Ahead Logging) allows multiple readers + one writer to
+    coexist without blocking, which is critical when LangGraph agent
+    nodes call different tools concurrently and all write to the same db.
+
+    busy_timeout=5000ms prevents "database is locked" errors under
+    concurrent write contention by retrying for up to 5 seconds.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.close()
+
+
 def connect_db():
     """Create and return a SQLite SQLAlchemy engine and verify tables exist."""
     global _engine
     if _engine is None:
         logger.info(f"Connecting to SQLite database: {os.path.basename(DB_PATH)}")
         _engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+        # Register the PRAGMA listener BEFORE creating tables so every
+        # connection (including the schema-creation one) uses WAL mode.
+        event.listen(_engine, "connect", _configure_sqlite_pragmas)
         Base.metadata.create_all(_engine)
     return _engine
+
 
 def save_to_db(data):
     """Save keyword data with all computed fields using SQLAlchemy ORM."""

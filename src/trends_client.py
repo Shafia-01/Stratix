@@ -17,9 +17,23 @@ load_dotenv()
 warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
 pytrends = TrendReq(hl='en-US', tz=360)
 
+import requests
+from src.exceptions import KeylyticsAPIError
 from src.retry import with_retries
 
-@with_retries(max_attempts=3, base_delay=2.0, retry_on=(Exception,))
+# Retry only on recoverable network/API errors — never on bare Exception.
+# Programming errors (AttributeError, TypeError, etc.) should surface immediately.
+# pytrends enforces ~1 req/s; the 2.0s base_delay + exponential backoff avoids 429s.
+@with_retries(
+    max_attempts=3,
+    base_delay=2.0,
+    retry_on=(
+        KeylyticsAPIError,
+        requests.exceptions.RequestException,
+        ConnectionError,
+        TimeoutError,
+    ),
+)
 def _fetch_pytrends_dataframe(keyword):
     """
     Fetch raw interest over time DataFrame from Google Trends using pytrends.

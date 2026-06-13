@@ -38,3 +38,8 @@ pytest-cov
 tenacity
 fastapi
 uvicorn[standard]
+
+# New additions for Phase 2C
+langchain-core      # StructuredTool for LangGraph-ready tool adapters
+httpx               # Required by FastAPI TestClient (starlette dependency)
+ruff                # Linting: ruff check src/ api/ tests/

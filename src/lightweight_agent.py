@@ -35,8 +35,9 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                     continue
                 
                 # Calculate simple score using unified scoring module
-                score = compute_score(metrics, mode="lightweight")
-                difficulty = classify_difficulty(score, mode="lightweight")
+                opportunity = compute_score(metrics, mode="lightweight")
+                score = opportunity.score
+                difficulty = classify_difficulty(opportunity, mode="lightweight")
                 try:
                     result = KeywordFinding(
                         seed=seed_keyword,
