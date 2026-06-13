@@ -17,41 +17,34 @@ load_dotenv()
 warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
 pytrends = TrendReq(hl='en-US', tz=360)
 
+from src.retry import with_retries
+
+@with_retries(max_attempts=3, base_delay=2.0, retry_on=(Exception,))
 def _fetch_pytrends_dataframe(keyword):
     """
     Fetch raw interest over time DataFrame from Google Trends using pytrends.
     Reuses the retry and backoff logic. Returns None on failure.
     """
-    max_retries = 3
-    base_delay = 2.0
-    
-    for attempt in range(max_retries):
-        try:
-            # Progressive delay to avoid rate-limit
-            delay = base_delay * (2 ** attempt) + random.uniform(0.5, 2.0)
-            time.sleep(delay)
-            # Reset pytrends connection to avoid stale sessions
-            if attempt > 0:
-                global pytrends
-                pytrends = TrendReq(hl='en-US', tz=360)
-            pytrends.build_payload([keyword], timeframe="today 12-m")
-            data = pytrends.interest_over_time()
-            if not data.empty:
-                return data
-        except Exception as e:
-            error_msg = str(e)
-            logger.warning(f"Trend error for '{keyword}' (attempt {attempt + 1}): {error_msg}")
-            # Handle specific error types
-            if "429" in error_msg or "rate" in error_msg.lower():
-                if attempt < max_retries - 1:
-                    wait_time = base_delay * (2 ** attempt) * 3  # Longer wait for rate limits
-                    logger.info(f"Waiting {wait_time:.1f}s before retry...")
-                    time.sleep(wait_time)
-                    continue
-            elif "timeout" in error_msg.lower():
-                if attempt < max_retries - 1:
-                    logger.info("Retrying after delay...")
-                    continue
+    global pytrends
+    try:
+        pytrends.build_payload([keyword], timeframe="today 12-m")
+        data = pytrends.interest_over_time()
+        if not data.empty:
+            return data
+    except Exception as e:
+        error_msg = str(e)
+        logger.warning(f"Trend error for '{keyword}': {error_msg}")
+        
+        # Reset pytrends connection to avoid stale sessions
+        pytrends = TrendReq(hl='en-US', tz=360)
+        
+        # PyTrends-specific 429/rate-limit detection logic
+        if "429" in error_msg or "rate" in error_msg.lower():
+            wait_time = 10.0  # Specific longer wait for rate limits
+            logger.info(f"Rate limit detected. Waiting {wait_time}s before letting tenacity retry...")
+            time.sleep(wait_time)
+            
+        raise e
     return None
 
 def get_trend_score(keyword):
