@@ -52,6 +52,8 @@ def test_seo_cache_expired_triggers_refresh(tmp_db_path, monkeypatch, mocker):
     class MockResponse:
         def json(self):
             return {"search_information": {"total_results": 10000000}} # volume = min(10000000/1000, 10000) = 10000
+        def raise_for_status(self):
+            pass
     
     mock_get = mocker.patch("requests.get", return_value=MockResponse())
     
@@ -66,11 +68,8 @@ def test_seo_api_exception_fallback(tmp_db_path, mocker):
     # Mock requests.get to raise an exception
     mocker.patch("requests.get", side_effect=requests.exceptions.RequestException("Timeout"))
     
-    metrics = get_keyword_metrics("timeout coffee")
-    assert metrics["volume"] == 0
-    assert metrics["competition"] is None
-    assert metrics["cpc"] is None
-    assert metrics["data_source"] == DataSource.UNAVAILABLE.value
+    with pytest.raises(requests.exceptions.RequestException):
+        get_keyword_metrics("timeout coffee")
 
 
 @pytest.mark.unit
