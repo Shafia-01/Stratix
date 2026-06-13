@@ -25,7 +25,14 @@ def save_to_db(data):
     """Save keyword data with all computed fields using SQLAlchemy ORM."""
     try:
         engine = connect_db()
-        df = pd.DataFrame(data)
+        from pydantic import BaseModel
+        processed_data = []
+        for item in data:
+            if isinstance(item, BaseModel):
+                processed_data.append(item.model_dump())
+            else:
+                processed_data.append(item)
+        df = pd.DataFrame(processed_data)
         
         if df.empty:
             return
