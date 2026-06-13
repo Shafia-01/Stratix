@@ -9,6 +9,9 @@ from src.logger_config import get_logger
 load_dotenv()
 logger = get_logger(__name__)
 
+from pydantic import ValidationError
+from src.schemas import KeywordFinding
+
 def run_lightweight_agent(seed_keyword, max_keywords=5):
     """
     Lightweight version of the agent for faster performance.
@@ -34,21 +37,25 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 # Calculate simple score using unified scoring module
                 score = compute_score(metrics, mode="lightweight")
                 difficulty = classify_difficulty(score, mode="lightweight")
-                result = {
-                    "seed": seed_keyword,
-                    "keyword": kw,
-                    "volume": metrics.get("volume", 0),
-                    "competition": metrics.get("competition"),
-                    "cpc": metrics.get("cpc"),
-                    "trend": None,
-                    "score": score,
-                    "difficulty": difficulty,
-                    "intent": "informational",  # Default intent
-                    "competitors": [],  # Empty for lightweight version
-                    "data_source": metrics.get("data_source", DataSource.UNAVAILABLE.value),
-                    "trend_data_source": DataSource.UNAVAILABLE.value
-                }
-                results.append(result)
+                try:
+                    result = KeywordFinding(
+                        seed=seed_keyword,
+                        keyword=kw,
+                        volume=float(metrics.get("volume", 0)),
+                        competition=metrics.get("competition"),
+                        cpc=metrics.get("cpc"),
+                        trend=None,
+                        score=score,
+                        difficulty=difficulty,
+                        intent="informational",  # Default intent
+                        competitors=[],  # Empty for lightweight version
+                        data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
+                        trend_data_source=DataSource.UNAVAILABLE.value
+                    )
+                    results.append(result)
+                except ValidationError as ve:
+                    logger.warning(f"Validation failed (lightweight) for keyword '{kw}': {ve}")
+                    continue
                 
                 # Small delay to avoid rate limits
                 time.sleep(0.2)
