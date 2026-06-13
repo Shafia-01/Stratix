@@ -50,6 +50,10 @@ def analyze_serp_opportunities(keyword, num_results=10):
         "summary": generate_serp_summary(snippet_analysis, paa_questions, content_gaps)
     }
 
+from src.retry import with_retries, with_rate_limit_delay
+
+@with_retries()
+@with_rate_limit_delay(seconds=1.0)
 def get_serp_data(keyword, num_results=10):
     """Get comprehensive SERP data using SerpApi."""
     if not SERPAPI_KEY:
@@ -86,7 +90,6 @@ def get_serp_data(keyword, num_results=10):
             "featured_snippet": data.get("featured_snippet", {})
         }
         logger.info(f"Successfully fetched {len(serp_data['organic_results'])} organic results")
-        time.sleep(1)  # Rate limiting
         return serp_data
     except KeylyticsAPIError:
         raise
