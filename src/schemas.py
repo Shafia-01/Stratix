@@ -130,3 +130,86 @@ class MarketState(BaseModel):
     report: Optional[StrategyReport] = Field(None, description="Constructed high-level marketing strategy report")
     status: Literal["pending", "in_progress", "completed", "failed"] = Field("pending", description="Overall state progress status")
     errors: List[str] = Field(default_factory=list, description="Collection of execution error details")
+
+
+class KeywordSuggestion(BaseModel):
+    """Lightweight suggestion before full scoring/intent/difficulty are determined."""
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    
+    keyword: str = Field(..., description="The suggested keyword")
+    volume: float = Field(0.0, description="Monthly search volume")
+    cpc: Optional[float] = Field(None, description="CPC in USD")
+    competition: Optional[float] = Field(None, description="Competition density index (0.0 to 1.0)")
+    data_source: DataSource = Field(..., description="Data origin")
+
+
+class SerpAnalysisResult(BaseModel):
+    """SERP analysis results."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    keyword: str = Field(..., description="The keyword analyzed")
+    serp_data: Dict[str, Any] = Field(..., description="Raw SERP data fields")
+    snippet_analysis: Dict[str, Any] = Field(..., description="Snippet analysis details")
+    paa_questions: Dict[str, Any] = Field(..., description="People Also Ask questions and opportunities")
+    ranking_analysis: Dict[str, Any] = Field(..., description="Analysis of top ranking domains")
+    content_gaps: Dict[str, Any] = Field(..., description="Identified content format/type gaps")
+    optimization_suggestions: List[Dict[str, Any]] = Field(..., description="Actionable optimization steps")
+    summary: str = Field(..., description="Text summary of SERP findings")
+
+
+class CompetitorGapResult(BaseModel):
+    """Competitor keyword gap analysis results."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    competitors: List[CompetitorEntry] = Field(..., description="Analyzed competitors")
+    opportunities: List[Dict[str, Any]] = Field(..., description="Keyword opportunities found")
+    summary: str = Field(..., description="Executive summary of the keyword gap")
+
+
+class TrendForecastResult(BaseModel):
+    """Trend forecasting results."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    forecasts: Any = Field(..., description="Forecast data points or dataframe representation")
+    seasonal_analysis: Dict[str, Any] = Field(..., description="Seasonality analysis details")
+    insights: List[str] = Field(..., description="Actionable insights from forecasting")
+    summary: str = Field(..., description="Text summary of trends")
+
+
+class TopicClusterResult(BaseModel):
+    """Semantic topic clustering results."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    clusters: Any = Field(..., description="Semantic cluster definitions")
+    insights: List[str] = Field(..., description="Topic level insights")
+    summary: str = Field(..., description="Executive summary of clusters")
+
+
+class IntentClassification(BaseModel):
+    """Intent classification result."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    keyword: str = Field(..., description="The keyword classified")
+    intent: str = Field(..., description="The classified intent label")
+    source: Literal["cache", "rule", "gemini"] = Field(..., description="Classification path source")
+
+
+def schemas_to_legacy_dicts(findings: List[KeywordFinding]) -> List[dict]:
+    """Convert KeywordFinding models to legacy dictionaries for Streamlit UI."""
+    legacy_list = []
+    for f in findings:
+        d = f.model_dump(mode="json")
+        # Map competitors back to legacy format
+        legacy_comps = []
+        for c in f.competitors:
+            legacy_comps.append({
+                "rank": c.rank,
+                "title": c.title,
+                "link": c.url,
+                "domain": c.domain,
+                "snippet": "No description available."
+            })
+        d["competitors"] = legacy_comps
+        legacy_list.append(d)
+    return legacy_list
+
