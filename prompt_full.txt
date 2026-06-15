@@ -1,0 +1,1792 @@
+TASK: Implement Phase 3 (LangGraph Agentic Pipeline) for the Keylytics project.
+
+CONTEXT:
+- This is a production-grade AI-powered SEO keyword intelligence platform.
+- Phase 2C is complete. All tools, schemas, registry, FastAPI layer, and tests pass.
+- Do NOT modify any existing file unless explicitly instructed below.
+- Do NOT break any existing tests.
+- Do NOT change src/schemas.py, src/tools/registry.py, src/tools/langchain_adapters.py,
+  src/db_client.py, or any src/ui/ files unless explicitly instructed.
+
+OBJECTIVE:
+Add a LangGraph-based autonomous multi-agent research pipeline that:
+1. Plans a research strategy from a seed keyword
+2. Executes all 6 registered tools via a ReAct agent
+3. Synthesises findings into a structured strategy report
+4. Supports human-in-the-loop approval at two checkpoints
+5. Traces all runs to LangSmith
+6. Exposes the graph via two new FastAPI routes
+7. Integrates with the existing Streamlit UI on a new "🤖 Agent Mode" page
+
+---
+
+PHASE 3 TASK LIST — Execute in this exact order. Do not skip steps.
+Verify each task compiles and is importable before proceeding to the next.
+
+---
+
+TASK 1: Install new dependencies
+
+Add the following to requirements.txt (append after existing entries):
+  langgraph>=0.2.0
+  langchain-google-genai>=1.0.0
+  langsmith>=0.1.0
+  langchain-core>=0.2.0
+
+Note: langchain-core is already present. Ensure version constraint is compatible.
+
+---
+
+TASK 2: Add environment variables to .env.example (do not modify .env)
+
+Append the following to .env.example:
+  # LangSmith (required for Phase 3 observability)
+  LANGCHAIN_TRACING_V2=true
+  LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+  LANGCHAIN_API_KEY=your_langsmith_api_key_here
+  LANGCHAIN_PROJECT=keylytics-phase3
+  KEYLYTICS_ENV=development
+
+---
+
+TASK 3: Create src/graph/ package
+
+Create the following files. Exact content specified below.
+
+FILE: src/graph/__init__.py
+Content:
+"""LangGraph agentic pipeline for Keylytics."""
+from src.graph.graph import build_graph, get_compiled_graph
+__all__ = ["build_graph", "get_compiled_graph"]
+
+---
+
+FILE: src/graph/state.py
+Content:
+"""
+AgentState TypedDict for the Keylytics LangGraph research pipeline.
+
+Wraps the Pydantic models from src/schemas.py as serialisable dicts
+so LangGraph's StateGraph can checkpoint and partially update state.
+All fields are optional so individual nodes only write what they touch.
+"""
+from __future__ import annotations
+from typing import Annotated, Any, Dict, List, Optional
+from typing_extensions import TypedDict
+from langgraph.graph.message import add_messages
+
+
+class AgentState(TypedDict, total=False):
+    # ── Entry ────────────────────────────────────────────────────────────
+    seed_keyword: str
+
+    # ── Planning stage ───────────────────────────────────────────────────
+    research_plan: Optional[Dict[str, Any]]
+    # Serialised ResearchPlan from src/schemas.py
+
+    # ── Research stage ───────────────────────────────────────────────────
+    collected_data: Optional[Dict[str, Any]]
+    # Keyed by tool name: {"keyword_research": {...}, "serp_analysis": {...}, ...}
+
+    # ── Aggregation stage ────────────────────────────────────────────────
+    intelligence_findings: Optional[Dict[str, Any]]
+    # Serialised IntelligenceFindings from src/schemas.py
+
+    confidence_scores: Optional[Dict[str, float]]
+    # Per-tool quality signals: 0.0–1.0
+
+    # ── Strategy stage ───────────────────────────────────────────────────
+    strategy_report: Optional[Dict[str, Any]]
+    # Serialised StrategyReport from src/schemas.py
+
+    # ── Human-in-the-Loop ────────────────────────────────────────────────
+    human_feedback: Optional[Dict[str, Any]]
+    # Keys: approved (bool), edited_plan (dict|None), regenerate (bool),
+    #       notes (str|None)
+    awaiting_human: bool
+    # True when graph is paused at an interrupt checkpoint
+
+    # ── LangChain message thread ─────────────────────────────────────────
+    messages: Annotated[List[Any], add_messages]
+    # Full ReAct message history; accumulated across nodes
+
+    # ── Execution metadata ───────────────────────────────────────────────
+    execution_metadata: Optional[Dict[str, Any]]
+    # Keys: run_id, start_ts, end_ts, total_tool_calls,
+    #       tool_call_counts {tool_name: int},
+    #       planner_retries (int), strategy_retries (int),
+    #       langsmith_run_url (str|None)
+
+    status: str
+    # pending | in_progress | awaiting_approval | completed | failed
+
+    errors: List[str]
+    # Non-fatal errors accumulated across nodes; graph continues unless
+    # keyword_research completely fails
+
+---
+
+FILE: src/graph/tracing.py
+Content:
+"""
+LangSmith tracing utilities for the Keylytics research pipeline.
+"""
+import os
+import uuid
+from datetime import datetime, timezone
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def get_run_id() -> str:
+    return str(uuid.uuid4())
+
+
+def get_run_config(seed_keyword: str, run_id: str) -> dict:
+    """
+    Build RunnableConfig with LangSmith metadata for a graph run.
+    Pass this as the second argument to compiled_graph.invoke(state, config).
+    """
+    return {
+        "recursion_limit": 12,
+        "configurable": {"thread_id": run_id},
+        "run_name": f"keylytics-research-{seed_keyword[:30]}",
+        "tags": ["keylytics", "phase3", "market-intelligence"],
+        "metadata": {
+            "seed_keyword": seed_keyword,
+            "run_id": run_id,
+            "version": "phase3",
+            "environment": os.getenv("KEYLYTICS_ENV", "development"),
+        },
+    }
+
+
+def build_initial_metadata(run_id: str) -> dict:
+    """Build the initial execution_metadata dict for a new run."""
+    return {
+        "run_id": run_id,
+        "start_ts": datetime.now(timezone.utc).isoformat(),
+        "end_ts": None,
+        "total_tool_calls": 0,
+        "tool_call_counts": {},
+        "planner_retries": 0,
+        "strategy_retries": 0,
+        "langsmith_run_url": None,
+    }
+
+
+def finalise_metadata(metadata: dict) -> dict:
+    """Stamp end time and compute total tool calls."""
+    metadata = metadata.copy()
+    metadata["end_ts"] = datetime.now(timezone.utc).isoformat()
+    metadata["total_tool_calls"] = sum(metadata.get("tool_call_counts", {}).values())
+
+    langchain_project = os.getenv("LANGCHAIN_PROJECT", "keylytics-phase3")
+    run_id = metadata.get("run_id", "")
+    metadata["langsmith_run_url"] = (
+        f"https://smith.langchain.com/o/projects/{langchain_project}/runs/{run_id}"
+        if run_id else None
+    )
+    return metadata
+
+
+def extract_tool_call_counts(messages: list) -> dict:
+    """
+    Count how many times each tool was called by scanning the message thread.
+    Works with LangChain ToolMessage objects.
+    """
+    counts: dict = {}
+    for msg in messages:
+        # LangChain ToolMessage has a 'name' attribute
+        name = getattr(msg, "name", None)
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+---
+
+FILE: src/graph/nodes.py
+Content:
+"""
+LangGraph node functions for the Keylytics research pipeline.
+
+Node inventory:
+  planner_node         — LLM call; structured output → ResearchPlan
+  research_agent_node  — ReAct agent; executes all 6 tools
+  aggregator_node      — Deterministic; builds IntelligenceFindings + confidence scores
+  strategy_agent_node  — LLM call; structured output → StrategyReport
+  persist_node         — Deterministic; saves keywords to DB; finalises metadata
+
+Routing helpers (used in graph.py):
+  route_after_plan
+  route_after_research
+  route_after_strategy
+"""
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.prebuilt import create_react_agent
+from langgraph.types import interrupt
+
+from src.graph.state import AgentState
+from src.graph.tracing import extract_tool_call_counts, finalise_metadata
+from src.logger_config import get_logger
+from src.schemas import (
+    IntelligenceFindings,
+    KeywordFinding,
+    ResearchPlan,
+    StrategyReport,
+)
+from src.tools.langchain_adapters import get_langchain_tools
+
+logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Shared LLM instance
+# ---------------------------------------------------------------------------
+def _get_llm() -> ChatGoogleGenerativeAI:
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=os.getenv("GEMINI_API_KEY", ""),
+        temperature=0.3,
+        convert_system_message_to_human=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PLANNER NODE
+# ---------------------------------------------------------------------------
+PLANNER_SYSTEM_PROMPT = """
+You are the Research Planner for Keylytics, an AI-powered SEO market intelligence platform.
+
+Given a seed keyword, your job is to produce a structured research plan as valid JSON.
+
+Available modules:
+- "keyword_discovery"   — finds related keywords with volume, CPC, competition
+- "competitor_gap"      — identifies keyword opportunities competitors rank for
+- "serp_analysis"       — analyses top SERP results and snippet opportunities
+- "trend_forecasting"   — 6-month trend forecasts and seasonality
+- "topic_clustering"    — groups keywords into semantic clusters
+
+Rules:
+1. Always include "keyword_discovery" — it is required for all other modules.
+2. For a simple keyword, include 3 modules total (keyword_discovery + 2 others).
+3. For a complex or competitive keyword, include all 5 modules.
+4. Set max_keywords between 5 (quick) and 15 (comprehensive).
+5. Write 2-3 specific, actionable objectives.
+
+Return ONLY a JSON object with this exact structure — no markdown, no explanation:
+{
+  "seed_keyword": "<the keyword>",
+  "objectives": ["<objective 1>", "<objective 2>"],
+  "requested_modules": ["keyword_discovery", "<module2>", ...],
+  "max_keywords": <integer 5-15>
+}
+"""
+
+
+def planner_node(state: AgentState) -> AgentState:
+    """
+    Calls the LLM to produce a ResearchPlan from the seed keyword.
+    Interrupts after writing the plan so a human can approve or edit it.
+    """
+    logger.info("planner_node: generating research plan")
+    seed = state.get("seed_keyword", "")
+    metadata = state.get("execution_metadata") or {}
+
+    # Detect re-plan (human edited the plan)
+    retries = metadata.get("planner_retries", 0)
+    edited_plan = (state.get("human_feedback") or {}).get("edited_plan")
+
+    if edited_plan:
+        # Human provided an edited plan — validate and use it directly
+        try:
+            plan = ResearchPlan(**edited_plan)
+            logger.info("planner_node: using human-edited plan")
+            metadata["planner_retries"] = retries + 1
+            return {
+                **state,
+                "research_plan": plan.model_dump(),
+                "status": "awaiting_approval",
+                "awaiting_human": True,
+                "execution_metadata": metadata,
+                "human_feedback": None,  # Clear so we don't re-enter this branch
+            }
+        except Exception as e:
+            logger.warning(f"planner_node: invalid edited plan — {e}; replanning from LLM")
+
+    llm = _get_llm()
+    messages = [
+        SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+        HumanMessage(content=f"Seed keyword: {seed}"),
+    ]
+
+    try:
+        response = llm.invoke(messages)
+        raw = response.content.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        plan_dict = json.loads(raw.strip())
+        plan = ResearchPlan(**plan_dict)
+        logger.info(f"planner_node: plan created — {plan.requested_modules}, max_keywords={plan.max_keywords}")
+    except Exception as e:
+        logger.error(f"planner_node: LLM call or parsing failed — {e}")
+        # Fallback plan
+        plan = ResearchPlan(
+            seed_keyword=seed,
+            objectives=["Discover high-value keywords", "Identify market opportunities"],
+            requested_modules=["keyword_discovery", "competitor_gap", "serp_analysis"],
+            max_keywords=10,
+        )
+
+    metadata["planner_retries"] = retries + 1
+
+    # ── INTERRUPT: human must approve before research runs ────────────────
+    interrupt({
+        "checkpoint": "plan_approval",
+        "research_plan": plan.model_dump(),
+        "instructions": (
+            "Review the research plan. "
+            "Set human_feedback to: "
+            '{"approved": true} to proceed, '
+            '{"approved": true, "edited_plan": {...}} to modify, or '
+            '{"approved": false} to cancel.'
+        ),
+    })
+
+    return {
+        **state,
+        "research_plan": plan.model_dump(),
+        "status": "awaiting_approval",
+        "awaiting_human": True,
+        "execution_metadata": metadata,
+        "messages": [
+            *state.get("messages", []),
+            HumanMessage(content=f"Plan seed keyword: {seed}"),
+            response if "response" in dir() else SystemMessage(content="Fallback plan used"),
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# RESEARCH AGENT NODE
+# ---------------------------------------------------------------------------
+RESEARCH_SYSTEM_PROMPT = """
+You are the Research Agent for Keylytics, an AI-powered SEO intelligence platform.
+
+You have access to these tools:
+- keyword_research     — ALWAYS call this FIRST. Use the seed keyword and max_keywords from the plan.
+- serp_analysis        — Call if "serp_analysis" is in requested_modules.
+- competitor_gap       — Call if "competitor_gap" is in requested_modules.
+- trend_forecast       — Call with the keyword LIST from keyword_research results.
+- topic_cluster        — Call with the keyword LIST from keyword_research results.
+- intent_classifier    — Call for the seed keyword only (not every keyword).
+
+Rules:
+1. Always call keyword_research first — other tools depend on its output.
+2. Extract the keyword list from keyword_research before calling trend_forecast or topic_cluster.
+3. If a tool returns {"error": ...}, log it in your reasoning and continue — do not stop.
+4. After all requested tools have been called, stop and summarise what you collected.
+5. Be efficient — call each tool exactly once unless a retry is clearly needed.
+
+Current research plan:
+{research_plan}
+"""
+
+
+def research_agent_node(state: AgentState) -> AgentState:
+    """
+    ReAct agent that calls all tools specified in the research_plan.
+    Uses create_react_agent from langgraph.prebuilt.
+    """
+    logger.info("research_agent_node: starting tool execution")
+    plan = state.get("research_plan") or {}
+    prior_messages = state.get("messages", [])
+
+    system_prompt = RESEARCH_SYSTEM_PROMPT.format(
+        research_plan=json.dumps(plan, indent=2)
+    )
+
+    tools = get_langchain_tools()
+    llm = _get_llm()
+
+    # Build the ReAct sub-agent
+    agent = create_react_agent(llm, tools)
+
+    agent_messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(
+            content=(
+                f"Execute the research plan for seed keyword: '{plan.get('seed_keyword', '')}'. "
+                f"Modules to run: {plan.get('requested_modules', [])}. "
+                f"Max keywords: {plan.get('max_keywords', 10)}."
+            )
+        ),
+    ]
+
+    errors = list(state.get("errors", []))
+    collected_data: Dict[str, Any] = {}
+
+    try:
+        result = agent.invoke({"messages": agent_messages})
+        result_messages = result.get("messages", [])
+
+        # Extract tool call counts for metadata
+        tool_counts = extract_tool_call_counts(result_messages)
+
+        # Parse collected_data from ToolMessages in the result
+        for msg in result_messages:
+            tool_name = getattr(msg, "name", None)
+            if tool_name and hasattr(msg, "content"):
+                try:
+                    content = json.loads(msg.content) if isinstance(msg.content, str) else msg.content
+                    collected_data[tool_name] = content
+                except (json.JSONDecodeError, TypeError):
+                    collected_data[tool_name] = {"raw": str(msg.content)}
+
+        metadata = state.get("execution_metadata") or {}
+        metadata["tool_call_counts"] = tool_counts
+
+        logger.info(f"research_agent_node: collected data from {list(collected_data.keys())}")
+
+        return {
+            **state,
+            "collected_data": collected_data,
+            "status": "in_progress",
+            "awaiting_human": False,
+            "messages": [*prior_messages, *result_messages],
+            "execution_metadata": metadata,
+            "errors": errors,
+        }
+
+    except Exception as e:
+        logger.error(f"research_agent_node: agent execution failed — {e}", exc_info=True)
+        errors.append(f"research_agent_node failed: {str(e)}")
+        return {
+            **state,
+            "collected_data": collected_data,
+            "status": "failed",
+            "errors": errors,
+        }
+
+
+# ---------------------------------------------------------------------------
+# AGGREGATOR NODE (deterministic)
+# ---------------------------------------------------------------------------
+def aggregator_node(state: AgentState) -> AgentState:
+    """
+    Builds IntelligenceFindings from collected_data and computes confidence scores.
+    Pure Python — no LLM calls.
+    """
+    logger.info("aggregator_node: building intelligence findings")
+    collected = state.get("collected_data") or {}
+    plan = state.get("research_plan") or {}
+    seed = plan.get("seed_keyword") or state.get("seed_keyword", "")
+    errors = list(state.get("errors", []))
+
+    # ── Build KeywordFinding list from keyword_research results ───────────
+    keyword_findings: List[KeywordFinding] = []
+    kw_result = collected.get("keyword_research", {})
+    items = kw_result.get("items", []) if isinstance(kw_result, dict) else []
+
+    for item in items:
+        if isinstance(item, dict) and item.get("keyword"):
+            try:
+                kf = KeywordFinding(
+                    seed=seed,
+                    keyword=item["keyword"],
+                    volume=float(item.get("volume", 0)),
+                    competition=item.get("competition"),
+                    cpc=item.get("cpc"),
+                    trend=item.get("trend"),
+                    score=float(item.get("score", 0.0)),
+                    difficulty=item.get("difficulty", "Hard"),
+                    intent=item.get("intent", "Informational"),
+                    competitors=[],
+                    data_source=item.get("data_source", "unavailable"),
+                    trend_data_source=item.get("trend_data_source", "unavailable"),
+                )
+                keyword_findings.append(kf)
+            except Exception as e:
+                logger.warning(f"aggregator_node: skipping malformed keyword item — {e}")
+
+    # ── Build IntelligenceFindings ─────────────────────────────────────────
+    findings = IntelligenceFindings(
+        seed_keyword=seed,
+        keyword_findings=keyword_findings,
+        competitor_gap=collected.get("competitor_gap"),
+        topic_clusters=collected.get("topic_cluster"),
+        trend_forecast=collected.get("trend_forecast"),
+        serp_analysis=collected.get("serp_analysis"),
+    )
+
+    # ── Compute confidence scores ──────────────────────────────────────────
+    max_kw = plan.get("max_keywords", 10) or 10
+    requested = set(plan.get("requested_modules", []))
+
+    def _err(tool_name: str) -> bool:
+        result = collected.get(tool_name)
+        return isinstance(result, dict) and "error" in result
+
+    def _missing(tool_name: str) -> bool:
+        return tool_name not in collected
+
+    confidence_scores: Dict[str, float] = {}
+
+    # keyword_research
+    kw_count = len(keyword_findings)
+    if _missing("keyword_research") or _err("keyword_research"):
+        confidence_scores["keyword_research"] = 0.0
+        errors.append("keyword_research returned no results")
+    else:
+        confidence_scores["keyword_research"] = round(min(kw_count / max(max_kw, 1), 1.0), 2)
+
+    # serp_analysis
+    if "serp_analysis" in requested:
+        serp = collected.get("serp_analysis", {})
+        has_organic = bool(
+            isinstance(serp, dict)
+            and serp.get("serp_data", {})
+            and serp["serp_data"].get("organic_results")
+        )
+        confidence_scores["serp_analysis"] = 1.0 if has_organic else 0.3
+        if not has_organic:
+            errors.append("serp_analysis returned limited data")
+
+    # competitor_gap
+    if "competitor_gap" in requested:
+        comp = collected.get("competitor_gap", {})
+        has_opps = isinstance(comp, dict) and bool(comp.get("opportunities"))
+        confidence_scores["competitor_gap"] = 1.0 if has_opps else 0.2
+        if not has_opps:
+            errors.append("competitor_gap found no opportunities")
+
+    # trend_forecast
+    if "trend_forecasting" in requested:
+        trend = collected.get("trend_forecast", {})
+        forecasts = trend.get("forecasts", {}) if isinstance(trend, dict) else {}
+        valid = sum(
+            1 for v in forecasts.values()
+            if isinstance(v, dict) and v.get("forecast_scores")
+        )
+        total = max(len(forecasts), 1)
+        confidence_scores["trend_forecast"] = round(valid / total, 2)
+
+    # topic_cluster
+    if "topic_clustering" in requested:
+        cluster = collected.get("topic_cluster", {})
+        clusters = cluster.get("clusters", []) if isinstance(cluster, dict) else []
+        confidence_scores["topic_cluster"] = 1.0 if len(clusters) >= 2 else 0.4
+
+    # intent_classifier — always returns something
+    if "intent_classifier" in collected:
+        confidence_scores["intent_classifier"] = 1.0
+
+    logger.info(f"aggregator_node: confidence scores — {confidence_scores}")
+    logger.info(f"aggregator_node: {len(keyword_findings)} keywords in findings")
+
+    return {
+        **state,
+        "intelligence_findings": findings.model_dump(mode="json"),
+        "confidence_scores": confidence_scores,
+        "errors": errors,
+        "status": "in_progress",
+    }
+
+
+# ---------------------------------------------------------------------------
+# STRATEGY AGENT NODE
+# ---------------------------------------------------------------------------
+STRATEGY_SYSTEM_PROMPT = """
+You are the Strategy Agent for Keylytics, an AI-powered SEO market intelligence platform.
+
+You will receive structured intelligence findings from keyword research, competitor analysis,
+SERP analysis, trend forecasting, and topic clustering.
+
+Your job is to synthesise these findings into a concise, actionable strategy report
+as valid JSON — no markdown, no explanation, just the JSON object.
+
+Rules:
+1. executive_summary: 3-5 sentences. High-level insight. Reference specific data.
+2. top_opportunities: Select the top 5 KeywordFinding items by score. Include all their fields.
+3. recommendations: Exactly 5 actionable recommendations. Start each with an action verb.
+   Be specific — reference actual keywords, clusters, or competitor data from the findings.
+4. If confidence for a tool is below 0.4, note the data limitation in executive_summary.
+5. If human_feedback.notes is provided, incorporate those notes into the recommendations.
+
+Return ONLY this JSON structure:
+{
+  "seed_keyword": "<seed>",
+  "executive_summary": "<summary>",
+  "top_opportunities": [<up to 5 KeywordFinding dicts>],
+  "recommendations": ["<rec1>", "<rec2>", "<rec3>", "<rec4>", "<rec5>"],
+  "version": "phase3"
+}
+"""
+
+
+def strategy_agent_node(state: AgentState) -> AgentState:
+    """
+    LLM call to synthesise findings into a StrategyReport.
+    Interrupts after writing the report so a human can approve or request regeneration.
+    """
+    logger.info("strategy_agent_node: synthesising strategy report")
+    findings = state.get("intelligence_findings") or {}
+    confidence = state.get("confidence_scores") or {}
+    plan = state.get("research_plan") or {}
+    human_feedback = state.get("human_feedback") or {}
+    metadata = state.get("execution_metadata") or {}
+    errors = list(state.get("errors", []))
+
+    # Check regeneration retry limit
+    strategy_retries = metadata.get("strategy_retries", 0)
+    if strategy_retries >= 1:
+        logger.warning("strategy_agent_node: max retries reached; using existing report")
+        interrupt({
+            "checkpoint": "report_approval",
+            "note": "Maximum regeneration attempts reached. Approving current report.",
+            "strategy_report": state.get("strategy_report"),
+        })
+        return {**state, "status": "awaiting_approval", "awaiting_human": True}
+
+    llm = _get_llm()
+
+    context = {
+        "intelligence_findings": findings,
+        "confidence_scores": confidence,
+        "research_objectives": plan.get("objectives", []),
+        "human_notes": human_feedback.get("notes", ""),
+    }
+
+    messages = [
+        SystemMessage(content=STRATEGY_SYSTEM_PROMPT),
+        HumanMessage(content=f"Intelligence context:\n{json.dumps(context, indent=2, default=str)}"),
+    ]
+
+    try:
+        response = llm.invoke(messages)
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        report_dict = json.loads(raw.strip())
+
+        # Validate via StrategyReport schema (findings field is required by schema)
+        # We attach a minimal IntelligenceFindings for schema compliance
+        from src.schemas import IntelligenceFindings as IF
+        findings_obj = IF(**findings) if findings else IF(
+            seed_keyword=plan.get("seed_keyword", ""),
+            keyword_findings=[],
+        )
+        report = StrategyReport(
+            seed_keyword=report_dict.get("seed_keyword", plan.get("seed_keyword", "")),
+            executive_summary=report_dict.get("executive_summary", ""),
+            findings=findings_obj,
+            top_opportunities=[],  # Simplified for schema; full data in strategy_report dict
+            recommendations=report_dict.get("recommendations", []),
+            version="phase3",
+        )
+        logger.info("strategy_agent_node: report generated successfully")
+
+    except Exception as e:
+        logger.error(f"strategy_agent_node: failed — {e}", exc_info=True)
+        errors.append(f"strategy_agent_node failed: {str(e)}")
+        report_dict = {
+            "seed_keyword": plan.get("seed_keyword", ""),
+            "executive_summary": "Strategy generation encountered an error. Manual review recommended.",
+            "top_opportunities": [],
+            "recommendations": [
+                "Review keyword research results manually.",
+                "Analyse competitor gaps identified in the data.",
+                "Investigate SERP opportunities for quick wins.",
+                "Focus on high-volume, low-competition keywords.",
+                "Develop content strategy aligned with identified topic clusters.",
+            ],
+            "version": "phase3",
+        }
+
+    metadata["strategy_retries"] = strategy_retries + 1
+
+    # ── INTERRUPT: human must approve before persisting ───────────────────
+    interrupt({
+        "checkpoint": "report_approval",
+        "strategy_report": report_dict,
+        "confidence_scores": confidence,
+        "warnings": errors,
+        "instructions": (
+            "Review the strategy report. "
+            "Set human_feedback to: "
+            '{"approved": true} to save and complete, '
+            '{"regenerate": true, "notes": "<your notes>"} to regenerate once, or '
+            '{"approved": true} after reviewing regenerated report.'
+        ),
+    })
+
+    return {
+        **state,
+        "strategy_report": report_dict,
+        "status": "awaiting_approval",
+        "awaiting_human": True,
+        "execution_metadata": metadata,
+        "errors": errors,
+        "messages": [
+            *state.get("messages", []),
+            *messages,
+            response if "response" in dir() else SystemMessage(content="Fallback report"),
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# PERSIST NODE (deterministic)
+# ---------------------------------------------------------------------------
+def persist_node(state: AgentState) -> AgentState:
+    """
+    Saves keyword findings to the database and finalises execution metadata.
+    Calls src/db_client.py::save_to_db — no LLM calls.
+    """
+    logger.info("persist_node: saving results to database")
+    findings = state.get("intelligence_findings") or {}
+    metadata = state.get("execution_metadata") or {}
+    errors = list(state.get("errors", []))
+
+    keyword_findings = findings.get("keyword_findings", [])
+    if keyword_findings:
+        try:
+            from src.db_client import save_to_db
+            save_to_db(keyword_findings)
+            logger.info(f"persist_node: saved {len(keyword_findings)} keywords")
+        except Exception as e:
+            logger.error(f"persist_node: db save failed — {e}", exc_info=True)
+            errors.append(f"persist_node db error: {str(e)}")
+
+    metadata = finalise_metadata(metadata)
+
+    return {
+        **state,
+        "status": "completed",
+        "awaiting_human": False,
+        "execution_metadata": metadata,
+        "errors": errors,
+    }
+
+
+# ---------------------------------------------------------------------------
+# ROUTING FUNCTIONS
+# ---------------------------------------------------------------------------
+def route_after_plan(state: AgentState) -> str:
+    """Route based on human feedback after planner_node interrupt."""
+    feedback = state.get("human_feedback") or {}
+    if feedback.get("approved"):
+        return "research_agent_node"
+    if feedback.get("edited_plan"):
+        meta = state.get("execution_metadata") or {}
+        if meta.get("planner_retries", 0) < 2:
+            return "planner_node"
+    return "__end__"
+
+
+def route_after_research(state: AgentState) -> str:
+    """Route based on research results."""
+    collected = state.get("collected_data") or {}
+    if not collected or "keyword_research" not in collected:
+        return "__end__"
+    kw_result = collected.get("keyword_research", {})
+    if isinstance(kw_result, dict) and "error" in kw_result:
+        return "__end__"
+    return "aggregator_node"
+
+
+def route_after_strategy(state: AgentState) -> str:
+    """Route based on human feedback after strategy_agent_node interrupt."""
+    feedback = state.get("human_feedback") or {}
+    if feedback.get("regenerate"):
+        meta = state.get("execution_metadata") or {}
+        if meta.get("strategy_retries", 0) < 1:
+            return "strategy_agent_node"
+    return "persist_node"
+
+---
+
+FILE: src/graph/graph.py
+Content:
+"""
+Builds and returns the compiled Keylytics LangGraph research pipeline.
+
+Graph topology:
+  START
+    └─► planner_node
+          └─► [INTERRUPT: plan_approval]
+                ├─► research_agent_node  (approved)
+                │     └─► aggregator_node
+                │             └─► strategy_agent_node
+                │                   └─► [INTERRUPT: report_approval]
+                │                         ├─► persist_node  (approved)
+                │                         │     └─► END
+                │                         └─► strategy_agent_node  (regenerate, max 1)
+                ├─► planner_node  (edited plan, max 2 retries)
+                └─► END  (rejected)
+"""
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+
+from src.graph.state import AgentState
+from src.graph.nodes import (
+    planner_node,
+    research_agent_node,
+    aggregator_node,
+    strategy_agent_node,
+    persist_node,
+    route_after_plan,
+    route_after_research,
+    route_after_strategy,
+)
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
+
+_compiled_graph = None
+
+
+def build_graph():
+    """Build and compile the Keylytics research StateGraph."""
+    builder = StateGraph(AgentState)
+
+    # ── Nodes ──────────────────────────────────────────────────────────────
+    builder.add_node("planner_node", planner_node)
+    builder.add_node("research_agent_node", research_agent_node)
+    builder.add_node("aggregator_node", aggregator_node)
+    builder.add_node("strategy_agent_node", strategy_agent_node)
+    builder.add_node("persist_node", persist_node)
+
+    # ── Edges ──────────────────────────────────────────────────────────────
+    builder.add_edge(START, "planner_node")
+
+    builder.add_conditional_edges(
+        "planner_node",
+        route_after_plan,
+        {
+            "research_agent_node": "research_agent_node",
+            "planner_node": "planner_node",
+            "__end__": END,
+        },
+    )
+
+    builder.add_conditional_edges(
+        "research_agent_node",
+        route_after_research,
+        {
+            "aggregator_node": "aggregator_node",
+            "__end__": END,
+        },
+    )
+
+    builder.add_edge("aggregator_node", "strategy_agent_node")
+
+    builder.add_conditional_edges(
+        "strategy_agent_node",
+        route_after_strategy,
+        {
+            "strategy_agent_node": "strategy_agent_node",
+            "persist_node": "persist_node",
+        },
+    )
+
+    builder.add_edge("persist_node", END)
+
+    # ── Compile with MemorySaver checkpointer ─────────────────────────────
+    checkpointer = MemorySaver()
+    graph = builder.compile(checkpointer=checkpointer)
+    logger.info("Keylytics research graph compiled successfully")
+    return graph
+
+
+def get_compiled_graph():
+    """Return a singleton compiled graph instance."""
+    global _compiled_graph
+    if _compiled_graph is None:
+        _compiled_graph = build_graph()
+    return _compiled_graph
+
+---
+
+TASK 4: Add FastAPI routes for the agent graph
+
+Create the following file. Do NOT modify api/main.py yet (see Task 5).
+
+FILE: api/routes/agent.py
+Content:
+"""
+FastAPI routes for the Keylytics LangGraph research pipeline.
+
+POST /agent/run     — Start a new research run (returns run_id + initial state)
+POST /agent/resume  — Resume a paused run with human feedback
+GET  /agent/status/{run_id} — Poll current state of a run
+"""
+import uuid
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from src.graph.graph import get_compiled_graph
+from src.graph.tracing import build_initial_metadata, get_run_config
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
+router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+# ── Request / Response models ──────────────────────────────────────────────
+
+class RunRequest(BaseModel):
+    seed_keyword: str = Field(..., description="Seed keyword to research")
+    user_goal: Optional[str] = Field(
+        None, description="Optional free-text goal to guide the planner"
+    )
+
+
+class ResumeRequest(BaseModel):
+    run_id: str = Field(..., description="Run ID returned by /agent/run")
+    human_feedback: Dict[str, Any] = Field(
+        ...,
+        description=(
+            "Human feedback dict. Examples: "
+            '{"approved": true} | '
+            '{"approved": true, "edited_plan": {...}} | '
+            '{"regenerate": true, "notes": "Focus on transactional keywords"}'
+        ),
+    )
+
+
+class RunResponse(BaseModel):
+    run_id: str
+    status: str
+    awaiting_human: bool
+    checkpoint_data: Optional[Dict[str, Any]] = None
+    message: str
+
+
+# ── Endpoints ──────────────────────────────────────────────────────────────
+
+@router.post("/run", response_model=RunResponse)
+async def start_agent_run(request: RunRequest) -> RunResponse:
+    """
+    Start a new autonomous research run.
+    The graph will pause at the plan_approval checkpoint and return.
+    Call /agent/resume with {"approved": true} to continue.
+    """
+    run_id = str(uuid.uuid4())
+    graph = get_compiled_graph()
+    config = get_run_config(request.seed_keyword, run_id)
+
+    initial_state = {
+        "seed_keyword": request.seed_keyword,
+        "status": "pending",
+        "awaiting_human": False,
+        "messages": [],
+        "errors": [],
+        "execution_metadata": build_initial_metadata(run_id),
+        "human_feedback": None,
+    }
+
+    try:
+        result = graph.invoke(initial_state, config)
+        # Graph will have interrupted at plan_approval checkpoint
+        current_state = graph.get_state(config)
+        interrupted_values = current_state.values if current_state else result
+
+        return RunResponse(
+            run_id=run_id,
+            status=interrupted_values.get("status", "awaiting_approval"),
+            awaiting_human=interrupted_values.get("awaiting_human", True),
+            checkpoint_data={
+                "research_plan": interrupted_values.get("research_plan"),
+            },
+            message=(
+                "Research plan generated. "
+                "Call POST /agent/resume with your approval to start data collection."
+            ),
+        )
+    except Exception as e:
+        logger.error(f"start_agent_run failed for run_id={run_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resume", response_model=RunResponse)
+async def resume_agent_run(request: ResumeRequest) -> RunResponse:
+    """
+    Resume a paused run by providing human feedback.
+    The graph will run until the next interrupt or completion.
+    """
+    graph = get_compiled_graph()
+    config = get_run_config("", request.run_id)
+    config["configurable"]["thread_id"] = request.run_id
+
+    try:
+        # Update state with human feedback
+        graph.update_state(
+            config,
+            {"human_feedback": request.human_feedback, "awaiting_human": False},
+        )
+
+        # Resume execution
+        result = graph.invoke(None, config)
+        current_state = graph.get_state(config)
+        state_values = current_state.values if current_state else result
+
+        status = state_values.get("status", "in_progress")
+        awaiting = state_values.get("awaiting_human", False)
+
+        checkpoint_data = None
+        if status == "awaiting_approval":
+            checkpoint_data = {
+                "research_plan": state_values.get("research_plan"),
+                "strategy_report": state_values.get("strategy_report"),
+                "confidence_scores": state_values.get("confidence_scores"),
+                "warnings": state_values.get("errors", []),
+            }
+
+        message_map = {
+            "awaiting_approval": "Checkpoint reached. Review and call /agent/resume again.",
+            "completed": "Research complete. Strategy report saved to database.",
+            "failed": "Run failed. Check errors field for details.",
+            "in_progress": "Run in progress.",
+        }
+
+        return RunResponse(
+            run_id=request.run_id,
+            status=status,
+            awaiting_human=awaiting,
+            checkpoint_data=checkpoint_data,
+            message=message_map.get(status, "Run executing."),
+        )
+    except Exception as e:
+        logger.error(f"resume_agent_run failed for run_id={request.run_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/status/{run_id}", response_model=RunResponse)
+async def get_run_status(run_id: str) -> RunResponse:
+    """Poll the current status of a research run."""
+    graph = get_compiled_graph()
+    config = {"configurable": {"thread_id": run_id}}
+
+    try:
+        current_state = graph.get_state(config)
+        if not current_state:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
+        state_values = current_state.values
+        return RunResponse(
+            run_id=run_id,
+            status=state_values.get("status", "unknown"),
+            awaiting_human=state_values.get("awaiting_human", False),
+            checkpoint_data={
+                "execution_metadata": state_values.get("execution_metadata"),
+                "errors": state_values.get("errors", []),
+                "confidence_scores": state_values.get("confidence_scores"),
+            },
+            message="Status retrieved successfully.",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_run_status failed for run_id={run_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+---
+
+TASK 5: Register the agent router in api/main.py
+
+In api/main.py, add the following import and router registration.
+Find the section where existing routers are included (look for app.include_router calls)
+and add this AFTER the existing include_router calls:
+
+  from api.routes.agent import router as agent_router
+  app.include_router(agent_router)
+
+Do NOT remove or modify any existing router registrations.
+
+---
+
+TASK 6: Create Streamlit Agent Mode UI page
+
+FILE: src/ui/agent_mode.py
+Content:
+"""
+🤖 Agent Mode — Streamlit UI for the LangGraph autonomous research pipeline.
+
+Provides a conversational-style interface for:
+1. Entering a seed keyword
+2. Reviewing and approving the AI-generated research plan
+3. Monitoring research execution
+4. Reviewing and approving the strategy report
+5. Viewing the final results dashboard
+"""
+import json
+import time
+import requests
+import streamlit as st
+from src.logger_config import get_logger
+
+logger = get_logger(__name__)
+
+API_BASE = "http://localhost:8000"
+
+
+def _post(endpoint: str, payload: dict) -> dict:
+    try:
+        r = requests.post(f"{API_BASE}{endpoint}", json=payload, timeout=120)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to FastAPI server. Run: uvicorn api.main:app --reload --port 8000"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _get(endpoint: str) -> dict:
+    try:
+        r = requests.get(f"{API_BASE}{endpoint}", timeout=30)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to FastAPI server."}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def render_agent_mode():
+    """🤖 Agent Mode: Autonomous multi-agent SEO research pipeline"""
+    st.markdown("### 🤖 Agent Mode — Autonomous Research Pipeline")
+    st.markdown(
+        "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 specialised tools**. "
+        "The agent plans, researches, and synthesises a full SEO strategy autonomously — "
+        "with human approval at each key decision point."
+    )
+
+    # ── Init session state ─────────────────────────────────────────────────
+    if "agent_run_id" not in st.session_state:
+        st.session_state.agent_run_id = None
+    if "agent_stage" not in st.session_state:
+        st.session_state.agent_stage = "input"  # input | plan_review | researching | report_review | done
+    if "agent_research_plan" not in st.session_state:
+        st.session_state.agent_research_plan = None
+    if "agent_strategy_report" not in st.session_state:
+        st.session_state.agent_strategy_report = None
+    if "agent_confidence" not in st.session_state:
+        st.session_state.agent_confidence = None
+
+    stage = st.session_state.agent_stage
+
+    # ── STAGE: Input ───────────────────────────────────────────────────────
+    if stage == "input":
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            keyword = st.text_input(
+                "Enter a seed keyword for autonomous research:",
+                placeholder="e.g., 'AI SEO tools', 'project management software'",
+                key="agent_keyword_input",
+            )
+        with col2:
+            if st.button("🚀 Start Agent", type="primary", use_container_width=True):
+                if keyword:
+                    with st.spinner("🧠 Planning research strategy..."):
+                        result = _post("/agent/run", {"seed_keyword": keyword})
+                    if "error" in result:
+                        st.error(f"❌ {result['error']}")
+                    else:
+                        st.session_state.agent_run_id = result["run_id"]
+                        st.session_state.agent_research_plan = (
+                            result.get("checkpoint_data") or {}
+                        ).get("research_plan")
+                        st.session_state.agent_stage = "plan_review"
+                        st.rerun()
+                else:
+                    st.warning("⚠️ Please enter a keyword first.")
+
+    # ── STAGE: Plan Review (HITL Checkpoint 1) ─────────────────────────────
+    elif stage == "plan_review":
+        plan = st.session_state.agent_research_plan or {}
+        run_id = st.session_state.agent_run_id
+
+        st.markdown("#### 📋 AI-Generated Research Plan")
+        st.info(
+            "The AI has generated a research plan. Review it below, then approve "
+            "to start data collection or edit before proceeding."
+        )
+        st.markdown(f"**Seed Keyword:** `{plan.get('seed_keyword', '')}`")
+        st.markdown("**Objectives:**")
+        for obj in plan.get("objectives", []):
+            st.markdown(f"  - {obj}")
+        st.markdown("**Modules to Run:**")
+        for mod in plan.get("requested_modules", []):
+            st.markdown(f"  - `{mod}`")
+        st.markdown(f"**Max Keywords:** `{plan.get('max_keywords', 10)}`")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("✅ Approve Plan", type="primary", use_container_width=True):
+                with st.spinner("🔬 Running autonomous research (this may take 30-90 seconds)..."):
+                    result = _post("/agent/resume", {
+                        "run_id": run_id,
+                        "human_feedback": {"approved": True},
+                    })
+                if "error" in result:
+                    st.error(f"❌ {result['error']}")
+                else:
+                    status = result.get("status")
+                    if status == "awaiting_approval":
+                        cp = result.get("checkpoint_data") or {}
+                        st.session_state.agent_strategy_report = cp.get("strategy_report")
+                        st.session_state.agent_confidence = cp.get("confidence_scores")
+                        st.session_state.agent_stage = "report_review"
+                    elif status == "completed":
+                        st.session_state.agent_stage = "done"
+                    else:
+                        st.session_state.agent_stage = "done"
+                    st.rerun()
+
+        with col2:
+            if st.button("✏️ Edit Plan", use_container_width=True):
+                st.session_state.agent_stage = "edit_plan"
+                st.rerun()
+
+        with col3:
+            if st.button("❌ Cancel", use_container_width=True):
+                result = _post("/agent/resume", {
+                    "run_id": run_id,
+                    "human_feedback": {"approved": False},
+                })
+                st.session_state.agent_stage = "input"
+                st.session_state.agent_run_id = None
+                st.info("Run cancelled.")
+                st.rerun()
+
+    # ── STAGE: Edit Plan ───────────────────────────────────────────────────
+    elif stage == "edit_plan":
+        plan = st.session_state.agent_research_plan or {}
+        run_id = st.session_state.agent_run_id
+
+        st.markdown("#### ✏️ Edit Research Plan")
+        max_kw = st.slider("Max Keywords", 5, 15, plan.get("max_keywords", 10))
+        all_modules = [
+            "keyword_discovery", "competitor_gap", "serp_analysis",
+            "trend_forecasting", "topic_clustering"
+        ]
+        selected_modules = st.multiselect(
+            "Modules to Run",
+            all_modules,
+            default=plan.get("requested_modules", ["keyword_discovery"]),
+        )
+
+        if st.button("▶️ Run with Edited Plan", type="primary"):
+            if "keyword_discovery" not in selected_modules:
+                st.error("❌ keyword_discovery is required.")
+            else:
+                edited = {**plan, "max_keywords": max_kw, "requested_modules": selected_modules}
+                with st.spinner("🔬 Running research with edited plan..."):
+                    result = _post("/agent/resume", {
+                        "run_id": run_id,
+                        "human_feedback": {"approved": True, "edited_plan": edited},
+                    })
+                if "error" in result:
+                    st.error(f"❌ {result['error']}")
+                else:
+                    cp = result.get("checkpoint_data") or {}
+                    st.session_state.agent_strategy_report = cp.get("strategy_report")
+                    st.session_state.agent_confidence = cp.get("confidence_scores")
+                    st.session_state.agent_stage = (
+                        "report_review" if result.get("status") == "awaiting_approval" else "done"
+                    )
+                    st.rerun()
+
+    # ── STAGE: Report Review (HITL Checkpoint 2) ───────────────────────────
+    elif stage == "report_review":
+        report = st.session_state.agent_strategy_report or {}
+        confidence = st.session_state.agent_confidence or {}
+        run_id = st.session_state.agent_run_id
+
+        st.markdown("#### 📊 AI-Generated Strategy Report")
+        st.info(
+            "The agent has completed research and generated a strategy report. "
+            "Review it below, then approve to save or request regeneration."
+        )
+
+        # Executive Summary
+        st.markdown("**Executive Summary:**")
+        st.write(report.get("executive_summary", "No summary generated."))
+
+        # Confidence Scores
+        if confidence:
+            st.markdown("**Data Confidence:**")
+            cols = st.columns(len(confidence))
+            for i, (tool, score) in enumerate(confidence.items()):
+                color = "🟢" if score >= 0.7 else "🟡" if score >= 0.4 else "🔴"
+                cols[i].metric(tool.replace("_", " ").title(), f"{color} {score:.0%}")
+
+        # Recommendations
+        st.markdown("**Strategic Recommendations:**")
+        for i, rec in enumerate(report.get("recommendations", []), 1):
+            st.markdown(f"{i}. {rec}")
+
+        # Approval controls
+        st.divider()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Approve & Save", type="primary", use_container_width=True):
+                with st.spinner("💾 Saving results to database..."):
+                    result = _post("/agent/resume", {
+                        "run_id": run_id,
+                        "human_feedback": {"approved": True},
+                    })
+                if "error" in result:
+                    st.error(f"❌ {result['error']}")
+                else:
+                    st.session_state.agent_stage = "done"
+                    st.rerun()
+
+        with col2:
+            notes = st.text_input(
+                "Regeneration notes (optional):",
+                placeholder="e.g., Focus more on transactional intent keywords",
+                key="regen_notes",
+            )
+            if st.button("🔄 Regenerate Report", use_container_width=True):
+                with st.spinner("🧠 Regenerating strategy report..."):
+                    result = _post("/agent/resume", {
+                        "run_id": run_id,
+                        "human_feedback": {"regenerate": True, "notes": notes or ""},
+                    })
+                if "error" in result:
+                    st.error(f"❌ {result['error']}")
+                else:
+                    cp = result.get("checkpoint_data") or {}
+                    st.session_state.agent_strategy_report = cp.get("strategy_report")
+                    st.session_state.agent_confidence = cp.get("confidence_scores")
+                    st.rerun()
+
+    # ── STAGE: Done ────────────────────────────────────────────────────────
+    elif stage == "done":
+        report = st.session_state.agent_strategy_report or {}
+        st.success("✅ Autonomous research complete! Results saved to database.")
+
+        st.markdown("#### 🎯 Strategy Report Summary")
+        st.write(report.get("executive_summary", ""))
+
+        recs = report.get("recommendations", [])
+        if recs:
+            st.markdown("**Top Recommendations:**")
+            for i, rec in enumerate(recs, 1):
+                st.markdown(f"{i}. {rec}")
+
+        run_id = st.session_state.agent_run_id
+        if run_id:
+            status_data = _get(f"/agent/status/{run_id}")
+            meta = (status_data.get("checkpoint_data") or {}).get("execution_metadata") or {}
+            if meta:
+                st.divider()
+                st.markdown("**Execution Metadata:**")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Total Tool Calls", meta.get("total_tool_calls", 0))
+                col2.metric("Run Duration", "See LangSmith")
+                langsmith_url = meta.get("langsmith_run_url")
+                if langsmith_url:
+                    col3.markdown(f"[🔍 View in LangSmith]({langsmith_url})")
+
+        if st.button("🔁 Start New Research", type="primary"):
+            for key in ["agent_run_id", "agent_stage", "agent_research_plan",
+                        "agent_strategy_report", "agent_confidence"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.session_state.agent_stage = "input"
+            st.rerun()
+
+---
+
+TASK 7: Register Agent Mode in app.py
+
+In app.py, add the following:
+
+1. Add import (with the other UI imports):
+   from src.ui.agent_mode import render_agent_mode
+
+2. In the main() function, in the render_floating_panel() section or home buttons,
+   add a button for Agent Mode:
+     if st.button("🤖 Agent Mode", use_container_width=True):
+         st.session_state.current_page = "agent_mode"
+         st.rerun()
+
+3. In the page routing section (the if/elif block), add:
+     elif current_page == "agent_mode":
+         render_agent_mode()
+
+---
+
+TASK 8: Write tests for Phase 3
+
+Create the following test files.
+
+FILE: tests/graph/test_state.py
+Content:
+"""Tests that AgentState TypedDict can be instantiated and fields are correct."""
+import pytest
+from src.graph.state import AgentState
+
+
+def test_agent_state_minimal():
+    state: AgentState = {
+        "seed_keyword": "AI tools",
+        "status": "pending",
+        "awaiting_human": False,
+        "messages": [],
+        "errors": [],
+    }
+    assert state["seed_keyword"] == "AI tools"
+    assert state["status"] == "pending"
+    assert state["awaiting_human"] is False
+    assert state["messages"] == []
+    assert state["errors"] == []
+
+
+def test_agent_state_with_plan():
+    from datetime import datetime
+    state: AgentState = {
+        "seed_keyword": "SEO software",
+        "research_plan": {
+            "seed_keyword": "SEO software",
+            "objectives": ["Find keywords", "Analyse SERP"],
+            "requested_modules": ["keyword_discovery", "serp_analysis"],
+            "max_keywords": 10,
+            "created_at": datetime.utcnow().isoformat(),
+        },
+        "status": "awaiting_approval",
+        "awaiting_human": True,
+        "messages": [],
+        "errors": [],
+    }
+    assert state["research_plan"]["max_keywords"] == 10
+    assert "keyword_discovery" in state["research_plan"]["requested_modules"]
+
+
+def test_agent_state_confidence_scores():
+    state: AgentState = {
+        "seed_keyword": "AI tools",
+        "status": "in_progress",
+        "awaiting_human": False,
+        "messages": [],
+        "errors": [],
+        "confidence_scores": {
+            "keyword_research": 0.8,
+            "serp_analysis": 1.0,
+            "competitor_gap": 0.6,
+        },
+    }
+    assert state["confidence_scores"]["keyword_research"] == 0.8
+    assert state["confidence_scores"]["serp_analysis"] == 1.0
+
+---
+
+FILE: tests/graph/test_aggregator.py
+Content:
+"""Tests for aggregator_node — the only deterministic graph node."""
+import pytest
+from unittest.mock import patch
+from src.graph.nodes import aggregator_node
+
+
+def _base_state():
+    return {
+        "seed_keyword": "AI tools",
+        "research_plan": {
+            "seed_keyword": "AI tools",
+            "objectives": ["test"],
+            "requested_modules": ["keyword_discovery", "serp_analysis", "competitor_gap"],
+            "max_keywords": 5,
+        },
+        "collected_data": {
+            "keyword_research": {
+                "items": [
+                    {
+                        "keyword": "AI writing tools",
+                        "volume": 5000.0,
+                        "competition": 0.4,
+                        "cpc": 2.5,
+                        "score": 0.75,
+                        "difficulty": "Medium",
+                        "intent": "Commercial",
+                        "data_source": "live",
+                        "trend_data_source": "unavailable",
+                    },
+                    {
+                        "keyword": "best AI tools",
+                        "volume": 8000.0,
+                        "competition": 0.6,
+                        "cpc": 3.0,
+                        "score": 0.82,
+                        "difficulty": "Easy",
+                        "intent": "Commercial",
+                        "data_source": "live",
+                        "trend_data_source": "unavailable",
+                    },
+                ]
+            },
+            "serp_analysis": {
+                "serp_data": {
+                    "organic_results": [{"title": "Test", "link": "https://example.com"}]
+                }
+            },
+            "competitor_gap": {
+                "opportunities": [
+                    {
+                        "keyword": "AI tool comparison",
+                        "opportunity_type": "keyword_gap",
+                        "gap_score": 85.0,
+                        "traffic_potential": "high",
+                        "reasoning": "No competitors rank here.",
+                    }
+                ]
+            },
+        },
+        "status": "in_progress",
+        "awaiting_human": False,
+        "messages": [],
+        "errors": [],
+        "execution_metadata": {"planner_retries": 0, "strategy_retries": 0},
+    }
+
+
+def test_aggregator_builds_intelligence_findings():
+    state = _base_state()
+    result = aggregator_node(state)
+
+    assert result["intelligence_findings"] is not None
+    findings = result["intelligence_findings"]
+    assert findings["seed_keyword"] == "AI tools"
+    assert len(findings["keyword_findings"]) == 2
+    assert findings["keyword_findings"][0]["keyword"] == "AI writing tools"
+
+
+def test_aggregator_computes_confidence_scores():
+    state = _base_state()
+    result = aggregator_node(state)
+
+    scores = result["confidence_scores"]
+    assert "keyword_research" in scores
+    # 2 keywords returned out of 5 requested → 0.4
+    assert scores["keyword_research"] == pytest.approx(0.4, abs=0.01)
+    # serp_analysis has organic results → 1.0
+    assert scores["serp_analysis"] == 1.0
+    # competitor_gap has opportunities → 1.0
+    assert scores["competitor_gap"] == 1.0
+
+
+def test_aggregator_handles_missing_keyword_research():
+    state = _base_state()
+    state["collected_data"].pop("keyword_research")
+    result = aggregator_node(state)
+
+    assert result["confidence_scores"].get("keyword_research", 0.0) == 0.0
+    assert any("keyword_research" in e for e in result["errors"])
+
+
+def test_aggregator_handles_error_tool_result():
+    state = _base_state()
+    state["collected_data"]["serp_analysis"] = {"error": "SERPAPI_KEY not found"}
+    result = aggregator_node(state)
+
+    # serp_analysis should get low confidence (0.3) since no organic_results
+    assert result["confidence_scores"].get("serp_analysis", 1.0) == pytest.approx(0.3, abs=0.01)
+
+
+def test_aggregator_empty_collected_data():
+    state = _base_state()
+    state["collected_data"] = {}
+    result = aggregator_node(state)
+
+    assert result["intelligence_findings"]["keyword_findings"] == []
+    assert result["confidence_scores"].get("keyword_research", 1.0) == 0.0
+    assert len(result["errors"]) > 0
+
+---
+
+FILE: tests/graph/test_tracing.py
+Content:
+"""Tests for LangSmith tracing utilities."""
+import pytest
+from src.graph.tracing import (
+    get_run_id,
+    get_run_config,
+    build_initial_metadata,
+    finalise_metadata,
+    extract_tool_call_counts,
+)
+
+
+def test_get_run_id_is_uuid():
+    import uuid
+    run_id = get_run_id()
+    # Should be parseable as UUID without raising
+    uuid.UUID(run_id)
+
+
+def test_get_run_config_structure():
+    config = get_run_config("AI tools", "test-run-123")
+    assert config["recursion_limit"] == 12
+    assert config["configurable"]["thread_id"] == "test-run-123"
+    assert "keylytics" in config["tags"]
+    assert config["metadata"]["seed_keyword"] == "AI tools"
+
+
+def test_build_initial_metadata():
+    meta = build_initial_metadata("run-abc")
+    assert meta["run_id"] == "run-abc"
+    assert meta["total_tool_calls"] == 0
+    assert meta["tool_call_counts"] == {}
+    assert meta["end_ts"] is None
+
+
+def test_finalise_metadata():
+    meta = build_initial_metadata("run-abc")
+    meta["tool_call_counts"] = {"keyword_research": 1, "serp_analysis": 1}
+    finalised = finalise_metadata(meta)
+    assert finalised["total_tool_calls"] == 2
+    assert finalised["end_ts"] is not None
+
+
+def test_extract_tool_call_counts():
+    class FakeMsg:
+        def __init__(self, name):
+            self.name = name
+
+    messages = [
+        FakeMsg("keyword_research"),
+        FakeMsg("serp_analysis"),
+        FakeMsg("keyword_research"),
+        FakeMsg(None),
+    ]
+    counts = extract_tool_call_counts(messages)
+    assert counts["keyword_research"] == 2
+    assert counts["serp_analysis"] == 1
+    assert None not in counts
+
+---
+
+FILE: tests/graph/__init__.py
+Content: (empty)
+
+---
+
+TASK 9: Create tests/graph/__init__.py
+
+Create an empty file at tests/graph/__init__.py
+
+---
+
+TASK 10: Verify all tests pass
+
+Run:
+  python -m pytest --import-mode=importlib tests/graph/ -v
+
+All tests in tests/graph/ must pass before this phase is considered complete.
+
+Then run the full suite:
+  python -m pytest --import-mode=importlib tests/ -v
+
+No regressions are permitted. All Phase 2C tests must continue to pass.
+
+---
+
+TASK 11: Update README.md
+
+Add the following section after the existing "Quick Start" section:
+
+## 🤖 Phase 3 — LangGraph Autonomous Agent Mode
+
+### Architecture
+
+Keylytics Phase 3 adds a **Plan-and-Execute LangGraph pipeline** for autonomous
+multi-agent market intelligence research.
+
+START → [Planner] → HITL: Plan Approval → [Research ReAct Agent]
+→ [Aggregator] → [Strategy Synthesiser] → HITL: Report Approval
+→ [Persist] → END
+
+**Agents:**
+- **Planner Node** — Structured output; generates `ResearchPlan` from seed keyword
+- **Research Agent** — ReAct loop; calls all 6 registered tools autonomously
+- **Aggregator Node** — Deterministic; builds `IntelligenceFindings` + confidence scores
+- **Strategy Agent** — Structured output; synthesises `StrategyReport`
+- **Persist Node** — Saves to SQLite; finalises LangSmith metadata
+
+**Human-in-the-Loop:**
+- Checkpoint 1: Approve, edit, or reject the research plan before API credits are spent
+- Checkpoint 2: Approve or regenerate the strategy report before persisting
+
+**Observability:** All runs traced to LangSmith with per-tool latency, token usage,
+and confidence scores.
+
+### Running Phase 3
+
+```bash
+# Start the FastAPI server (required for Agent Mode)
+uvicorn api.main:app --reload --port 8000
+
+# Start the Streamlit UI
+streamlit run app.py
+
+# Navigate to 🤖 Agent Mode in the UI
+# Or use the API directly:
+curl -X POST http://localhost:8000/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"seed_keyword": "AI SEO tools"}'
+```
+
+### New API Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/agent/run` | Start a new autonomous research run |
+| POST | `/agent/resume` | Resume with human feedback at a checkpoint |
+| GET | `/agent/status/{run_id}` | Poll current run status |
+
+---
+
+VERIFICATION CHECKLIST (Antigravity must confirm each item):
+
+[ ] src/graph/__init__.py created and importable
+[ ] src/graph/state.py created — AgentState TypedDict importable
+[ ] src/graph/tracing.py created — all functions importable
+[ ] src/graph/nodes.py created — all nodes and routing functions importable
+[ ] src/graph/graph.py created — build_graph() returns compiled StateGraph without error
+[ ] api/routes/agent.py created — router registered without import errors
+[ ] api/main.py updated with agent_router (no existing routes broken)
+[ ] src/ui/agent_mode.py created — render_agent_mode() importable
+[ ] app.py updated — agent_mode page routable
+[ ] tests/graph/__init__.py created
+[ ] tests/graph/test_state.py passes
+[ ] tests/graph/test_aggregator.py passes
+[ ] tests/graph/test_tracing.py passes
+[ ] All Phase 2C tests continue to pass (122 tests minimum)
+[ ] README.md updated with Phase 3 section
+[ ] requirements.txt updated with langgraph, langchain-google-genai, langsmith
+[ ] .env.example updated with LANGCHAIN_* variables
+
+FAILURE CONDITIONS (stop and report immediately):
+- Any import error in src/graph/ modules
+- Any existing Phase 2C test regression
+- aggregator_node tests failing (this is the most testable deterministic component)
+- api/routes/agent.py import error (breaks the FastAPI app startup)

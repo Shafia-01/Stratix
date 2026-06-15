@@ -36,7 +36,7 @@ pytest-cov
 
 # New additions for Phase 2B
 tenacity
-fastapi
+fastapi>=0.137.1
 uvicorn[standard]
 
 # New additions for Phase 2C
