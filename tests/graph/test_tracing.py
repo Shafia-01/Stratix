@@ -1,5 +1,4 @@
 """Tests for LangSmith tracing utilities."""
-import pytest
 from src.graph.tracing import (
     get_run_id,
     get_run_config,

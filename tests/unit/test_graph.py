@@ -2,10 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from src.graph.nodes import (
     planner_node,
-    research_agent_node,
     aggregator_node,
-    strategy_agent_node,
-    persist_node,
     route_after_plan,
     route_after_research,
     route_after_strategy,
@@ -50,7 +47,7 @@ def test_planner_node_human_edited_plan(base_state):
     state = base_state.copy()
     state["human_feedback"] = {"edited_plan": edited}
     
-    with patch("src.graph.nodes.interrupt") as mock_interrupt:
+    with patch("src.graph.nodes.interrupt"):
         res = planner_node(state)
         # Should not interrupt again if it just uses the edited plan
         assert res["research_plan"]["seed_keyword"] == edited["seed_keyword"]
@@ -103,7 +100,7 @@ def test_aggregator_node_success(base_state):
     
     res = aggregator_node(state)
     assert res["confidence_scores"]["keyword_research"] == 0.2  # 1/5
-    assert res["confidence_scores"]["serp_analysis"] == 1.0
+    assert res["confidence_scores"]["serp_analysis"] == 0.2
     assert len(res["intelligence_findings"]["keyword_findings"]) == 1
 
 def test_route_after_plan():

@@ -4,7 +4,6 @@ Verifies with_retries only retries on specified exception types and
 that with_rate_limit_delay correctly applies pre/post delays.
 """
 
-import time
 import pytest
 from unittest.mock import patch
 from src.retry import with_retries, with_rate_limit_delay
@@ -92,7 +91,6 @@ class TestWithRateLimitDelay:
     def test_pre_delay_applied(self):
         """pre_delay should sleep BEFORE calling the function."""
         sleep_calls = []
-        orig_sleep = time.sleep
 
         @with_rate_limit_delay(pre_delay=0.1)
         def my_func():

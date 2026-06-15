@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-from datetime import datetime
 from dotenv import load_dotenv
 
 # Initialize session state first thing
@@ -36,12 +35,12 @@ load_custom_css()
 
 from src.ui.sidebar import render_sidebar
 from src.ui.home import render_home_overview, render_floating_panel
-from src.ui.keyword_discovery import render_keyword_discovery, render_keyword_analysis
-from src.ui.competitor_gap import render_competitor_gap, render_competitor_analysis
+from src.ui.keyword_discovery import render_keyword_discovery
+from src.ui.competitor_gap import render_competitor_gap
 from src.ui.search_intent import render_search_intent
-from src.ui.topic_clustering import render_topic_clustering, render_topic_clustering_tab
-from src.ui.trend_forecasting import render_trend_forecasting, render_trend_forecasting_tab
-from src.ui.serp_analysis import render_serp_analysis, render_serp_analysis_tab
+from src.ui.topic_clustering import render_topic_clustering
+from src.ui.trend_forecasting import render_trend_forecasting
+from src.ui.serp_analysis import render_serp_analysis
 from src.ui.content_optimization import render_content_optimization
 from src.ui.conversion_mapping import render_conversion_mapping
 from src.ui.industry_focus import render_industry_focus
@@ -134,6 +133,9 @@ def main():
         render_search_history()
     elif current_page == "agent_mode":
         render_agent_mode()
+    elif current_page == "monitoring_dashboard":
+        from src.ui.monitoring_dashboard import render_monitoring_dashboard
+        render_monitoring_dashboard()
     else:
         render_home_overview()
 

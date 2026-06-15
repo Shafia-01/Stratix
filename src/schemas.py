@@ -289,3 +289,74 @@ def schemas_to_legacy_dicts(findings: List[KeywordFinding]) -> List[dict]:
         d["competitors"] = legacy_comps
         legacy_list.append(d)
     return legacy_list
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 schemas — monitoring, diff, and evaluation
+# ---------------------------------------------------------------------------
+
+class MonitoringJob(BaseModel):
+    """Configuration for a recurring keyword monitoring job."""
+    model_config = ConfigDict(from_attributes=True)
+
+    job_id: str = Field(..., description="Unique APScheduler job identifier")
+    seed_keyword: str = Field(..., description="Keyword to monitor")
+    interval_hours: int = Field(..., description="Run interval in hours")
+    last_run: Optional[datetime] = Field(None, description="Timestamp of last execution")
+    next_run: Optional[datetime] = Field(None, description="Scheduled next execution timestamp")
+    status: Literal["active", "paused", "failed"] = Field(..., description="Current job status")
+
+
+class KeywordDelta(BaseModel):
+    """Change record for a single keyword between two consecutive reports."""
+    model_config = ConfigDict(from_attributes=True)
+
+    keyword: str = Field(..., description="The keyword")
+    prev_score: Optional[float] = Field(None, description="Opportunity score in the previous report")
+    curr_score: Optional[float] = Field(None, description="Opportunity score in the current report")
+    delta: float = Field(..., description="curr_score - prev_score (or curr_score if new)")
+    direction: Literal["improved", "declined", "new", "dropped"] = Field(
+        ..., description="Change direction relative to prior report"
+    )
+
+
+class ReportDiff(BaseModel):
+    """Diff between two consecutive StrategyReport runs for the same keyword."""
+    model_config = ConfigDict(from_attributes=True)
+
+    seed_keyword: str = Field(..., description="The monitored seed keyword")
+    generated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When this diff was computed"
+    )
+    keyword_deltas: List[KeywordDelta] = Field(
+        default_factory=list, description="Per-keyword score changes"
+    )
+    new_recommendations: List[str] = Field(
+        default_factory=list, description="Recommendations present in current report but not previous"
+    )
+    dropped_recommendations: List[str] = Field(
+        default_factory=list, description="Recommendations present in previous report but not current"
+    )
+    confidence_delta: Dict[str, float] = Field(
+        default_factory=dict, description="Per-tool confidence score change (curr - prev)"
+    )
+    summary: str = Field(..., description="Human-readable summary of the diff")
+
+
+class EvalResult(BaseModel):
+    """LLM-as-judge evaluation result for a single aspect of a research run."""
+    model_config = ConfigDict(from_attributes=True)
+
+    run_id: str = Field(..., description="Research run ID this evaluation belongs to")
+    eval_type: Literal["plan_quality", "report_quality", "tool_reliability"] = Field(
+        ..., description="Which aspect was evaluated"
+    )
+    score: float = Field(..., description="Normalised score 0.0–1.0")
+    rationale: str = Field(..., description="LLM-generated rationale for the score")
+    dimension_scores: Dict[str, float] = Field(
+        default_factory=dict, description="Per-dimension breakdown scores"
+    )
+    evaluated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Evaluation timestamp"
+    )
+

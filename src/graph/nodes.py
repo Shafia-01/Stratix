@@ -6,7 +6,7 @@ Node inventory:
   research_agent_node  — ReAct agent; executes all 6 tools
   aggregator_node      — Deterministic; builds IntelligenceFindings + confidence scores
   strategy_agent_node  — LLM call; structured output → StrategyReport
-  persist_node         — Deterministic; saves keywords to DB; finalises metadata
+  persist_node         — Deterministic; saves keywords to DB; finalises metadata + evals
 
 Routing helpers (used in graph.py):
   route_after_plan
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -86,6 +86,9 @@ def planner_node(state: AgentState) -> AgentState:
     """
     Calls the LLM to produce a ResearchPlan from the seed keyword.
     Interrupts after writing the plan so a human can approve or edit it.
+
+    Fix 4: response initialised to None before try block.
+    Fix 2: interrupt() return value captured for cross-check.
     """
     logger.info("planner_node: generating research plan")
     seed = state.get("seed_keyword", "")
@@ -118,6 +121,8 @@ def planner_node(state: AgentState) -> AgentState:
         HumanMessage(content=f"Seed keyword: {seed}"),
     ]
 
+    # Fix 4: initialise response to None before the try block
+    response: Optional[Any] = None
     try:
         response = llm.invoke(messages)
         raw = response.content.strip()
@@ -131,6 +136,7 @@ def planner_node(state: AgentState) -> AgentState:
         logger.info(f"planner_node: plan created — {plan.requested_modules}, max_keywords={plan.max_keywords}")
     except Exception as e:
         logger.error(f"planner_node: LLM call or parsing failed — {e}")
+        response = None
         # Fallback plan
         plan = ResearchPlan(
             seed_keyword=seed,
@@ -142,7 +148,8 @@ def planner_node(state: AgentState) -> AgentState:
     metadata["planner_retries"] = retries + 1
 
     # ── INTERRUPT: human must approve before research runs ────────────────
-    interrupt({
+    # Fix 2: capture the interrupt return value (equals what update_state injects)
+    human_input = interrupt({
         "checkpoint": "plan_approval",
         "research_plan": plan.model_dump(),
         "instructions": (
@@ -153,6 +160,8 @@ def planner_node(state: AgentState) -> AgentState:
             '{"approved": false} to cancel.'
         ),
     })
+    if human_input:
+        logger.debug(f"planner_node: interrupt returned human_input={human_input!r}")
 
     return {
         **state,
@@ -160,10 +169,11 @@ def planner_node(state: AgentState) -> AgentState:
         "status": "awaiting_approval",
         "awaiting_human": True,
         "execution_metadata": metadata,
+        # Fix 4: use response if it is not None, else fall back to SystemMessage
         "messages": [
             *state.get("messages", []),
             HumanMessage(content=f"Plan seed keyword: {seed}"),
-            response if "response" in dir() else SystemMessage(content="Fallback plan used"),
+            *([response] if response is not None else [SystemMessage(content="Fallback plan used")]),
         ],
     }
 
@@ -198,6 +208,8 @@ def research_agent_node(state: AgentState) -> AgentState:
     """
     ReAct agent that calls all tools specified in the research_plan.
     Uses create_react_agent from langgraph.prebuilt.
+
+    Fix 5: clears human_feedback to prevent stale feedback bleeding downstream.
     """
     logger.info("research_agent_node: starting tool execution")
     plan = state.get("research_plan") or {}
@@ -234,6 +246,16 @@ def research_agent_node(state: AgentState) -> AgentState:
         # Extract tool call counts for metadata
         tool_counts = extract_tool_call_counts(result_messages)
 
+        # Emit per-tool metrics
+        try:
+            from src.metrics import get_metrics
+            m = get_metrics()
+            for tool_name, count in tool_counts.items():
+                for _ in range(count):
+                    m.increment("keylytics_tool_calls_total", {"tool_name": tool_name, "status": "success"})
+        except Exception:
+            pass  # Metrics are non-critical
+
         # Parse collected_data from ToolMessages in the result
         for msg in result_messages:
             tool_name = getattr(msg, "name", None)
@@ -254,6 +276,8 @@ def research_agent_node(state: AgentState) -> AgentState:
             "collected_data": collected_data,
             "status": "in_progress",
             "awaiting_human": False,
+            # Fix 5: clear stale human_feedback
+            "human_feedback": None,
             "messages": [*prior_messages, *result_messages],
             "execution_metadata": metadata,
             "errors": errors,
@@ -266,6 +290,8 @@ def research_agent_node(state: AgentState) -> AgentState:
             **state,
             "collected_data": collected_data,
             "status": "failed",
+            # Fix 5: clear stale human_feedback even on failure
+            "human_feedback": None,
             "errors": errors,
         }
 
@@ -277,6 +303,9 @@ def aggregator_node(state: AgentState) -> AgentState:
     """
     Builds IntelligenceFindings from collected_data and computes confidence scores.
     Pure Python — no LLM calls.
+
+    Fix 5: clears human_feedback to prevent stale feedback bleeding downstream.
+    Task 4.5: uses structured rubrics for confidence scoring.
     """
     logger.info("aggregator_node: building intelligence findings")
     collected = state.get("collected_data") or {}
@@ -320,7 +349,7 @@ def aggregator_node(state: AgentState) -> AgentState:
         serp_analysis=collected.get("serp_analysis"),
     )
 
-    # ── Compute confidence scores ──────────────────────────────────────────
+    # ── Compute confidence scores (Task 4.5: structured rubrics) ──────────
     max_kw = plan.get("max_keywords", 10) or 10
     requested = set(plan.get("requested_modules", []))
 
@@ -333,50 +362,114 @@ def aggregator_node(state: AgentState) -> AgentState:
 
     confidence_scores: Dict[str, float] = {}
 
-    # keyword_research
+    # keyword_research rubric
+    # 1.0 if count >= max_keywords AND avg(volume) > 0
+    # 0.7 if count >= max_keywords AND avg(volume) == 0 (Gemini fallback)
+    # linear scale below max_keywords
     kw_count = len(keyword_findings)
     if _missing("keyword_research") or _err("keyword_research"):
         confidence_scores["keyword_research"] = 0.0
         errors.append("keyword_research returned no results")
     else:
-        confidence_scores["keyword_research"] = round(min(kw_count / max(max_kw, 1), 1.0), 2)
+        avg_volume = (
+            sum(kf.volume for kf in keyword_findings) / kw_count
+            if kw_count > 0 else 0.0
+        )
+        fill_ratio = min(kw_count / max(max_kw, 1), 1.0)
+        if fill_ratio >= 1.0:
+            confidence_scores["keyword_research"] = 1.0 if avg_volume > 0 else 0.7
+        else:
+            # Linear scale: at half fill and avg_volume>0 → 0.5; no volume → 0.35
+            base = 1.0 if avg_volume > 0 else 0.7
+            confidence_scores["keyword_research"] = round(fill_ratio * base, 2)
 
-    # serp_analysis
+    # serp_analysis rubric
+    # 1.0 if organic_results >= 5 AND paa_questions >= 2
+    # 0.6 if organic_results >= 3
+    # 0.2 if organic_results < 3
     if "serp_analysis" in requested:
-        serp = collected.get("serp_analysis", {})
-        has_organic = bool(
-            isinstance(serp, dict)
-            and serp.get("serp_data", {})
-            and serp["serp_data"].get("organic_results")
-        )
-        confidence_scores["serp_analysis"] = 1.0 if has_organic else 0.3
-        if not has_organic:
-            errors.append("serp_analysis returned limited data")
+        if _missing("serp_analysis") or _err("serp_analysis"):
+            confidence_scores["serp_analysis"] = 0.0
+            errors.append("serp_analysis returned no results")
+        else:
+            serp = collected.get("serp_analysis", {})
+            serp_data = serp.get("serp_data", {}) if isinstance(serp, dict) else {}
+            organic = serp_data.get("organic_results", []) if isinstance(serp_data, dict) else []
+            paa = serp.get("paa_questions", {}) if isinstance(serp, dict) else {}
+            paa_count = len(paa) if isinstance(paa, dict) else 0
+            organic_count = len(organic) if isinstance(organic, list) else 0
+            if organic_count >= 5 and paa_count >= 2:
+                confidence_scores["serp_analysis"] = 1.0
+            elif organic_count >= 3:
+                confidence_scores["serp_analysis"] = 0.6
+            else:
+                confidence_scores["serp_analysis"] = 0.2
+                errors.append("serp_analysis returned limited data")
 
-    # competitor_gap
+    # competitor_gap rubric
+    # 1.0 if opportunities >= 3 AND any gap_score > 70
+    # 0.5 if opportunities >= 1
+    # 0.0 if no opportunities
     if "competitor_gap" in requested:
-        comp = collected.get("competitor_gap", {})
-        has_opps = isinstance(comp, dict) and bool(comp.get("opportunities"))
-        confidence_scores["competitor_gap"] = 1.0 if has_opps else 0.2
-        if not has_opps:
-            errors.append("competitor_gap found no opportunities")
+        if _missing("competitor_gap") or _err("competitor_gap"):
+            confidence_scores["competitor_gap"] = 0.0
+            errors.append("competitor_gap returned no results")
+        else:
+            comp = collected.get("competitor_gap", {})
+            opps = comp.get("opportunities", []) if isinstance(comp, dict) else []
+            opp_count = len(opps) if isinstance(opps, list) else 0
+            high_gap = any(
+                (o.get("gap_score", 0) if isinstance(o, dict) else 0) > 70
+                for o in (opps if isinstance(opps, list) else [])
+            )
+            if opp_count >= 3 and high_gap:
+                confidence_scores["competitor_gap"] = 1.0
+            elif opp_count >= 1:
+                confidence_scores["competitor_gap"] = 0.5
+            else:
+                confidence_scores["competitor_gap"] = 0.0
+                errors.append("competitor_gap found no opportunities")
 
-    # trend_forecast
+    # trend_forecast rubric
+    # fraction of keywords with non-empty forecast_scores AND r_squared > 0.3
     if "trend_forecasting" in requested:
-        trend = collected.get("trend_forecast", {})
-        forecasts = trend.get("forecasts", {}) if isinstance(trend, dict) else {}
-        valid = sum(
-            1 for v in forecasts.values()
-            if isinstance(v, dict) and v.get("forecast_scores")
-        )
-        total = max(len(forecasts), 1)
-        confidence_scores["trend_forecast"] = round(valid / total, 2)
+        if _missing("trend_forecast") or _err("trend_forecast"):
+            confidence_scores["trend_forecast"] = 0.0
+        else:
+            trend = collected.get("trend_forecast", {})
+            forecasts = trend.get("forecasts", {}) if isinstance(trend, dict) else {}
+            total = max(len(forecasts), 1)
+            valid = sum(
+                1 for v in (forecasts.values() if isinstance(forecasts, dict) else [])
+                if isinstance(v, dict)
+                and v.get("forecast_scores")
+                and v.get("r_squared", 1.0) > 0.3
+            )
+            confidence_scores["trend_forecast"] = round(valid / total, 2)
 
-    # topic_cluster
+    # topic_cluster rubric
+    # 1.0 if clusters >= 3 AND avg(keyword_count) >= 3
+    # 0.5 if clusters >= 2
+    # 0.2 if clusters == 1
     if "topic_clustering" in requested:
-        cluster = collected.get("topic_cluster", {})
-        clusters = cluster.get("clusters", []) if isinstance(cluster, dict) else []
-        confidence_scores["topic_cluster"] = 1.0 if len(clusters) >= 2 else 0.4
+        if _missing("topic_cluster") or _err("topic_cluster"):
+            confidence_scores["topic_cluster"] = 0.0
+        else:
+            cluster = collected.get("topic_cluster", {})
+            clusters = cluster.get("clusters", []) if isinstance(cluster, dict) else []
+            n = len(clusters) if isinstance(clusters, list) else 0
+            avg_kw_count = (
+                sum(c.get("keyword_count", 0) for c in clusters if isinstance(c, dict)) / n
+                if n > 0 else 0
+            )
+            if n >= 3 and avg_kw_count >= 3:
+                confidence_scores["topic_cluster"] = 1.0
+            elif n >= 2:
+                confidence_scores["topic_cluster"] = 0.5
+            elif n == 1:
+                confidence_scores["topic_cluster"] = 0.2
+            else:
+                confidence_scores["topic_cluster"] = 0.0
 
     # intent_classifier — always returns something
     if "intent_classifier" in collected:
@@ -391,6 +484,8 @@ def aggregator_node(state: AgentState) -> AgentState:
         "confidence_scores": confidence_scores,
         "errors": errors,
         "status": "in_progress",
+        # Fix 5: clear stale human_feedback
+        "human_feedback": None,
     }
 
 
@@ -429,6 +524,10 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     """
     LLM call to synthesise findings into a StrategyReport.
     Interrupts after writing the report so a human can approve or request regeneration.
+
+    Fix 3: validates the real report_dict including top_opportunities.
+    Fix 4: response initialised to None before try block.
+    Fix 2: interrupt() return value captured.
     """
     logger.info("strategy_agent_node: synthesising strategy report")
     findings = state.get("intelligence_findings") or {}
@@ -451,6 +550,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
 
     llm = _get_llm()
 
+    # Task 4.5: include confidence_scores in context so LLM can reference them
     context = {
         "intelligence_findings": findings,
         "confidence_scores": confidence,
@@ -463,6 +563,10 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         HumanMessage(content=f"Intelligence context:\n{json.dumps(context, indent=2, default=str)}"),
     ]
 
+    # Fix 4: initialise response to None before the try block
+    response: Optional[Any] = None
+    report_dict: Dict[str, Any] = {}
+
     try:
         response = llm.invoke(messages)
         raw = response.content.strip()
@@ -472,22 +576,43 @@ def strategy_agent_node(state: AgentState) -> AgentState:
                 raw = raw[4:]
         report_dict = json.loads(raw.strip())
 
-        # Validate via StrategyReport schema (findings field is required by schema)
-        # We attach a minimal IntelligenceFindings for schema compliance
-        from src.schemas import IntelligenceFindings as IF
-        findings_obj = IF(**findings) if findings else IF(
-            seed_keyword=plan.get("seed_keyword", ""),
-            keyword_findings=[],
+        # Fix 3: validate the real report_dict including top_opportunities
+        # Parse each top_opportunity item as KeywordFinding (with graceful fallback)
+        raw_opps = report_dict.get("top_opportunities", [])
+        validated_opps: List[KeywordFinding] = []
+        for opp in (raw_opps if isinstance(raw_opps, list) else []):
+            if isinstance(opp, dict):
+                try:
+                    validated_opps.append(KeywordFinding(**opp))
+                except Exception as opp_err:
+                    logger.warning(f"strategy_agent_node: skipping invalid top_opportunity — {opp_err}")
+
+        # Build IntelligenceFindings object for StrategyReport schema compliance
+        findings_obj = (
+            IntelligenceFindings(**findings) if findings
+            else IntelligenceFindings(
+                seed_keyword=plan.get("seed_keyword", ""),
+                keyword_findings=[],
+            )
         )
-        _ = StrategyReport(
+
+        # Construct fully validated StrategyReport
+        validated_report = StrategyReport(
             seed_keyword=report_dict.get("seed_keyword", plan.get("seed_keyword", "")),
             executive_summary=report_dict.get("executive_summary", ""),
             findings=findings_obj,
-            top_opportunities=[],  # Simplified for schema; full data in strategy_report dict
+            top_opportunities=validated_opps,
             recommendations=report_dict.get("recommendations", []),
             version="phase3",
         )
-        logger.info("strategy_agent_node: report generated successfully")
+
+        # Re-serialize from the validated object so state carries schema-validated data
+        serialized = validated_report.model_dump(mode="json")
+        report_dict["top_opportunities"] = serialized["top_opportunities"]
+        report_dict["seed_keyword"] = serialized["seed_keyword"]
+        report_dict["executive_summary"] = serialized["executive_summary"]
+        report_dict["recommendations"] = serialized["recommendations"]
+        logger.info("strategy_agent_node: report generated and schema-validated successfully")
 
     except Exception as e:
         logger.error(f"strategy_agent_node: failed — {e}", exc_info=True)
@@ -509,7 +634,8 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     metadata["strategy_retries"] = strategy_retries + 1
 
     # ── INTERRUPT: human must approve before persisting ───────────────────
-    interrupt({
+    # Fix 2: capture the interrupt return value
+    human_input = interrupt({
         "checkpoint": "report_approval",
         "strategy_report": report_dict,
         "confidence_scores": confidence,
@@ -522,6 +648,8 @@ def strategy_agent_node(state: AgentState) -> AgentState:
             '{"approved": true} after reviewing regenerated report.'
         ),
     })
+    if human_input:
+        logger.debug(f"strategy_agent_node: interrupt returned human_input={human_input!r}")
 
     return {
         **state,
@@ -533,7 +661,8 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         "messages": [
             *state.get("messages", []),
             *messages,
-            response if "response" in dir() else SystemMessage(content="Fallback report"),
+            # Fix 4: use response if not None, else fall back to SystemMessage
+            *([response] if response is not None else [SystemMessage(content="Fallback report")]),
         ],
     }
 
@@ -544,12 +673,18 @@ def strategy_agent_node(state: AgentState) -> AgentState:
 def persist_node(state: AgentState) -> AgentState:
     """
     Saves keyword findings to the database and finalises execution metadata.
-    Calls src/db_client.py::save_to_db — no LLM calls.
+    Triggers LLM evaluation of plan quality, report quality, and tool reliability.
+    Calls src/db_client.py::save_to_db — no LLM calls for persistence itself.
+
+    Fix 5: clears human_feedback.
+    Task 4.3b: triggers KeylyticsEvaluator after keyword save.
+    Task 4.4b: increments graph run completion metric.
     """
     logger.info("persist_node: saving results to database")
     findings = state.get("intelligence_findings") or {}
     metadata = state.get("execution_metadata") or {}
     errors = list(state.get("errors", []))
+    run_id = metadata.get("run_id", "")
 
     keyword_findings = findings.get("keyword_findings", [])
     if keyword_findings:
@@ -563,12 +698,59 @@ def persist_node(state: AgentState) -> AgentState:
 
     metadata = finalise_metadata(metadata)
 
+    # Task 4.4b: increment run completion metric
+    final_status = "completed" if not errors else "completed"  # always completed if we reach here
+    try:
+        from src.metrics import get_metrics
+        m = get_metrics()
+        m.increment("keylytics_graph_runs_total", {"status": final_status})
+        m.observe("keylytics_keyword_count_per_run", float(len(keyword_findings)))
+    except Exception:
+        pass  # Metrics are non-critical
+
+    # Task 4.3b: trigger LLM evaluation
+    eval_errors: List[str] = []
+    try:
+        from src.evals.evaluator import KeylyticsEvaluator
+        evaluator = KeylyticsEvaluator()
+
+        plan_eval = evaluator.evaluate_plan(run_id, state.get("research_plan") or {})
+        report_eval = evaluator.evaluate_report(
+            run_id,
+            state.get("strategy_report") or {},
+            state.get("confidence_scores") or {},
+        )
+        tool_eval = evaluator.evaluate_tool_reliability(
+            run_id,
+            state.get("collected_data") or {},
+        )
+
+        # Emit eval score metrics
+        try:
+            from src.metrics import get_metrics
+            m = get_metrics()
+            m.observe("keylytics_plan_eval_score", plan_eval.score)
+            m.observe("keylytics_report_eval_score", report_eval.score)
+        except Exception:
+            pass
+
+        logger.info(
+            f"persist_node: evaluations complete — "
+            f"plan={plan_eval.score:.2f}, report={report_eval.score:.2f}, "
+            f"tool={tool_eval.score:.2f}"
+        )
+    except Exception as e:
+        logger.warning(f"persist_node: evaluation failed (non-fatal) — {e}")
+        eval_errors.append(f"evaluation error: {str(e)}")
+
     return {
         **state,
         "status": "completed",
         "awaiting_human": False,
+        # Fix 5: clear stale human_feedback
+        "human_feedback": None,
         "execution_metadata": metadata,
-        "errors": errors,
+        "errors": errors + eval_errors,
     }
 
 

@@ -1,5 +1,4 @@
 """Tests that AgentState TypedDict can be instantiated and fields are correct."""
-import pytest
 from src.graph.state import AgentState
 
 

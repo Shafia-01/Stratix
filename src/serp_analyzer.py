@@ -462,7 +462,7 @@ def extract_domain_from_url(url):
         if domain.startswith('www.'):
             domain = domain[4:]
         return domain
-    except:
+    except Exception:
         return url
 
 def estimate_domain_authority(domain):
@@ -554,7 +554,7 @@ def identify_content_gaps(serp_data, keyword):
     present_content_types = set()
     for result in organic_results:
         title = result.get("title", "").lower()
-        snippet = result.get("snippet", "")
+        result.get("snippet", "")
         if any(word in title for word in ["guide", "tutorial"]):
             present_content_types.add("how-to")
         elif any(word in title for word in ["review", "comparison"]):

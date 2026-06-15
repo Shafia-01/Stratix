@@ -104,6 +104,12 @@ def render_sidebar():
         st.session_state.current_page = "agent_mode"
         st.rerun()
 
+    # Monitoring Dashboard
+    st.sidebar.markdown("### 🛡️ Monitoring & Evaluation")
+    if st.sidebar.button("🛡️ Monitor Dashboard", use_container_width=True):
+        st.session_state.current_page = "monitoring_dashboard"
+        st.rerun()
+
     # Recent Searches (optimized)
     st.sidebar.markdown("### 🔍 Recent Searches")    
     # Display recent searches from session state only

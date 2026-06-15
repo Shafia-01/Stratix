@@ -102,8 +102,8 @@ async def resume_agent_run(request: ResumeRequest) -> RunResponse:
     The graph will run until the next interrupt or completion.
     """
     graph = get_compiled_graph()
-    config = get_run_config("", request.run_id)
-    config["configurable"]["thread_id"] = request.run_id
+    # Use a minimal config with thread_id for resume — no need for full run config
+    config = {"configurable": {"thread_id": request.run_id}}
 
     try:
         # Update state with human feedback

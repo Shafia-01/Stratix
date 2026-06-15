@@ -1,6 +1,5 @@
 """Tests for aggregator_node — the only deterministic graph node."""
 import pytest
-from unittest.mock import patch
 from src.graph.nodes import aggregator_node
 
 
@@ -84,10 +83,10 @@ def test_aggregator_computes_confidence_scores():
     assert "keyword_research" in scores
     # 2 keywords returned out of 5 requested → 0.4
     assert scores["keyword_research"] == pytest.approx(0.4, abs=0.01)
-    # serp_analysis has organic results → 1.0
-    assert scores["serp_analysis"] == 1.0
-    # competitor_gap has opportunities → 1.0
-    assert scores["competitor_gap"] == 1.0
+    # serp_analysis has only 1 organic result and no PAA → 0.2
+    assert scores["serp_analysis"] == 0.2
+    # competitor_gap has 1 opportunity → 0.5
+    assert scores["competitor_gap"] == 0.5
 
 
 def test_aggregator_handles_missing_keyword_research():
@@ -104,8 +103,8 @@ def test_aggregator_handles_error_tool_result():
     state["collected_data"]["serp_analysis"] = {"error": "SERPAPI_KEY not found"}
     result = aggregator_node(state)
 
-    # serp_analysis should get low confidence (0.3) since no organic_results
-    assert result["confidence_scores"].get("serp_analysis", 1.0) == pytest.approx(0.3, abs=0.01)
+    # serp_analysis should get low confidence (0.0) since it returned an error
+    assert result["confidence_scores"].get("serp_analysis", 1.0) == 0.0
 
 
 def test_aggregator_empty_collected_data():

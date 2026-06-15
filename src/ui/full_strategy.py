@@ -95,7 +95,7 @@ def render_full_strategy():
                 for i, opp in enumerate(results['competitor']['opportunities'][:5]):
                     st.markdown(f"**{i+1}. {opp['keyword']}** - Score: {opp['gap_score']}")
         # Topic Clusters
-        if has_clusters := (results['clusters'] and 'clusters' in results['clusters']):
+        if results['clusters'] and 'clusters' in results['clusters']:
             with st.expander("🧠 Topic Clusters"):
                 for i, cluster in enumerate(results['clusters']['clusters'][:3]):
                     st.markdown(f"**{i+1}. {cluster['cluster_name']}** ({cluster['keyword_count']} keywords)")
