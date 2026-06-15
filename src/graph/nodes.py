@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
 from typing import Any, Dict, List
+
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -479,7 +479,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
             seed_keyword=plan.get("seed_keyword", ""),
             keyword_findings=[],
         )
-        report = StrategyReport(
+        _ = StrategyReport(
             seed_keyword=report_dict.get("seed_keyword", plan.get("seed_keyword", "")),
             executive_summary=report_dict.get("executive_summary", ""),
             findings=findings_obj,

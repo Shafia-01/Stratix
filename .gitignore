@@ -3,3 +3,5 @@
 __pycache__/
 cache
 docs/
+.pytest_cache/
+.ruff_cache/
