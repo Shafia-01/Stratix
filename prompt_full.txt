@@ -1,0 +1,107 @@
+<USER_REQUEST>
+TASK: Implement Phase 3 (LangGraph Agentic Pipeline) for the Keylytics project.
+
+CONTEXT:
+- This is a production-grade AI-powered SEO keyword intelligence platform.
+- Phase 2C is complete. All tools, schemas, registry, FastAPI layer, and tests pass.
+- Do NOT modify any existing file unless explicitly instructed below.
+- Do NOT break any existing tests.
+- Do NOT change src/schemas.py, src/tools/registry.py, src/tools/langchain_adapters.py,
+  src/db_client.py, or any src/ui/ files unless explicitly instructed.
+
+OBJECTIVE:
+Add a LangGraph-based autonomous multi-agent research pipeline that:
+1. Plans a research strategy from a seed keyword
+2. Executes all 6 registered tools via a ReAct agent
+3. Synthesises findings into a structured strategy report
+4. Supports human-in-the-loop approval at two checkpoints
+5. Traces all runs to LangSmith
+6. Exposes the graph via two new FastAPI routes
+7. Integrates with the existing Streamlit UI on a new "🤖 Agent Mode" page
+
+---
+
+PHASE 3 TASK LIST — Execute in this exact order. Do not skip steps.
+Verify each task compiles and is importable before proceeding to the next.
+
+---
+
+TASK 1: Install new dependencies
+
+Add the following to requirements.txt (append after existing entries):
+  langgraph>=0.2.0
+  langchain-google-genai>=1.0.0
+  langsmith>=0.1.0
+  langchain-core>=0.2.0
+
+Note: langchain-core is already present. Ensure version constraint is compatible.
+
+---
+
+TASK 2: Add environment variables to .env.example (do not modify .env)
+
+Append the following to .env.example:
+  # LangSmith (required for Phase 3 observability)
+  LANGCHAIN_TRACING_V2=true
+  LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+  LANGCHAIN_API_KEY=your_langsmith_api_key_here
+  LANGCHAIN_PROJECT=keylytics-phase3
+  KEYLYTICS_ENV=development
+
+---
+
+TASK 3: Create src/graph/ package
+
+Create the following files. Exact content specified below.
+
+FILE: src/graph/__init__.py
+Content:
+"""LangGraph agentic pipeline for Keylytics."""
+from src.graph.graph import build_graph, get_compiled_graph
+__all__ = ["build
+<truncated 45215 bytes>
+to start data collection or edit before proceeding."
+        )
+        st.markdown(f"**Seed Keyword:** `{plan.get('seed_keyword', '')}`")
+        st.markdown("**Objectives:**")
+        for obj in plan.get("objectives", []):
+            st.markdown(f"  - {obj}")
+        st.markdown("**Modules to Run:**")
+        for mod in plan.get("requested_modules", []):
+            st.markdown(f"  - `{mod}`")
+        st.markdown(f"**Max Keywords:** `{plan.get('max_keywords', 10)}`")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("✅ Approve Plan", type="primary", use_container_width=True):
+                with st.spinner("🔬 Running autonomous research (this may take 30-90 seconds)..."):
+                    result = _post("/agent/resume", {
+                        "run_id": run_id,
+                        "human_feedback": {"approved": True},
+                    })
+                if "error" in result:
+                    st.error(f"❌ {result['error']}")
+                else:
+                    status = result.get("status")
+                    if status == "awaiting_approval":
+                        cp = result.get("checkpoint_data") or {}
+                        st.session_state.agent_strategy_report = cp.get("strategy_report")
+                        st.session_state.agent_confidence = cp.get("confidence_scores")
+                        st.session_state.agent_stage = "report_review"
+                    elif status == "completed":
+                        st.session_state.agent_stage = "done"
+                    else:
+                        st.session_state.agent_stage = "done"
+                    st.rerun()
+
+        with col2:
+            if st.button("✏️ Edit Plan", use_container_width=True):
+                st.session_state.agent_stage = "edit_plan"
+                st.rerun()
+
+        with col3:
+            if st.but
+<truncated 19415 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.

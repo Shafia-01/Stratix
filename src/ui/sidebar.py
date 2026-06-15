@@ -97,6 +97,13 @@ def render_sidebar():
     if st.sidebar.button("📊 Show History", use_container_width=True):
         st.session_state.current_page = "search_history"
         st.rerun()    
+
+    # Agent Mode
+    st.sidebar.markdown("### 🤖 Autonomous Agent")
+    if st.sidebar.button("🤖 Agent Mode", use_container_width=True):
+        st.session_state.current_page = "agent_mode"
+        st.rerun()
+
     # Recent Searches (optimized)
     st.sidebar.markdown("### 🔍 Recent Searches")    
     # Display recent searches from session state only

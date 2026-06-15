@@ -48,6 +48,8 @@ from src.ui.industry_focus import render_industry_focus
 from src.ui.full_strategy import render_full_strategy
 from src.ui.chat import render_chat_interface
 from src.ui.search_history import render_search_history
+from src.ui.agent_mode import render_agent_mode
+
 
 def handle_api_errors():
     """Display API status."""
@@ -130,8 +132,11 @@ def main():
         render_chat_interface()
     elif current_page == "search_history":
         render_search_history()
+    elif current_page == "agent_mode":
+        render_agent_mode()
     else:
         render_home_overview()
+
 
 if __name__ == "__main__":
     main()

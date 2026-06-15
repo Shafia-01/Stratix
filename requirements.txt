@@ -40,6 +40,12 @@ fastapi
 uvicorn[standard]
 
 # New additions for Phase 2C
-langchain-core      # StructuredTool for LangGraph-ready tool adapters
+langchain-core>=0.2.0      # StructuredTool for LangGraph-ready tool adapters
 httpx               # Required by FastAPI TestClient (starlette dependency)
 ruff                # Linting: ruff check src/ api/ tests/
+
+# New additions for Phase 3
+langgraph>=0.2.0
+langchain-google-genai>=1.0.0
+langsmith>=0.1.0
+

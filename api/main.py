@@ -108,4 +108,8 @@ app.include_router(health.router)                                    # GET /heal
 app.include_router(keywords.router, prefix="/keywords", tags=["Keywords"])
 app.include_router(intelligence.router, prefix="/intelligence", tags=["Intelligence"])
 
+from api.routes.agent import router as agent_router
+app.include_router(agent_router)
+
 logger.info("Keylytics FastAPI app initialised.")
+

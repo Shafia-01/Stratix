@@ -28,7 +28,7 @@ def render_home_overview():
     
     # Quick buttons using Streamlit buttons
     st.markdown("### 🚀 Quick Actions")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if st.button("🔍 Keyword Discovery", use_container_width=True):
             st.session_state.current_page = "keyword_discovery"
@@ -45,6 +45,11 @@ def render_home_overview():
         if st.button("🧩 Full Strategy", use_container_width=True):
             st.session_state.current_page = "full_strategy"
             st.rerun()
+    with col5:
+        if st.button("🤖 Agent Mode", use_container_width=True):
+            st.session_state.current_page = "agent_mode"
+            st.rerun()
+
     # Summary cards
     st.markdown("### 📊 Global Metrics")
     col1, col2, col3, col4 = st.columns(4)
@@ -123,3 +128,7 @@ def render_floating_panel():
             if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
                 st.session_state.current_page = "full_strategy"
                 st.rerun()
+            if st.button("🤖 Agent Mode", key="fp_am", use_container_width=True):
+                st.session_state.current_page = "agent_mode"
+                st.rerun()
+
