@@ -54,16 +54,16 @@ def generate_keywords(seed_keyword, max_keywords=50):
     seed_keyword = cap_text_length(seed_keyword, 100)
     prompt_template = """
     Generate {max_keywords} high-quality SEO keywords that are DIRECTLY RELATED to: {seed_keyword}.
-    
+
     IMPORTANT: All keywords MUST be relevant to the seed keyword. Do not generate random or unrelated keywords.
-    
+
     Include a mix of:
     - Short-tail keywords (1-2 words) related to the seed keyword
     - Long-tail keywords (3-5 words) related to the seed keyword
     - Question-based keywords about the seed keyword
     - Commercial intent keywords for the seed keyword
     - Informational keywords about the seed keyword
-    
+
     Return only keywords, one per line or comma-separated. Avoid duplicates.
     Make sure ALL keywords are relevant to the seed keyword and generate at least {max_keywords} keywords.
     """
@@ -72,7 +72,7 @@ def generate_keywords(seed_keyword, max_keywords=50):
     if not response:
         logger.warning("Gemini failed to return keywords.")
         return []
-    
+
     # Parse keywords - handle both comma-separated and newline-separated
     keywords = []
     for line in response.split("\n"):
@@ -81,13 +81,13 @@ def generate_keywords(seed_keyword, max_keywords=50):
         else:
             if line.strip() and not line.strip().startswith("#"):
                 keywords.append(line.strip())
-    
+
     # Also try comma-separated if newline didn't work well
     if len(keywords) < max_keywords:
         keywords_comma = [kw.strip() for kw in response.split(",") if kw.strip()]
         if len(keywords_comma) > len(keywords):
             keywords = keywords_comma
-    
+
     # Remove duplicates while preserving order
     seen = set()
     unique_keywords = []
@@ -95,7 +95,7 @@ def generate_keywords(seed_keyword, max_keywords=50):
         if kw and kw.lower() not in seen:
             seen.add(kw.lower())
             unique_keywords.append(kw)
-    
+
     # If we still don't have enough, generate variations
     if len(unique_keywords) < max_keywords:
         variations = [
@@ -111,6 +111,6 @@ def generate_keywords(seed_keyword, max_keywords=50):
             if var.lower() not in seen and len(unique_keywords) < max_keywords:
                 seen.add(var.lower())
                 unique_keywords.append(var)
-    
+
     logger.info(f"Gemini returned {len(unique_keywords)} keywords (requested {max_keywords}).")
     return unique_keywords[:max_keywords]

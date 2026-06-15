@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 def update_global_metrics(keyword_results):
     """Update global metrics based on keyword analysis results"""
     if keyword_results:
-        df = pd.DataFrame(keyword_results) if isinstance(keyword_results, list) else keyword_results        
+        df = pd.DataFrame(keyword_results) if isinstance(keyword_results, list) else keyword_results
         # Update total keywords
         current_total = st.session_state.get("total_keywords", 0)
         st.session_state.total_keywords = current_total + len(df)
@@ -20,12 +20,12 @@ def update_global_metrics(keyword_results):
             # Calculate weighted average
             total_count = st.session_state.total_keywords
             if total_count > 0:
-                st.session_state.avg_volume = (current_avg * (total_count - len(df)) + new_avg * len(df)) / total_count        
+                st.session_state.avg_volume = (current_avg * (total_count - len(df)) + new_avg * len(df)) / total_count
         # Update opportunities (keywords with high scores)
         if 'score' in df.columns:
             high_score_keywords = len(df[df['score'] > 7.0])  # Assuming score > 7 is high opportunity
             current_opps = st.session_state.get("opportunities", 0)
-            st.session_state.opportunities = current_opps + high_score_keywords        
+            st.session_state.opportunities = current_opps + high_score_keywords
         # Update trend score
         if 'score' in df.columns:
             current_trend = st.session_state.get("trend_score", 0)

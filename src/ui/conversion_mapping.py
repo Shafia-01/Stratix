@@ -10,12 +10,12 @@ def render_conversion_mapping():
     # Get keyword data
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
         df = pd.DataFrame(st.session_state.keyword_results)
-        
+
         # Remove problematic columns
         columns_to_remove = ['competitors', 'seed']
         display_columns = [col for col in df.columns if col not in columns_to_remove]
         df_clean = df[display_columns].copy()
-        
+
         if 'cpc' in df_clean.columns and 'score' in df_clean.columns:
             # Calculate ROI potential
             df_clean['roi_potential'] = df_clean['score'] / (df_clean['cpc'] + 0.01)  # Avoid division by zero
@@ -67,7 +67,7 @@ def render_conversion_mapping():
                             columns_to_remove = ['competitors', 'seed']
                             display_columns = [col for col in df.columns if col not in columns_to_remove]
                             df_clean = df[display_columns].copy()
-                            
+
                             if 'cpc' in df_clean.columns and 'score' in df_clean.columns:
                                 df_clean['roi_potential'] = df_clean['score'] / (df_clean['cpc'] + 0.01)
                                 df_sorted = df_clean.sort_values('roi_potential', ascending=False)

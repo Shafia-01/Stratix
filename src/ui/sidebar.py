@@ -10,9 +10,9 @@ def render_sidebar():
     <div class="sidebar-header">
         <h2>AI-Powered SEO Keyword Intelligence System</h2>
     </div>
-    """, unsafe_allow_html=True)    
+    """, unsafe_allow_html=True)
     st.sidebar.markdown("### 🔧 System Status")
-    api_status, api_test = get_system_status()    
+    api_status, api_test = get_system_status()
     st.sidebar.markdown("""
     <div class="system-status">
         <div class="status-item">
@@ -27,9 +27,9 @@ def render_sidebar():
     """.format(
         "status-online" if api_test["gemini"] else "status-offline",
         "✅ Online" if api_test["gemini"] else "❌ Offline",
-        "status-online" if api_test["serpapi"] else "status-offline", 
+        "status-online" if api_test["serpapi"] else "status-offline",
         "✅ Online" if api_test["serpapi"] else "❌ Offline"
-    ), unsafe_allow_html=True)    
+    ), unsafe_allow_html=True)
     # Model Status
     st.sidebar.markdown("### 🤖 Model Status")
     from src.services.status_service import GEMINI_MODELS
@@ -48,9 +48,9 @@ def render_sidebar():
             <span class="status-value">{}</span>
         </div>
     </div>
-    """.format(len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)    
+    """.format(len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)
     # Database Status (simplified)
-    st.sidebar.markdown("### 💾 Database")    
+    st.sidebar.markdown("### 💾 Database")
     # Use a placeholder that doesn't make heavy DB calls on every render
     if st.sidebar.button("🔍 Check Database Status", use_container_width=True):
         with st.spinner("Checking database..."):
@@ -74,7 +74,7 @@ def render_sidebar():
                 else:
                     st.session_state.db_status = f"❌ Connection failed: {error_msg[:50]}..."
         st.rerun()
-    
+
     # Display the last database check result if available
     if 'db_status' in st.session_state:
         col1, col2 = st.sidebar.columns([3, 1])
@@ -91,12 +91,12 @@ def render_sidebar():
             if st.sidebar.button("🗑️", help="Clear status", key="clear_db_status"):
                 del st.session_state.db_status
                 st.rerun()
-    st.sidebar.markdown("---")    
+    st.sidebar.markdown("---")
     # Database History
     st.sidebar.markdown("### 📂 Database History")
     if st.sidebar.button("📊 Show History", use_container_width=True):
         st.session_state.current_page = "search_history"
-        st.rerun()    
+        st.rerun()
 
     # Agent Mode
     st.sidebar.markdown("### 🤖 Autonomous Agent")
@@ -111,7 +111,7 @@ def render_sidebar():
         st.rerun()
 
     # Recent Searches (optimized)
-    st.sidebar.markdown("### 🔍 Recent Searches")    
+    st.sidebar.markdown("### 🔍 Recent Searches")
     # Display recent searches from session state only
     if st.session_state.search_history:
         for i, search in enumerate(st.session_state.search_history[-3:]):

@@ -2,6 +2,7 @@
   <img src="assets/keylytics_icon.png" width="100" style="margin-bottom: -35px;">
   <h1><strong>KeyLytics: AI-Powered SEO Keyword Intelligence System</strong></h1>
   <p>
+    <img src="https://github.com/Shafia/keylytics/actions/workflows/ci.yml/badge.svg" alt="CI">
     <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" alt="Python">
     <img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit" alt="Streamlit">
     <img src="https://img.shields.io/badge/FastAPI-API-green?logo=fastapi" alt="FastAPI">
@@ -163,26 +164,27 @@ Run a complete end-to-end SEO intelligence workflow with just a seed keyword:
 
 ## 🚀 Quick Start
 
+### Option A: Docker (Recommended)
 ```bash
-# Clone the repository
 git clone <repository-url>
 cd keylytics
+cp .env.example .env
+# Edit .env with your GEMINI_API_KEY and SERPAPI_KEY
+docker-compose up --build
+```
+- Streamlit UI: http://localhost:8501
+- FastAPI docs: http://localhost:8000/docs
 
-# Install dependencies
+### Option B: Local Development
+```bash
 pip install -r requirements.txt
-
-# Copy and configure environment
 cp .env.example .env
 # Edit .env with your API keys
-
-# Start Streamlit UI  (http://localhost:8501)
-streamlit run app.py
-
-# Start FastAPI server  (http://localhost:8000)
+# Terminal 1:
 uvicorn api.main:app --reload --port 8000
+# Terminal 2:
+streamlit run app.py
 ```
-
-Both services run simultaneously and share the same SQLite database (`keylytics.db`).
 
 ---
 
@@ -335,6 +337,71 @@ keylytics/
 ├── requirements.txt                # Python dependencies
 ├── pytest.ini                      # Test configuration
 └── .env.example                    # Environment variable template
+```
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph UI["🖥️ Streamlit UI"]
+        KD[Keyword Discovery]
+        CA[Competitor Analysis]
+        SA[SERP Analysis]
+        TF[Trend Forecasting]
+        TC[Topic Clustering]
+        AM[🤖 Agent Mode]
+    end
+
+    subgraph API["⚡ FastAPI Layer"]
+        HR["/health"]
+        KR["/keywords/research"]
+        AR["/agent/run"]
+        ARS["/agent/resume"]
+        MR["/monitor/*"]
+    end
+
+    subgraph LG["🧠 LangGraph Pipeline"]
+        PN[Planner Node] -->|ResearchPlan| HITL1{{"✅ Human Approval"}}
+        HITL1 -->|approved| RAN[Research Agent Node]
+        RAN -->|tool results| AGG[Aggregator Node]
+        AGG -->|IntelligenceFindings + confidence| SAN[Strategy Agent Node]
+        SAN -->|StrategyReport| HITL2{{"✅ Human Approval"}}
+        HITL2 -->|approved| PERSIST[Persist Node]
+    end
+
+    subgraph TOOLS["🔧 Tool Registry"]
+        KRT[keyword_research]
+        SERPT[serp_analysis]
+        CGT[competitor_gap]
+        TFT[trend_forecast]
+        TCT[topic_cluster]
+        ICT[intent_classifier]
+    end
+
+    subgraph DATA["💾 Data Layer"]
+        DB[(SQLite + WAL)]
+        CACHE["@st.cache_data"]
+    end
+
+    subgraph OBS["📊 Observability"]
+        LS[LangSmith Tracing]
+        EVAL[LLM-as-Judge Evaluator]
+        PROM[Prometheus Metrics]
+        SCHED[APScheduler Monitoring]
+    end
+
+    AM -->|POST /agent/run| AR
+    AR --> LG
+    RAN -->|invoke| TOOLS
+    TOOLS -->|results| RAN
+    PERSIST --> DB
+    EVAL -->|eval scores| DB
+    LG --> LS
+    PERSIST --> PROM
+    SCHED -->|auto-approve runs| LG
+    UI --> CACHE --> DB
 ```
 
 ---

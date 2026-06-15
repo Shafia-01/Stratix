@@ -34,19 +34,19 @@ def render_full_strategy():
                             except Exception as db_error:
                                 st.warning(f"⚠️ Keyword save skipped: {db_error}")
                             update_global_metrics(keywords)
-                        progress_bar.progress(20)                       
+                        progress_bar.progress(20)
                         # 2. Competitor Analysis
                         st.info("🧩 Running Competitor Gap Analysis...")
                         competitor_results = cached_analyze_competitor_gap(strategy_keyword)
-                        progress_bar.progress(40)                       
+                        progress_bar.progress(40)
                         # 3. Topic Clustering
                         st.info("🧠 Running Topic Clustering...")
                         cluster_results = cached_cluster_keywords_semantically(keywords) if keywords else None
-                        progress_bar.progress(60)                       
+                        progress_bar.progress(60)
                         # 4. Trend Forecasting
                         st.info("📈 Running Trend Forecasting...")
                         trend_results = cached_analyze_trend_forecasting(keywords) if keywords else None
-                        progress_bar.progress(80)                       
+                        progress_bar.progress(80)
                         # 5. SERP Analysis
                         st.info("📰 Running SERP Analysis...")
                         serp_results = cached_analyze_serp_opportunities(strategy_keyword)

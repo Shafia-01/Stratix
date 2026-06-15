@@ -20,7 +20,7 @@ def render_industry_focus():
             try:
                 # Generate industry-specific keywords
                 prompt = f"""
-                Generate 20 high-value keywords for the {industry} industry. 
+                Generate 20 high-value keywords for the {industry} industry.
                 Include a mix of informational, commercial, and transactional keywords.
                 Focus on current trends and opportunities in {industry}.
                 """

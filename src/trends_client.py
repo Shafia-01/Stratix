@@ -46,16 +46,16 @@ def _fetch_pytrends_dataframe(keyword):
     except Exception as e:
         error_msg = str(e)
         logger.warning(f"Trend error for '{keyword}': {error_msg}")
-        
+
         # Reset pytrends connection to avoid stale sessions
         pytrends = TrendReq(hl='en-US', tz=360)
-        
+
         # PyTrends-specific 429/rate-limit detection logic
         if "429" in error_msg or "rate" in error_msg.lower():
             wait_time = 10.0  # Specific longer wait for rate limits
             logger.info(f"Rate limit detected. Waiting {wait_time}s before letting tenacity retry...")
             time.sleep(wait_time)
-            
+
         raise e
     return None
 
@@ -69,14 +69,14 @@ def get_trend_score(keyword):
         logger.info(f"Using cached trend data for '{keyword}'")
         return cached
     logger.info(f"Fetching trend data for '{keyword}'...")
-    
+
     data = _fetch_pytrends_dataframe(keyword)
     if data is not None and not data.empty and keyword in data.columns:
         score = int(data[keyword].mean())
         save_trend_to_db(keyword, score)
         logger.info(f"Trend data fetched for '{keyword}': {score}")
         return score
-    
+
     logger.warning(f"Trend data fetch failed for '{keyword}' after retries")
     return None
 
@@ -91,7 +91,7 @@ def get_trend_history(keyword: str) -> list[dict] | None:
         except ValueError:
             # Fallback for older pandas versions where 'ME' is not supported
             monthly_data = data[keyword].resample('M').mean()
-            
+
         history = []
         for date, val in monthly_data.items():
             history.append({

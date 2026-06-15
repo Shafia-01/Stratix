@@ -77,6 +77,10 @@ class IntelligenceFindings(BaseModel):
 
     seed_keyword: str = Field(..., description="Seed keyword utilized for search")
     keyword_findings: List[KeywordFinding] = Field(..., description="List of generated keywords and metrics")
+    # competitor_gap, topic_clusters, trend_forecast, serp_analysis hold raw tool
+    # output dicts aggregated before strategy synthesis. The corresponding *Result
+    # schemas (CompetitorGapResult, TrendForecastResult, etc.) are the typed
+    # contracts at the tool boundary. Typing these fields is a Phase 5 improvement.
     competitor_gap: Optional[Dict[str, Any]] = Field(None, description="Aggregated competitor gap analysis raw data")
     topic_clusters: Optional[Dict[str, Any]] = Field(None, description="Aggregated topic cluster analysis raw data")
     trend_forecast: Optional[Dict[str, Any]] = Field(None, description="Aggregated trends forecasting raw data")
@@ -142,18 +146,63 @@ class KeywordSuggestion(BaseModel):
     data_source: DataSource = Field(..., description="Data origin")
 
 
-class SerpAnalysisResult(BaseModel):
-    """SERP analysis results."""
+class OrganicResult(BaseModel):
+    """A single organic search result from SERP."""
     model_config = ConfigDict(from_attributes=True)
+    title: str = Field("", description="Page title")
+    link: str = Field("", description="Page URL")
+    snippet: str = Field("", description="Page snippet")
+    displayed_link: Optional[str] = Field(None, description="Displayed URL")
+    domain: Optional[str] = Field(None, description="Domain extracted from link")
+    position: Optional[int] = Field(None, description="Organic rank position")
 
+class SerpRawData(BaseModel):
+    """Typed container for raw SERP response data."""
+    model_config = ConfigDict(from_attributes=True)
+    organic_results: List[OrganicResult] = Field(default_factory=list)
+    people_also_ask: List[Dict[str, str]] = Field(default_factory=list)
+    related_searches: List[Dict[str, str]] = Field(default_factory=list)
+    featured_snippet: Dict[str, str] = Field(default_factory=dict)
+    search_information: Dict[str, Any] = Field(default_factory=dict)
+
+class SnippetOpportunity(BaseModel):
+    """A single snippet optimization opportunity."""
+    model_config = ConfigDict(from_attributes=True)
+    type: str
+    opportunity: str
+    recommendation: str
+    priority: Literal["high", "medium", "low"]
+
+class SnippetAnalysis(BaseModel):
+    """Analysis of snippet optimization opportunities."""
+    model_config = ConfigDict(from_attributes=True)
+    has_featured_snippet: bool = False
+    snippet_opportunities: List[SnippetOpportunity] = Field(default_factory=list)
+
+class PAAQuestion(BaseModel):
+    """A People Also Ask question with content idea."""
+    model_config = ConfigDict(from_attributes=True)
+    question: str
+    snippet: str
+    content_idea: str
+    opportunity_type: Optional[str] = None
+
+class PAAData(BaseModel):
+    """People Also Ask extraction results."""
+    model_config = ConfigDict(from_attributes=True)
+    questions: List[PAAQuestion] = Field(default_factory=list)
+    opportunities: List[Dict[str, Any]] = Field(default_factory=list)
+
+class SerpAnalysisResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     keyword: str = Field(..., description="The keyword analyzed")
-    serp_data: Dict[str, Any] = Field(..., description="Raw SERP data fields")
-    snippet_analysis: Dict[str, Any] = Field(..., description="Snippet analysis details")
-    paa_questions: Dict[str, Any] = Field(..., description="People Also Ask questions and opportunities")
-    ranking_analysis: Dict[str, Any] = Field(..., description="Analysis of top ranking domains")
-    content_gaps: Dict[str, Any] = Field(..., description="Identified content format/type gaps")
-    optimization_suggestions: List[Dict[str, Any]] = Field(..., description="Actionable optimization steps")
-    summary: str = Field(..., description="Text summary of SERP findings")
+    serp_data: SerpRawData = Field(default_factory=SerpRawData, description="Typed SERP response")
+    snippet_analysis: SnippetAnalysis = Field(default_factory=SnippetAnalysis)
+    paa_questions: PAAData = Field(default_factory=PAAData)
+    ranking_analysis: Dict[str, Any] = Field(default_factory=dict, description="Top ranking page analysis")
+    content_gaps: Dict[str, Any] = Field(default_factory=dict, description="Content format gaps")
+    optimization_suggestions: List[SnippetOpportunity] = Field(default_factory=list)
+    summary: str = Field("", description="Text summary of SERP findings")
 
 
 # ---------------------------------------------------------------------------

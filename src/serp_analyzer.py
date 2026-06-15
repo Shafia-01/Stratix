@@ -113,7 +113,7 @@ def analyze_snippet_opportunities(serp_data, keyword=""):
         "title_optimization": [],
         "meta_description_analysis": []
     }
-    
+
     # Analyze featured snippet opportunity
     if not featured_snippet:
         snippet_analysis["snippet_opportunities"].append({
@@ -122,7 +122,7 @@ def analyze_snippet_opportunities(serp_data, keyword=""):
             "recommendation": "Create content that directly answers the main question with a clear, concise answer",
             "priority": "high"
         })
-    
+
     # Analyze title tags
     for i, result in enumerate(organic_results[:5]):
         title = result.get("title", "")
@@ -420,7 +420,7 @@ def calculate_content_priority(questions_list):
 def analyze_top_ranking_pages(serp_data):
     """Analyze top-ranking pages for insights."""
     organic_results = serp_data.get("organic_results", [])
-    
+
     ranking_analysis = {
         "top_domains": [],
         "content_patterns": [],
@@ -635,16 +635,16 @@ def generate_serp_summary(snippet_analysis, paa_questions, content_gaps):
     summary = "SERP Analysis Summary:\n"
     # Snippet opportunities
     snippet_opps = len(snippet_analysis["snippet_opportunities"])
-    summary += f"Snippet opportunities: {snippet_opps}\n"    
+    summary += f"Snippet opportunities: {snippet_opps}\n"
     # PAA questions
     paa_count = len(paa_questions["questions"])
-    summary += f"PAA questions found: {paa_count}\n"    
+    summary += f"PAA questions found: {paa_count}\n"
     # Content gaps
     gap_count = len(content_gaps["missing_content_types"])
-    summary += f"Content gaps identified: {gap_count}\n"   
+    summary += f"Content gaps identified: {gap_count}\n"
     # Top opportunities
     if snippet_analysis["snippet_opportunities"]:
         top_opp = snippet_analysis["snippet_opportunities"][0]
         summary += f"\nTop opportunity: {top_opp['opportunity']}\n"
-        summary += f"Recommendation: {top_opp['recommendation']}\n"  
+        summary += f"Recommendation: {top_opp['recommendation']}\n"
     return summary

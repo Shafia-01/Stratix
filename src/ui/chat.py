@@ -1,23 +1,79 @@
 import streamlit as st
 
 def generate_chat_response(user_input):
-    """Generate AI response based on user input."""
+    """Generate AI response using Gemini with SEO context."""
     try:
-        user_lower = user_input.lower()
-        if any(word in user_lower for word in ["keyword", "keywords", "search", "analyze"]):
-            return f"🔍 **Keyword Analysis Ready!**\n\nI can help you analyze keywords for '{user_input}'. Here's what I can do:\n\n• **Generate related keywords** with search volume and competition data\n• **Analyze keyword difficulty** and scoring\n• **Find trending keywords** in your niche\n• **Suggest content ideas** based on keyword research\n\n💡 **Quick Start:** Use the 'Keyword Analysis' tab or ask me to 'find keywords for [your topic]'"        
-        elif any(word in user_lower for word in ["trend", "trends", "forecast", "seasonal"]):
-            return f"📈 **Trend Analysis Available!**\n\nI can help you understand trends for '{user_input}'. My capabilities include:\n\n• **6-month trend forecasts** with confidence scores\n• **Seasonal pattern analysis** to optimize content timing\n• **Growth rate calculations** and trend direction\n• **Market opportunity identification**\n\n💡 **Quick Start:** Use the 'Trend Forecasting' tab or ask me to 'analyze trends for [your topic]'"
-        elif any(word in user_lower for word in ["competitor", "competitors", "gap", "opportunity"]):
-            return f"🕵️ **Competitor Analysis Ready!**\n\nI can help you analyze competitors for '{user_input}'. Here's what I offer:\n\n• **Keyword gap analysis** to find missed opportunities\n• **Competitor ranking insights** and domain analysis\n• **Traffic potential scoring** for each opportunity\n• **Strategic recommendations** for outranking competitors\n\n💡 **Quick Start:** Use the 'Competitor Analysis' tab or ask me to 'find competitor gaps for [your keyword]'"
-        elif any(word in user_lower for word in ["serp", "snippet", "optimization", "people also ask", "paa"]):
-            return f"📊 **SERP Analysis Available!**\n\nI can help you optimize SERP performance for '{user_input}'. My features include:\n\n• **Snippet optimization opportunities** and recommendations\n• **People Also Ask (PAA) questions** extraction\n• **Title tag optimization** suggestions\n• **Content gap identification** in search results\n\n💡 **Quick Start:** Use the 'SERP Analysis' tab or ask me to 'analyze SERP for [your keyword]'"
-        elif any(word in user_lower for word in ["cluster", "group", "topic", "semantic"]):
-            return f"🧩 **Topic Clustering Ready!**\n\nI can help you cluster topics for '{user_input}'. Here's what I can do:\n\n• **Semantic keyword clustering** into meaningful groups\n• **Topic opportunity scoring** and prioritization\n• **Content strategy recommendations** by cluster\n• **Keyword relationship mapping** and insights\n\n💡 **Quick Start:** Use the 'Topic Clustering' tab or ask me to 'cluster topics for [your keyword]'"
-        else:
-            return f"💎 **Welcome to Keylytics!**\n\nI understand you're asking about '{user_input}'. I'm your comprehensive SEO research assistant with these powerful features:\n\n🔍 **Keyword Analysis** - Find and analyze keywords with metrics\n🕵️ **Competitor Analysis** - Discover keyword gaps and opportunities\n📊 **SERP Analysis** - Optimize snippets and find PAA questions\n🧩 **Topic Clustering** - Group keywords semantically\n📈 **Trend Forecasting** - Predict trends and seasonal patterns\n\n💡 **How to get started:**\n• Use the tabs above for detailed analysis\n• Ask me specific questions like 'find keywords for [topic]'\n• Try 'analyze competitors for [keyword]' for gap analysis\n• Use 'show trends for [keyword]' for forecasting\n\nWhat would you like to explore first?"
+        from src.gemini_client import safe_gemini_call
+        import streamlit as st
+        import pandas as pd
+
+        # Build context from current session state
+        context_parts = []
+
+        if st.session_state.get("selected_keyword"):
+            context_parts.append(f"Current analysis topic/seed keyword: {st.session_state.selected_keyword}")
+
+        if st.session_state.get("keyword_results"):
+            df = pd.DataFrame(st.session_state.keyword_results)
+            if not df.empty and "keyword" in df.columns:
+                top_keywords = df.nlargest(5, "score")["keyword"].tolist() if "score" in df.columns else df["keyword"].head(5).tolist()
+                context_parts.append(f"Top analyzed keywords in session: {', '.join(top_keywords)}")
+
+        if st.session_state.get("competitor_results"):
+            comp = st.session_state.competitor_results
+            if isinstance(comp, dict) and "opportunities" in comp:
+                opps = [o.get("keyword", "") for o in comp.get("opportunities", []) if isinstance(o, dict)][:5]
+                context_parts.append(f"Competitor gap opportunities: {', '.join(opps)}")
+
+        if st.session_state.get("cluster_results"):
+            clust = st.session_state.cluster_results
+            if isinstance(clust, dict) and "clusters" in clust:
+                names = [c.get("cluster_name", "") for c in clust.get("clusters", []) if isinstance(c, dict)][:5]
+                context_parts.append(f"Semantic keyword clusters: {', '.join(names)}")
+
+        if st.session_state.get("trend_results"):
+            trend = st.session_state.trend_results
+            if isinstance(trend, dict) and "insights" in trend:
+                context_parts.append(f"Trend insights: {'; '.join(trend.get('insights', []))}")
+
+        if st.session_state.get("serp_results"):
+            serp = st.session_state.serp_results
+            if isinstance(serp, dict) and "summary" in serp:
+                context_parts.append(f"SERP Analysis summary: {serp.get('summary')}")
+
+        if st.session_state.get("agent_strategy_report"):
+            rep = st.session_state.agent_strategy_report
+            if isinstance(rep, dict):
+                context_parts.append(f"AI Strategy Report Executive Summary: {rep.get('executive_summary', '')}")
+                recs = rep.get("recommendations", [])
+                if recs:
+                    context_parts.append("Strategy Recommendations:\n" + "\n".join(f"- {r}" for r in recs))
+
+        context = "\n".join(context_parts) if context_parts else "No recent analysis data in the current session."
+
+        prompt = f"""You are the Keylytics Research Assistant.
+
+Your responsibility is to help users understand market intelligence findings, strategic recommendations, competitor insights, trend analysis, monitoring reports, and platform-generated outputs.
+
+You do not replace the LangGraph workflow.
+You do not function as a general-purpose chatbot.
+Your role is to explain, summarize, contextualize, and help users interpret research generated by Keylytics.
+
+Current session context:
+{context}
+
+User question: {user_input}
+
+Provide a helpful, concise SEO-focused response explaining or summarizing the findings. Be specific and actionable.
+If the user asks about starting a new keyword analysis, suggest they use the specific feature tabs or the Agent Mode.
+Keep responses under 200 words."""
+
+        response = safe_gemini_call(prompt, temperature=0.7)
+        if response:
+            return response
+        return "I'm having trouble connecting to the AI model right now. Please try one of the analysis tabs above for detailed keyword research."
     except Exception as e:
-        return f"⚠️ **I encountered an error:** {str(e)}\n\nPlease try again or use the specific tabs for detailed analysis. If the issue persists, check your API keys and internet connection."
+        return f"I encountered an error: {str(e)}. Please use the analysis tabs above for your research needs."
 
 def render_chat_interface():
     st.markdown("### 💬 Conversational SEO Assistant")

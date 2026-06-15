@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 
 load_dotenv()
 
-# SIMPLE RULE-BASED INTENT DETECTOR 
+# SIMPLE RULE-BASED INTENT DETECTOR
 def rule_based_intent(keyword: str) -> str:
     keyword_lower = keyword.lower()
     if any(w in keyword_lower for w in ["buy", "price", "deal", "shop", "discount", "best"]):
@@ -39,7 +39,7 @@ def generate_intent_gemini(keyword: str) -> str:
     Respond with ONLY the label name, no descriptions or extra text.
     """
     prompt = build_safe_prompt(prompt_template, keyword=keyword)
-    response = safe_gemini_call(prompt) 
+    response = safe_gemini_call(prompt)
     if response:
         # Clean the response to extract just the intent type
         response_clean = response.strip()

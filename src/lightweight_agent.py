@@ -25,7 +25,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
             keywords = [f"{seed_keyword} tools", f"{seed_keyword} guide", f"best {seed_keyword}"]
         logger.info(f"Generated {len(keywords)} keywords.")
         results = []
-        
+
         # Process keywords with lightweight analysis
         for i, kw in enumerate(keywords[:max_keywords]):
             try:
@@ -33,7 +33,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 metrics = get_keyword_metrics(kw)
                 if not metrics:
                     continue
-                
+
                 # Calculate simple score using unified scoring module
                 opportunity = compute_score(metrics, mode="lightweight")
                 score = opportunity.score
@@ -57,7 +57,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 except ValidationError as ve:
                     logger.warning(f"Validation failed (lightweight) for keyword '{kw}': {ve}")
                     continue
-                
+
                 # Small delay to avoid rate limits
                 time.sleep(0.2)
             except Exception as e:
@@ -101,11 +101,11 @@ def generate_keywords_lightweight(seed_keyword, max_keywords=5):
             return keywords[:max_keywords]
     except Exception as e:
         logger.error(f"Keyword generation failed: {e}")
-    
+
     # Fallback keywords
     return [
         f"{seed_keyword} tools",
-        f"{seed_keyword} guide", 
+        f"{seed_keyword} guide",
         f"best {seed_keyword}",
         f"{seed_keyword} tips",
         f"{seed_keyword} software"

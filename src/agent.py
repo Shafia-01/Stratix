@@ -6,8 +6,8 @@ from src.keyword_api_client import get_enhanced_keywords, get_keyword_metrics_en
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score
 from src.competitor_client import get_competitor_data
-from src.db_client import save_to_db 
-from src.data_quality import DataSource 
+from src.db_client import save_to_db
+from src.data_quality import DataSource
 from src.scoring import compute_score, classify_difficulty
 from src.logger_config import get_logger
 
@@ -19,26 +19,26 @@ from src.schemas import KeywordFinding, CompetitorEntry
 # MAIN AGENT
 def run_agent(seed_keyword, max_keywords=50):
     logger.info(f"Running Keylytics for: {seed_keyword}")
-    
+
     # Use enhanced keyword research (DataForSEO + Gemini fallback)
     keywords = get_enhanced_keywords(seed_keyword, max_keywords)
-    
+
     if not keywords or len(keywords) == 0:
         logger.warning(f"Enhanced keyword research failed for '{seed_keyword}'. Using emergency fallback...")
         time.sleep(1)
-        keywords = [{"rank": 1, "keyword": f"{seed_keyword} ideas"}, 
-                   {"rank": 2, "keyword": f"{seed_keyword} tools"}, 
+        keywords = [{"rank": 1, "keyword": f"{seed_keyword} ideas"},
+                   {"rank": 2, "keyword": f"{seed_keyword} tools"},
                    {"rank": 3, "keyword": f"best {seed_keyword} resources"}]
-    
+
     logger.info(f"Enhanced keyword research returned {len(keywords)} optimized keywords.")
-    
+
     # Keywords are already formatted and sorted by opportunity score
     sorted_keywords = keywords
-    
+
     # Limit to requested number of keywords
     if max_keywords < len(sorted_keywords):
         sorted_keywords = sorted_keywords[:max_keywords]
-    
+
     # For larger keyword sets, do more full analysis
     if max_keywords <= 15:
         full_analysis_count = max_keywords
@@ -110,7 +110,7 @@ def process_keyword(kw_item, seed_keyword):
             trend_score = get_trend_score(kw)
         except Exception:
             trend_score = None
-        
+
         competitors_raw = get_competitor_data(kw)
         competitors = [
             CompetitorEntry(
@@ -121,9 +121,9 @@ def process_keyword(kw_item, seed_keyword):
             )
             for c in competitors_raw
         ]
-        
+
         final_score = round((0.8 * score + 0.2 * (trend_score if trend_score is not None else score)), 3)
-        
+
         return KeywordFinding(
             seed=seed_keyword,
             keyword=kw,
@@ -165,7 +165,7 @@ def process_keyword_quick(kw_item, seed_keyword):
         score = opportunity.score
         difficulty = classify_difficulty(opportunity)
         intent = classify_intent(kw)
-        
+
         return KeywordFinding(
             seed=seed_keyword,
             keyword=kw,

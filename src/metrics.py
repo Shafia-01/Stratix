@@ -137,21 +137,29 @@ class KeylyticsMetrics:
             )
             for lkey, values in series.items():
                 stored_labels = label_map.get("histogram", {}).get(name + lkey)
-                lstr = _format_labels(stored_labels)
-                lstr_inner = lstr.rstrip("}") if lstr else "{"
-                if not lstr_inner.startswith("{"):
-                    lstr_inner = "{"
+
+                # Build base label string without closing brace
+                if stored_labels:
+                    base_label_parts = ",".join(f'{k}="{v}"' for k, v in sorted(stored_labels.items()))
+                else:
+                    base_label_parts = ""
+
                 for bucket in buckets:
                     count = sum(1 for v in values if v <= bucket)
-                    '+Inf' if bucket == max(buckets) else str(bucket)
-                    b_labels = (lstr_inner.rstrip(",").rstrip("{") + f',le="{bucket}"}}').lstrip(",")
-                    if b_labels.startswith(","):
-                        b_labels = "{" + b_labels[1:]
-                    elif not b_labels.startswith("{"):
-                        b_labels = "{" + b_labels + "}"
-                    lines.append(f'{name}_bucket{{le="{bucket}"{("," + lstr_inner[1:] if lstr_inner != "{" else "}")} {count}')
-                lines.append(f"{name}_count{lstr} {len(values)}")
-                lines.append(f"{name}_sum{lstr} {sum(values):.4f}")
+                    if base_label_parts:
+                        bucket_labels = f'{{{base_label_parts},le="{bucket}"}}'
+                    else:
+                        bucket_labels = f'{{le="{bucket}"}}'
+                    lines.append(f"{name}_bucket{bucket_labels} {count}")
+
+                # +Inf bucket
+                inf_labels = f'{{{base_label_parts},le="+Inf"}}' if base_label_parts else '{le="+Inf"}'
+                lines.append(f"{name}_bucket{inf_labels} {len(values)}")
+
+                # Count and sum with full label set
+                full_labels = f'{{{base_label_parts}}}' if base_label_parts else ""
+                lines.append(f"{name}_count{full_labels} {len(values)}")
+                lines.append(f"{name}_sum{full_labels} {sum(values):.4f}")
 
         # Gauges
         for name, series in sorted(gauges.items()):

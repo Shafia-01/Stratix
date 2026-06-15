@@ -25,7 +25,7 @@ def render_home_overview():
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Quick buttons using Streamlit buttons
     st.markdown("### 🚀 Quick Actions")
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -111,7 +111,7 @@ def render_floating_panel():
                 st.rerun()
             if st.button("📈 Trend Forecasting", key="fp_tf", use_container_width=True):
                 st.session_state.current_page = "trend_forecasting"
-                st.rerun()        
+                st.rerun()
         with col2:
             if st.button("📰 SERP Analysis", key="fp_sa", use_container_width=True):
                 st.session_state.current_page = "serp_analysis"

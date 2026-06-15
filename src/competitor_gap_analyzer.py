@@ -16,24 +16,24 @@ def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
     Expected Output: Missing keywords, traffic potential, competitor rank
     """
     logger.info(f"Analyzing keyword gaps for: {seed_keyword}")
-    
+
     # Step 1: Get competitor domains for the seed keyword
     competitors_data = get_competitor_data(seed_keyword, num_results=top_competitors)
     if not competitors_data:
         return {"error": "No competitor data found"}
     competitor_domains = [comp["domain"] for comp in competitors_data]
     logger.info(f"Found competitors: {competitor_domains}")
-    
+
     # Step 2: Generate related keywords for gap analysis
     related_keywords = generate_related_keywords_for_gap(seed_keyword)
-    
+
     # Step 3: Analyze each competitor's ranking for related keywords
     gap_analysis = {}
     for keyword in related_keywords[:10]:
         keyword_gaps = analyze_keyword_ranking_gaps(keyword, competitor_domains)
         if keyword_gaps:
             gap_analysis[keyword] = keyword_gaps
-    
+
     # Step 4: Identify opportunities
     opportunities = identify_keyword_opportunities(gap_analysis, seed_keyword)
     return {
@@ -66,11 +66,11 @@ def generate_related_keywords_for_gap(seed_keyword):
             return keywords[:15]
     except Exception as e:
         logger.error(f"Failed to generate related keywords: {e}", exc_info=True)
-    
+
     # Fallback keywords
     return [
         f"{seed_keyword} guide",
-        f"{seed_keyword} tutorial", 
+        f"{seed_keyword} tutorial",
         f"{seed_keyword} review",
         f"{seed_keyword} comparison",
         f"{seed_keyword} best practices",
@@ -92,7 +92,7 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
             "num": "20"
         }
         response = requests.get(url, params=params, timeout=15)
-        data = response.json()  
+        data = response.json()
         organic_results = data.get("organic_results", [])
         competitor_rankings = {}
         for result in organic_results:
@@ -104,7 +104,7 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
                     "title": result.get("title"),
                     "url": result.get("link")
                 }
-        
+
         # If no competitors rank in top 20, it's a gap opportunity
         if not competitor_rankings:
             return {
@@ -113,7 +113,7 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
                 "gap_score": 100,
                 "traffic_potential": "high"
             }
-        
+
         # Calculate gap score based on competitor performance
         avg_competitor_rank = sum(r["rank"] for r in competitor_rankings.values()) / len(competitor_rankings)
         gap_score = max(0, 100 - (avg_competitor_rank * 5))  # Lower rank = higher gap score
@@ -130,7 +130,7 @@ def analyze_keyword_ranking_gaps(keyword, competitor_domains):
 def identify_keyword_opportunities(gap_analysis, seed_keyword):
     """Identify the best keyword opportunities based on gap analysis."""
     opportunities = []
-    
+
     for keyword, analysis in gap_analysis.items():
         if analysis["gap_score"] > 60:  # High opportunity threshold
             opportunities.append({
@@ -140,7 +140,7 @@ def identify_keyword_opportunities(gap_analysis, seed_keyword):
                 "traffic_potential": analysis["traffic_potential"],
                 "reasoning": generate_opportunity_reasoning(keyword, analysis)
             })
-    
+
     # Sort by gap score (highest first)
     opportunities.sort(key=lambda x: x["gap_score"], reverse=True)
     return opportunities[:5]  # Top 5 opportunities
@@ -191,7 +191,7 @@ def get_missing_keywords_analysis(seed_keyword):
     Analyze "{seed_keyword}" and identify 10 keywords that competitors might be targeting
     but are often overlooked. Focus on:
     - Semantic variations
-    - Long-tail opportunities  
+    - Long-tail opportunities
     - Question-based queries
     - Local variations
     - Industry jargon

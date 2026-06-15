@@ -86,9 +86,6 @@ def planner_node(state: AgentState) -> AgentState:
     """
     Calls the LLM to produce a ResearchPlan from the seed keyword.
     Interrupts after writing the plan so a human can approve or edit it.
-
-    Fix 4: response initialised to None before try block.
-    Fix 2: interrupt() return value captured for cross-check.
     """
     logger.info("planner_node: generating research plan")
     seed = state.get("seed_keyword", "")
@@ -121,7 +118,7 @@ def planner_node(state: AgentState) -> AgentState:
         HumanMessage(content=f"Seed keyword: {seed}"),
     ]
 
-    # Fix 4: initialise response to None before the try block
+    # Initialise response to None before the try block
     response: Optional[Any] = None
     try:
         response = llm.invoke(messages)
@@ -148,7 +145,7 @@ def planner_node(state: AgentState) -> AgentState:
     metadata["planner_retries"] = retries + 1
 
     # ── INTERRUPT: human must approve before research runs ────────────────
-    # Fix 2: capture the interrupt return value (equals what update_state injects)
+    # Capture the interrupt return value (equals what update_state injects)
     human_input = interrupt({
         "checkpoint": "plan_approval",
         "research_plan": plan.model_dump(),
@@ -169,7 +166,7 @@ def planner_node(state: AgentState) -> AgentState:
         "status": "awaiting_approval",
         "awaiting_human": True,
         "execution_metadata": metadata,
-        # Fix 4: use response if it is not None, else fall back to SystemMessage
+        # Use response if it is not None, else fall back to SystemMessage
         "messages": [
             *state.get("messages", []),
             HumanMessage(content=f"Plan seed keyword: {seed}"),
@@ -208,8 +205,6 @@ def research_agent_node(state: AgentState) -> AgentState:
     """
     ReAct agent that calls all tools specified in the research_plan.
     Uses create_react_agent from langgraph.prebuilt.
-
-    Fix 5: clears human_feedback to prevent stale feedback bleeding downstream.
     """
     logger.info("research_agent_node: starting tool execution")
     plan = state.get("research_plan") or {}
@@ -276,7 +271,7 @@ def research_agent_node(state: AgentState) -> AgentState:
             "collected_data": collected_data,
             "status": "in_progress",
             "awaiting_human": False,
-            # Fix 5: clear stale human_feedback
+            # Clear stale human_feedback
             "human_feedback": None,
             "messages": [*prior_messages, *result_messages],
             "execution_metadata": metadata,
@@ -290,7 +285,7 @@ def research_agent_node(state: AgentState) -> AgentState:
             **state,
             "collected_data": collected_data,
             "status": "failed",
-            # Fix 5: clear stale human_feedback even on failure
+            # Clear stale human_feedback even on failure
             "human_feedback": None,
             "errors": errors,
         }
@@ -304,7 +299,6 @@ def aggregator_node(state: AgentState) -> AgentState:
     Builds IntelligenceFindings from collected_data and computes confidence scores.
     Pure Python — no LLM calls.
 
-    Fix 5: clears human_feedback to prevent stale feedback bleeding downstream.
     Task 4.5: uses structured rubrics for confidence scoring.
     """
     logger.info("aggregator_node: building intelligence findings")
@@ -484,7 +478,7 @@ def aggregator_node(state: AgentState) -> AgentState:
         "confidence_scores": confidence_scores,
         "errors": errors,
         "status": "in_progress",
-        # Fix 5: clear stale human_feedback
+        # Clear stale human_feedback
         "human_feedback": None,
     }
 
@@ -524,10 +518,6 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     """
     LLM call to synthesise findings into a StrategyReport.
     Interrupts after writing the report so a human can approve or request regeneration.
-
-    Fix 3: validates the real report_dict including top_opportunities.
-    Fix 4: response initialised to None before try block.
-    Fix 2: interrupt() return value captured.
     """
     logger.info("strategy_agent_node: synthesising strategy report")
     findings = state.get("intelligence_findings") or {}
@@ -563,7 +553,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         HumanMessage(content=f"Intelligence context:\n{json.dumps(context, indent=2, default=str)}"),
     ]
 
-    # Fix 4: initialise response to None before the try block
+    # Initialise response to None before the try block
     response: Optional[Any] = None
     report_dict: Dict[str, Any] = {}
 
@@ -576,7 +566,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
                 raw = raw[4:]
         report_dict = json.loads(raw.strip())
 
-        # Fix 3: validate the real report_dict including top_opportunities
+        # Validate the real report_dict including top_opportunities
         # Parse each top_opportunity item as KeywordFinding (with graceful fallback)
         raw_opps = report_dict.get("top_opportunities", [])
         validated_opps: List[KeywordFinding] = []
@@ -634,7 +624,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     metadata["strategy_retries"] = strategy_retries + 1
 
     # ── INTERRUPT: human must approve before persisting ───────────────────
-    # Fix 2: capture the interrupt return value
+    # Capture the interrupt return value
     human_input = interrupt({
         "checkpoint": "report_approval",
         "strategy_report": report_dict,
@@ -661,7 +651,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         "messages": [
             *state.get("messages", []),
             *messages,
-            # Fix 4: use response if not None, else fall back to SystemMessage
+            # Use response if not None, else fall back to SystemMessage
             *([response] if response is not None else [SystemMessage(content="Fallback report")]),
         ],
     }
@@ -676,7 +666,6 @@ def persist_node(state: AgentState) -> AgentState:
     Triggers LLM evaluation of plan quality, report quality, and tool reliability.
     Calls src/db_client.py::save_to_db — no LLM calls for persistence itself.
 
-    Fix 5: clears human_feedback.
     Task 4.3b: triggers KeylyticsEvaluator after keyword save.
     Task 4.4b: increments graph run completion metric.
     """
@@ -747,7 +736,7 @@ def persist_node(state: AgentState) -> AgentState:
         **state,
         "status": "completed",
         "awaiting_human": False,
-        # Fix 5: clear stale human_feedback
+        # Clear stale human_feedback
         "human_feedback": None,
         "execution_metadata": metadata,
         "errors": errors + eval_errors,

@@ -36,7 +36,7 @@ def render_competitor_gap():
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
         else:
-            st.warning("⚠️ Please enter both keywords.")   
+            st.warning("⚠️ Please enter both keywords.")
     # Display results
     if "competitor_results" in st.session_state and st.session_state.competitor_results:
         results = st.session_state.competitor_results
@@ -46,7 +46,7 @@ def render_competitor_gap():
                 with st.expander(f"#{i+1} {opp['keyword']} (Score: {opp['gap_score']})"):
                     st.markdown(f"**Opportunity Type:** {opp['opportunity_type']}")
                     st.markdown(f"**Traffic Potential:** {opp['traffic_potential']}")
-                    st.markdown(f"**Reasoning:** {opp['reasoning']}")        
+                    st.markdown(f"**Reasoning:** {opp['reasoning']}")
         # Bar chart
         if "opportunities" in results and results["opportunities"]:
             st.markdown("#### 📊 Gap Analysis Chart")
@@ -105,31 +105,31 @@ def render_competitor_analysis():
                         else:
                             st.error(f"❌ Error: {error_msg}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")   
+                st.warning("⚠️ Please enter a keyword first.")
     # Display results
     if "competitor_results" in st.session_state and st.session_state.competitor_results:
-        results = st.session_state.competitor_results       
+        results = st.session_state.competitor_results
         if "error" in results:
             st.error(f"❌ {results['error']}")
-            return       
+            return
         # Summary
         st.markdown("### 📋 Analysis Summary")
-        st.info(results.get("summary", "No summary available"))       
+        st.info(results.get("summary", "No summary available"))
         # Opportunities
         if "opportunities" in results and results["opportunities"]:
-            st.markdown("### 🎯 Top Opportunities")           
+            st.markdown("### 🎯 Top Opportunities")
             for i, opp in enumerate(results["opportunities"][:5]):
                 with st.expander(f"#{i+1} {opp['keyword']} (Score: {opp['gap_score']})"):
-                    col1, col2 = st.columns(2)  
+                    col1, col2 = st.columns(2)
                     with col1:
                         st.markdown(f"**Opportunity Type:** {opp['opportunity_type']}")
                         st.markdown(f"**Traffic Potential:** {opp['traffic_potential']}")
-                        st.markdown(f"**Gap Score:** {opp['gap_score']}") 
+                        st.markdown(f"**Gap Score:** {opp['gap_score']}")
                     with col2:
-                        st.markdown(f"**Reasoning:** {opp['reasoning']}")       
+                        st.markdown(f"**Reasoning:** {opp['reasoning']}")
         # Competitors
         if "competitors" in results and results["competitors"]:
-            st.markdown("### 🏢 Top Competitors")           
+            st.markdown("### 🏢 Top Competitors")
             for comp in results["competitors"][:5]:
                 st.markdown(f"""
                 **{comp['rank']}. [{comp['title']}]({comp['link']})**

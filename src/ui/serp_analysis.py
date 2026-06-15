@@ -67,14 +67,14 @@ def render_serp_analysis():
                     st.divider()
 
 def render_serp_analysis_tab():
-    st.markdown("### 🔍 SERP Analysis & Optimization")    
-    col1, col2 = st.columns([2, 1])   
+    st.markdown("### 🔍 SERP Analysis & Optimization")
+    col1, col2 = st.columns([2, 1])
     with col1:
         serp_keyword = st.text_input(
             "Enter keyword for SERP analysis:",
             placeholder="e.g., 'best project management tools'",
             key="serp_keyword"
-        )    
+        )
     with col2:
         if st.button("📊 Analyze SERP", type="primary", use_container_width=True):
             if serp_keyword:
@@ -100,40 +100,40 @@ def render_serp_analysis_tab():
                         else:
                             st.error(f"❌ Error: {error_msg}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")   
+                st.warning("⚠️ Please enter a keyword first.")
     # Display results
     if "serp_results" in st.session_state and st.session_state.serp_results:
-        results = st.session_state.serp_results        
+        results = st.session_state.serp_results
         if "error" in results:
             st.error(f"❌ {results['error']}")
-            return        
+            return
         st.markdown("### 📋 SERP Summary")
-        st.info(results.get("summary", "No summary available"))       
+        st.info(results.get("summary", "No summary available"))
         if "snippet_analysis" in results and results["snippet_analysis"]:
-            snippet_analysis = results["snippet_analysis"]            
+            snippet_analysis = results["snippet_analysis"]
             if snippet_analysis["snippet_opportunities"]:
-                st.markdown("### 💡 Snippet Opportunities")                
+                st.markdown("### 💡 Snippet Opportunities")
                 for opp in snippet_analysis["snippet_opportunities"]:
                     with st.expander(f"{opp['type'].title()} - {opp['opportunity']}"):
                         st.markdown(f"**Recommendation:** {opp['recommendation']}")
-                        st.markdown(f"**Priority:** {opp['priority']}")        
+                        st.markdown(f"**Priority:** {opp['priority']}")
         if "paa_questions" in results and results["paa_questions"]:
-            paa = results["paa_questions"]            
+            paa = results["paa_questions"]
             if paa["questions"]:
-                st.markdown("### ❓ People Also Ask Questions")                
+                st.markdown("### ❓ People Also Ask Questions")
                 for q in paa["questions"][:5]:
                     st.markdown(f"**Q:** {q['question']}")
                     st.markdown(f"**A:** {q['snippet'][:150]}...")
                     st.markdown(f"**Content Idea:** {q['content_idea']}")
-                    st.divider()        
+                    st.divider()
         if "optimization_suggestions" in results and results["optimization_suggestions"]:
-            st.markdown("### 🎯 Optimization Suggestions")            
+            st.markdown("### 🎯 Optimization Suggestions")
             for suggestion in results["optimization_suggestions"][:10]:
                 priority_color = {
                     "high": "🔴",
-                    "medium": "🟡", 
+                    "medium": "🟡",
                     "low": "🟢"
-                }.get(suggestion.get("priority", "low"), "🟢")   
+                }.get(suggestion.get("priority", "low"), "🟢")
                 st.markdown(f"""
                 {priority_color} **{suggestion['type'].replace('_', ' ').title()}**
                 - {suggestion['opportunity']}

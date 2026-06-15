@@ -18,7 +18,7 @@ def check_api_status():
 def test_api_quick():
     """Quick API test to show current status."""
     results = {"gemini": False, "serpapi": False}
-    
+
     # Test Gemini with multiple models
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
@@ -35,7 +35,7 @@ def test_api_quick():
                     continue
         except Exception:
             logger.exception("Gemini test failed")
-    
+
     # Test SerpApi
     serpapi_key = os.getenv("SERPAPI_KEY")
     if serpapi_key:
@@ -51,7 +51,7 @@ def test_api_quick():
                 logger.error(f"SerpApi HTTP error: {response.status_code}")
         except Exception:
             logger.exception("SerpApi test failed")
-    
+
     return results
 
 @st.cache_data(ttl=300)

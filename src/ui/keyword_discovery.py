@@ -35,8 +35,8 @@ def render_keyword_discovery():
         if st.button("🚀 Analyze", type="primary", use_container_width=True):
             if keyword_input:
                 keyword_limit = {
-                    "Quick (5)": 5, 
-                    "Standard (15)": 15, 
+                    "Quick (5)": 5,
+                    "Standard (15)": 15,
                     "Full (30)": 30,
                     "Comprehensive (50)": 50
                 }[analysis_mode]
@@ -46,7 +46,7 @@ def render_keyword_discovery():
                             results = cached_run_lightweight_agent(keyword_input, keyword_limit)
                         else:
                             results = cached_run_agent(keyword_input, keyword_limit)
-                        
+
                         # If results are fewer than requested, try to generate more
                         if results and len(results) > 0:
                             if len(results) < keyword_limit:
@@ -54,7 +54,7 @@ def render_keyword_discovery():
                                 st.session_state.keyword_results = results
                             else:
                                 st.session_state.keyword_results = results[:keyword_limit]
-                            
+
                             st.session_state.selected_keyword = keyword_input
                             st.session_state.keyword_results = prepare_keyword_records(
                                 st.session_state.keyword_results,
@@ -76,17 +76,17 @@ def render_keyword_discovery():
                         import traceback
                         st.error(f"Details: {traceback.format_exc()}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")   
+                st.warning("⚠️ Please enter a keyword first.")
     # Display results
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
         results = st.session_state.keyword_results
         df = pd.DataFrame(results) if isinstance(results, list) else results
-        
+
         # Remove problematic columns that show [object Object] or are not useful for display
         columns_to_remove = ['competitors', 'seed']
         display_columns = [col for col in df.columns if col not in columns_to_remove]
         df_display = df[display_columns].copy()
-        
+
         # Metrics table
         st.markdown("#### 📊 Metrics Table")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
@@ -94,8 +94,8 @@ def render_keyword_discovery():
         if 'volume' in df.columns and 'score' in df.columns:
             st.markdown("#### 📈 Trend Graph")
             fig = px.scatter(
-                df.head(20), 
-                x='volume', 
+                df.head(20),
+                x='volume',
                 y='score',
                 hover_data=['keyword', 'difficulty'],
                 title="Volume vs Score Analysis",
@@ -118,23 +118,23 @@ def render_keyword_analysis():
             "Enter a seed keyword or topic:",
             placeholder="e.g., 'AI tools', 'fitness apps', 'digital marketing'",
             key="keyword_input"
-        )    
+        )
     with col2:
         analysis_mode = st.selectbox(
             "Analysis Mode:",
             ["Quick (5 keywords)", "Standard (15 keywords)", "Full (30 keywords)", "Comprehensive (50 keywords)"],
             key="analysis_mode"
-        )    
+        )
     with col3:
         if st.button("🚀 Analyze Keywords", type="primary", use_container_width=True):
             if keyword_input:
                 # Determine keyword limit based on mode
                 keyword_limit = {
-                    "Quick (5 keywords)": 5, 
-                    "Standard (15 keywords)": 15, 
+                    "Quick (5 keywords)": 5,
+                    "Standard (15 keywords)": 15,
                     "Full (30 keywords)": 30,
                     "Comprehensive (50 keywords)": 50
-                }[analysis_mode]                
+                }[analysis_mode]
                 with st.spinner(f"Analyzing {keyword_limit} keywords..."):
                     try:
                         # Use cached results if available
@@ -148,12 +148,12 @@ def render_keyword_analysis():
                             if keyword_limit <= 5:
                                 results = cached_run_lightweight_agent(keyword_input, keyword_limit)
                             else:
-                                results = cached_run_agent(keyword_input, keyword_limit)                            
+                                results = cached_run_agent(keyword_input, keyword_limit)
                             if results and len(results) > 0:
                                 limited_results = results[:keyword_limit]
                                 st.session_state.keyword_results = limited_results
                                 st.session_state[cache_key] = limited_results  # Cache results
-                                st.session_state.selected_keyword = keyword_input                                
+                                st.session_state.selected_keyword = keyword_input
                                 # Save to database
                                 try:
                                     prepared_results = prepare_keyword_records(limited_results, keyword_input)
@@ -175,10 +175,10 @@ def render_keyword_analysis():
                         else:
                             st.error(f"❌ Error: {error_msg}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")    
+                st.warning("⚠️ Please enter a keyword first.")
     # Display results
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
-        results = st.session_state.keyword_results       
+        results = st.session_state.keyword_results
         # Convert to DataFrame if needed
         if isinstance(results, list):
             df = pd.DataFrame(results)
@@ -200,7 +200,7 @@ def render_keyword_analysis():
                 <div class="metric-title">Avg Volume</div>
                 <div class="metric-value">{}</div>
             </div>
-            """.format(f"{avg_volume:.0f}"), unsafe_allow_html=True)       
+            """.format(f"{avg_volume:.0f}"), unsafe_allow_html=True)
         with col3:
             avg_score = df['score'].mean() if 'score' in df.columns else 0
             st.markdown("""
@@ -223,8 +223,8 @@ def render_keyword_analysis():
             # Volume vs Score scatter plot
             if 'volume' in df.columns and 'score' in df.columns:
                 fig = px.scatter(
-                    df.head(20), 
-                    x='volume', 
+                    df.head(20),
+                    x='volume',
                     y='score',
                     hover_data=['keyword', 'difficulty'],
                     title="Volume vs Score Analysis",
@@ -237,7 +237,7 @@ def render_keyword_analysis():
                     font=dict(family="Inter", size=12)
                 )
                 st.plotly_chart(fig, use_container_width=True)
-        
+
         with col2:
             # Difficulty distribution
             if 'difficulty' in df.columns:
@@ -256,17 +256,17 @@ def render_keyword_analysis():
                 st.plotly_chart(fig, use_container_width=True)
         # Data Table
         st.markdown("### 📊 Keyword Results")
-        
+
         # Remove problematic columns that show [object Object] or are not useful for display
         columns_to_remove = ['competitors', 'seed']
         display_columns = [col for col in df.columns if col not in columns_to_remove]
         df_display = df[display_columns].copy()
-        
+
         # Style the dataframe
         if 'difficulty' in df_display.columns:
             styled_df = df_display.style.map(
-                lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else 
-                         'background-color: #FEF3C7' if 'Medium' in str(x) else 
+                lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else
+                         'background-color: #FEF3C7' if 'Medium' in str(x) else
                          'background-color: #FEE2E2' if 'Hard' in str(x) else '',
                 subset=['difficulty']
             )
@@ -280,7 +280,7 @@ def render_keyword_analysis():
                 df_display,
                 use_container_width=True,
                 hide_index=True
-            ) 
+            )
         # Download button
         csv = df.to_csv(index=False)
         st.download_button(

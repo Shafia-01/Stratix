@@ -34,7 +34,7 @@ def render_trend_forecasting():
                         st.error(f"❌ Error: {str(e)}")
             else:
                 st.warning("⚠️ Please enter a keyword first.")
-    
+
     # Display results
     if "trend_results" in st.session_state and st.session_state.trend_results:
         results = st.session_state.trend_results

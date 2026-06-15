@@ -55,26 +55,26 @@ def save_to_db(data):
             else:
                 processed_data.append(item)
         df = pd.DataFrame(processed_data)
-        
+
         if df.empty:
             return
-            
+
         # Convert competitors list to JSON string for database storage
         if 'competitors' in df.columns:
             df['competitors'] = df['competitors'].apply(lambda x: json.dumps(x) if isinstance(x, list) else json.dumps([]))
-            
+
         with Session(engine) as session:
             for _, row in df.iterrows():
                 kw = row.get("keyword")
                 if not kw:
                     continue
-                
+
                 # Fetch existing by unique keyword or merge
                 db_row = session.query(Keyword).filter(Keyword.keyword == kw).first()
                 if not db_row:
                     db_row = Keyword(keyword=kw)
                     session.add(db_row)
-                
+
                 db_row.seed = row.get("seed") or "Unknown"
                 db_row.volume = float(row.get("volume")) if pd.notnull(row.get("volume")) else 0.0
                 db_row.competition = float(row.get("competition")) if pd.notnull(row.get("competition")) else None
@@ -82,7 +82,7 @@ def save_to_db(data):
                 db_row.trend = float(row.get("trend")) if pd.notnull(row.get("trend")) else None
                 db_row.score = float(row.get("score")) if pd.notnull(row.get("score")) else 0.0
                 db_row.difficulty = row.get("difficulty") or "Unknown"
-                
+
                 # Normalize intent
                 intent_raw = row.get("intent") or "Informational"
                 if "Intent" in intent_raw:
@@ -93,7 +93,7 @@ def save_to_db(data):
                     intent_value = intent_raw
                 db_row.intent = intent_value
                 db_row.competitors = row.get("competitors") or "[]"
-            
+
             session.commit()
         logger.info(f"{len(df)} keywords saved/updated successfully!")
     except Exception as e:
@@ -114,15 +114,15 @@ def fetch_past_results(limit=50):
         engine = connect_db()
         with Session(engine) as session:
             rows = session.query(Keyword).order_by(Keyword.id.desc()).limit(limit).all()
-            
+
             # Convert to list of dicts and strip internal _sa_instance_state
             data = []
             for row in rows:
                 d = {k: v for k, v in row.__dict__.items() if k != '_sa_instance_state'}
                 data.append(d)
-                
+
             df = pd.DataFrame(data)
-            
+
         # Ensure all required columns exist with proper defaults
         required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
         for col in required_columns:
@@ -131,7 +131,7 @@ def fetch_past_results(limit=50):
                     df[col] = 0.0
                 else:
                     df[col] = 'Unknown'
-        
+
         # Fill any remaining NaN values
         df = df.fillna({
             'seed': 'Unknown',
@@ -142,7 +142,7 @@ def fetch_past_results(limit=50):
             'score': 0.0,
             'difficulty': 'Unknown'
         })
-        
+
         logger.info(f"Fetched {len(df)} records from database")
         return df
     except Exception as e:
@@ -154,7 +154,7 @@ def fetch_past_results(limit=50):
             if cache_files:
                 latest_file = max(cache_files, key=os.path.getctime)
                 df = pd.read_csv(latest_file)
-                
+
                 required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
                 for col in required_columns:
                     if col not in df.columns:
@@ -162,17 +162,17 @@ def fetch_past_results(limit=50):
                             df[col] = 0.0
                         else:
                             df[col] = 'Unknown'
-                
+
                 df = df.fillna({
                     'seed': 'Unknown',
-                    'keyword': 'Unknown', 
+                    'keyword': 'Unknown',
                     'volume': 0,
                     'competition': 0.0,
                     'cpc': 0.0,
                     'score': 0.0,
                     'difficulty': 'Unknown'
                 })
-                
+
                 logger.info(f"Loaded {len(df)} records from cache file: {latest_file}")
                 return df.tail(limit)
             return pd.DataFrame()
@@ -189,17 +189,17 @@ def verify_database_schema():
         if not columns:
             logger.error("Keywords table does not exist!")
             return False
-            
+
         existing_columns = [col["name"] for col in columns]
         required_columns = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty', 'intent', 'trend', 'competitors']
-        
+
         logger.info(f"Keywords table has {len(existing_columns)} columns: {existing_columns}")
-        
+
         missing_columns = [col for col in required_columns if col not in existing_columns]
         if missing_columns:
             logger.warning(f"Missing required columns: {missing_columns}")
             return False
-            
+
         logger.info("All required columns are present!")
         return True
     except Exception as e:

@@ -66,11 +66,11 @@ def perform_semantic_clustering(keywords):
     """Use Gemini AI to perform semantic clustering of keywords."""
     # Limit to 50 keywords for better clustering
     keywords_sample = keywords[:50]
-    
+
     # Sanitize each keyword item for safety
     cleaned_keywords = [cap_text_length(kw, 100) for kw in keywords_sample]
     keywords_text = chr(10).join(cleaned_keywords)
-    
+
     prompt_template = """
     Analyze these keywords and group them into 3-8 semantic clusters based on meaning and intent:
     {keywords_text}
@@ -187,7 +187,7 @@ def rule_based_clustering(keywords):
     for keyword in keywords:
         keyword_lower = keyword.lower()
         assigned = False
-        
+
         for cluster_name, patterns in cluster_patterns.items():
             if any(pattern in keyword_lower for pattern in patterns):
                 clusters[cluster_name].append(keyword)

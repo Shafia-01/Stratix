@@ -42,8 +42,8 @@ def render_search_history():
                 if not filtered_df.empty:
                     # Style the dataframe
                     styled_df = filtered_df.style.map(
-                        lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else 
-                                 'background-color: #FEF3C7' if 'Medium' in str(x) else 
+                        lambda x: 'background-color: #D1FAE5' if 'Easy' in str(x) else
+                                 'background-color: #FEF3C7' if 'Medium' in str(x) else
                                  'background-color: #FEE2E2' if 'Hard' in str(x) else '',
                         subset=['difficulty']
                     )

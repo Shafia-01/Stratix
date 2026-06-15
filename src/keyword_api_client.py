@@ -43,7 +43,7 @@ class KeywordAPIClient:
         self.account_limited = False
         self.balance_zero = False
         self.credits_preserved = False
-        
+
         # Credit preservation modes
         if FORCE_SANDBOX:
             logger.info("🔒 FORCE_SANDBOX mode enabled - Using sandbox only (preserves credits)")
@@ -57,7 +57,7 @@ class KeywordAPIClient:
             self.credits_preserved = True
         else:
             self.base_url = LIVE_API_URL  # Start with live API
-        
+
         if DATAFORSEO_USERNAME and DATAFORSEO_PASSWORD:
             credentials = f"{DATAFORSEO_USERNAME}:{DATAFORSEO_PASSWORD}"
             encoded_credentials = base64.b64encode(credentials.encode("utf-8")).decode("utf-8")
@@ -65,7 +65,7 @@ class KeywordAPIClient:
                 "Authorization": f"Basic {encoded_credentials}",
                 "Content-Type": "application/json"
             })
-            
+
             # Check balance if preserve credits is enabled and not in demo/sandbox mode
             if PRESERVE_CREDITS and not self.using_sandbox:
                 balance = self._check_balance()
@@ -76,7 +76,7 @@ class KeywordAPIClient:
                     self.credits_preserved = True
         else:
             logger.warning("Missing DataForSEO credentials. Will use Gemini fallback only.")
-    
+
     def _check_balance(self):
         """
         Check DataForSEO account balance.
@@ -86,7 +86,7 @@ class KeywordAPIClient:
             # DataForSEO User endpoint to get account info
             url = f"{LIVE_API_URL}/user"
             response = self.session.get(url, timeout=10)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 # Try to extract balance from response
@@ -95,7 +95,7 @@ class KeywordAPIClient:
                     return float(data["balance"])
                 elif "data" in data and "balance" in data["data"]:
                     return float(data["data"]["balance"])
-            
+
             # If balance check fails, return None (will proceed with caution)
             return None
         except Exception as e:
@@ -118,13 +118,13 @@ class KeywordAPIClient:
         elif status_code == 401:
             # Unauthorized - invalid credentials
             return True, "unauthorized"
-        
+
         # DataForSEO Response Status Code checks
         if response_data:
             df_status = response_data.get("status_code")
             status_message = response_data.get("status_message", "").lower()
             error_message = str(response_data).lower()
-            
+
             # Check for balance/credit related errors
             if df_status and df_status != 20000:
                 # Status codes that indicate account issues
@@ -136,17 +136,17 @@ class KeywordAPIClient:
                     return True, "balance_zero"
                 elif df_status in [42900, 42901]:  # Rate limit errors
                     return True, "rate_limited"
-            
+
             # Check error messages for balance/limit keywords
-            balance_keywords = ["balance", "credit", "payment", "insufficient", "zero balance", 
+            balance_keywords = ["balance", "credit", "payment", "insufficient", "zero balance",
                               "account limit", "quota exceeded", "no credits"]
             if any(keyword in error_message or keyword in status_message for keyword in balance_keywords):
                 return True, "balance_zero"
-            
+
             limit_keywords = ["rate limit", "too many requests", "throttled", "limit exceeded"]
             if any(keyword in error_message or keyword in status_message for keyword in limit_keywords):
                 return True, "rate_limited"
-        
+
         return False, None
 
     def _switch_to_sandbox(self):
@@ -163,7 +163,7 @@ class KeywordAPIClient:
         Returns True if account is limited or balance is zero.
         """
         is_limited, error_type = self._is_account_limited_error(status_code, response_data)
-        
+
         if is_limited:
             if error_type == "balance_zero":
                 self.balance_zero = True
@@ -176,7 +176,7 @@ class KeywordAPIClient:
             elif error_type == "unauthorized":
                 logger.info("🔐 Authentication failed. Check your credentials.")
                 return False  # Don't use sandbox for auth errors
-        
+
         return False
 
     # ------------------------------------------------------------
@@ -197,7 +197,7 @@ class KeywordAPIClient:
         # Don't reset if in preserve credits mode
         if self.credits_preserved or self.using_sandbox:
             logger.info(f"💾 Credits preservation mode active - Using {'sandbox' if self.using_sandbox else 'cached'} data")
-        
+
         # Reset state for new request (unless we know account is limited or preserving credits)
         if not self.balance_zero and not self.account_limited and not self.credits_preserved:
             # Only reset if not in demo/sandbox mode
@@ -209,12 +209,12 @@ class KeywordAPIClient:
             logger.info(f"Fetching keywords for: '{seed_keyword}'")
             mode_indicator = "🔒 SANDBOX (Credits Preserved)" if self.credits_preserved else "🌐 Live DataForSEO"
             logger.info(f"{mode_indicator}: {'Sandbox' if self.using_sandbox else 'Live API'}")
-            
+
             # Step 1: Get keyword suggestions
             suggestions, error_info = self._get_dataforseo_suggestions(
                 seed_keyword, location_code, language_code
             )
-            
+
             # Check if we should switch to sandbox
             if error_info and not self.using_sandbox:
                 status_code, response_data = error_info
@@ -239,7 +239,7 @@ class KeywordAPIClient:
                         relevant_suggestions.append(sug)
                     else:
                         logger.warning(f"Filtered out irrelevant suggestion: '{sug}' (not related to '{seed_keyword}')")
-                
+
                 if len(relevant_suggestions) < max_keywords * 0.3:  # If less than 30% are relevant, likely bad data
                     logger.warning(f"Only {len(relevant_suggestions)}/{len(suggestions)} suggestions are relevant to '{seed_keyword}'")
                     logger.warning("DataForSEO may be returning irrelevant data. Falling back to Gemini...")
@@ -247,7 +247,7 @@ class KeywordAPIClient:
                 else:
                     suggestions = relevant_suggestions[:max_keywords * 2]  # Keep more for metrics filtering
                     logger.info(f"Filtered to {len(suggestions)} relevant suggestions")
-            
+
             # If still no suggestions, try Gemini
             if not suggestions or len(suggestions) == 0:
                 logger.warning("No relevant suggestions from DataForSEO. Falling back to Gemini...")
@@ -257,7 +257,7 @@ class KeywordAPIClient:
             metrics_data, metrics_error = self._get_keyword_metrics_batch(
                 suggestions, location_code, language_code
             )
-            
+
             # Check if metrics call failed and we should switch to sandbox
             if (not metrics_data or len(metrics_data) == 0) and metrics_error and not self.using_sandbox:
                 status_code, response_data = metrics_error
@@ -283,18 +283,18 @@ class KeywordAPIClient:
 
             # Step 3: Sort by opportunity score
             sorted_keywords = self._sort_keywords_by_opportunity(metrics_data, max_keywords)
-            
+
             # Ensure we have at least the requested number of keywords
             # If we have fewer, try to pad with Gemini-generated keywords
             if len(sorted_keywords) < max_keywords:
                 logger.warning(f"DataForSEO returned {len(sorted_keywords)} keywords, but {max_keywords} requested.")
                 logger.info("💡 Generating additional keywords with Gemini...")
-                
+
                 # Try to get more from Gemini for the missing ones
                 existing_keywords = {item.get("keyword", "").lower() for item in sorted_keywords}
                 additional_needed = max_keywords - len(sorted_keywords)
                 additional_keywords = self._fallback_to_gemini(seed_keyword, additional_needed)
-                
+
                 # Filter out duplicates and add to sorted_keywords
                 for item in additional_keywords:
                     kw = item.get("keyword", "")
@@ -311,10 +311,10 @@ class KeywordAPIClient:
                         existing_keywords.add(kw.lower())
                         if len(sorted_keywords) >= max_keywords:
                             break
-                
+
                 # Re-sort after adding new keywords
                 sorted_keywords = self._sort_keywords_by_opportunity(sorted_keywords, max_keywords)
-            
+
             # Format response to match expected structure
             formatted_keywords = []
             for i, item in enumerate(sorted_keywords[:max_keywords], 1):
@@ -327,7 +327,7 @@ class KeywordAPIClient:
                     "opportunity_score": item.get("opportunity_score", 0.0),
                     "data_source": item.get("data_source", DataSource.LIVE.value)
                 })
-            
+
             logger.info(f"Successfully retrieved {len(formatted_keywords)} keywords (requested {max_keywords})")
             return formatted_keywords
 
@@ -360,7 +360,7 @@ class KeywordAPIClient:
         for endpoint in endpoints:
             url = f"{self.base_url}/{endpoint}"
             logger.info(f"🔎 Trying endpoint: {endpoint}")
-            
+
             payload = [{
                 "keywords": [seed_keyword],
                 "location_code": location_code,
@@ -385,7 +385,7 @@ class KeywordAPIClient:
                 # Check for account/balance errors
                 error_info = (status_code, data)
                 is_limited, error_type = self._is_account_limited_error(status_code, data)
-                
+
                 if is_limited and error_type in ["balance_zero", "rate_limited"]:
                     logger.warning(f"Account issue detected: {error_type}")
                     return [], error_info
@@ -397,14 +397,14 @@ class KeywordAPIClient:
                         if task.get("result") and len(task["result"]) > 0:
                             items = task["result"][0].get("items", [])
                             suggestions = [
-                                item["keyword"] 
-                                for item in items 
+                                item["keyword"]
+                                for item in items
                                 if "keyword" in item and item.get("keyword")
                             ]
                             if suggestions:
                                 logger.info(f"Found {len(suggestions)} suggestions")
                                 return suggestions[:100], None
-                
+
                 if status_code != 200:
                     logger.warning(f"API error (status {status_code}): {response.text[:200]}")
                     last_error = KeylyticsAPIError(f"API error (status {status_code}): {response.text[:200]}")
@@ -459,7 +459,7 @@ class KeywordAPIClient:
             # Check for account/balance errors
             error_info = (status_code, data)
             is_limited, error_type = self._is_account_limited_error(status_code, data)
-            
+
             if is_limited and error_type in ["balance_zero", "rate_limited"]:
                 logger.warning(f"Account issue in metrics API: {error_type}")
                 return [], error_info
@@ -477,7 +477,7 @@ class KeywordAPIClient:
             if status_code == 200:
                 df_status = data.get("status_code")
                 logger.info(f"🔍 DataForSEO status_code: {df_status}")
-                
+
                 # Process successful response
                 if df_status == 20000:
                     tasks = data.get("tasks", [])
@@ -486,10 +486,10 @@ class KeywordAPIClient:
                         task_status = task.get("status_code")
                         task_message = task.get("status_message", "")
                         logger.info(f"🔍 Task status_code: {task_status}, message: {task_message}")
-                        
+
                         # Check if task has results - try multiple structures
                         result = task.get("result", [])
-                        
+
                         # Also check if result is None (task might not be complete)
                         if result is None:
                             logger.warning("Task result is None. Task might still be processing.")
@@ -498,14 +498,14 @@ class KeywordAPIClient:
                             if task_status and task_status != 20000:
                                 logger.warning(f"Task not completed. Status: {task_status}")
                             return [], None
-                        
+
                         if result and len(result) > 0:
                             metrics = []
-                            
+
                             # Method 1: Try standard structure (result is list of dicts with items)
                             for result_item in result:
                                 items_to_process = []
-                                
+
                                 # Check if result_item is a list
                                 if isinstance(result_item, list):
                                     items_to_process = result_item
@@ -522,7 +522,7 @@ class KeywordAPIClient:
                                         items_to_process = [result_item]
                                 else:
                                     continue
-                                
+
                                 # Process items
                                 for item in items_to_process:
                                     if isinstance(item, dict):
@@ -533,7 +533,7 @@ class KeywordAPIClient:
                                             item.get("search_term") or
                                             item.get("query")
                                         )
-                                        
+
                                         if keyword:
                                             # Try multiple field names for metrics
                                             search_volume = (
@@ -543,7 +543,7 @@ class KeywordAPIClient:
                                                 item.get("monthly_searches") or
                                                 0
                                             )
-                                            
+
                                             competition = (
                                                 item.get("competition") or
                                                 item.get("competition_index") or
@@ -551,7 +551,7 @@ class KeywordAPIClient:
                                                 item.get("competition_value") or
                                                 0.5
                                             )
-                                            
+
                                             cpc = (
                                                 item.get("cpc") or
                                                 item.get("bid") or
@@ -559,7 +559,7 @@ class KeywordAPIClient:
                                                 item.get("cpc_value") or
                                                 0.0
                                             )
-                                            
+
                                             # Normalize competition (might be 0-1, 0-100, or 0-1.0)
                                             if isinstance(competition, (int, float)):
                                                 if competition > 1 and competition <= 100:
@@ -568,7 +568,7 @@ class KeywordAPIClient:
                                                     competition = min(competition / 1000.0, 1.0)
                                             else:
                                                 competition = 0.5
-                                            
+
                                             metrics.append({
                                                 "keyword": str(keyword),
                                                 "search_volume": int(search_volume) if search_volume else 0,
@@ -576,7 +576,7 @@ class KeywordAPIClient:
                                                 "cpc": float(cpc) if cpc is not None else None,
                                                 "data_source": DataSource.LIVE.value
                                             })
-                            
+
                             if metrics:
                                 logger.info(f"Retrieved metrics for {len(metrics)} keywords")
                                 return metrics, None
@@ -629,10 +629,6 @@ class KeywordAPIClient:
         logger.warning(f"Could not parse metrics from response. Status: {status_code}")
         return [], None
 
-        # If we get here, response was 200 but we didn't parse metrics
-        logger.warning(f"Could not parse metrics from response. Status: {status_code}")
-        return [], None
-
     def _sort_keywords_by_opportunity(self, metrics_data, max_keywords):
         """Rank keywords by opportunity score (volume high, competition low)."""
         for item in metrics_data:
@@ -641,35 +637,35 @@ class KeywordAPIClient:
             if comp is None:
                 comp = 0.5  # neutral assumption
             comp = min(max(comp, 0.0), 1.0)
-            
+
             # Normalize volume (assume max 100k for scoring)
             normalized_volume = min(vol / 100000, 1.0)
-            
+
             # Opportunity score: higher volume + lower competition = better
             item["opportunity_score"] = round(
-                (0.7 * normalized_volume) + (0.3 * (1 - comp)), 
+                (0.7 * normalized_volume) + (0.3 * (1 - comp)),
                 3
             )
-        
+
         # Sort by opportunity score (descending)
         sorted_data = sorted(
-            metrics_data, 
-            key=lambda x: x.get("opportunity_score", 0), 
+            metrics_data,
+            key=lambda x: x.get("opportunity_score", 0),
             reverse=True
         )
-        
+
         return sorted_data[:max_keywords]
 
     def _fallback_to_gemini(self, seed_keyword, max_keywords):
         """Use Gemini for backup keyword generation when DataForSEO fails."""
         logger.info(f"💡 Using Gemini AI fallback for: '{seed_keyword}'")
         logger.info(f"📝 Generating {max_keywords} relevant keywords related to '{seed_keyword}' with AI...")
-        
+
         try:
             # Pass max_keywords to ensure we get enough keywords
             # Make sure Gemini understands we need keywords RELATED to the seed keyword
             keywords = generate_keywords(seed_keyword, max_keywords)
-            
+
             # Validate keywords are actually related to seed keyword
             if keywords:
                 seed_words = set(seed_keyword.lower().split())
@@ -682,7 +678,7 @@ class KeywordAPIClient:
                         validated_keywords.append(kw)
                     else:
                         logger.warning(f"Filtered out irrelevant Gemini keyword: '{kw}'")
-                
+
                 if len(validated_keywords) < max_keywords * 0.5:  # If less than 50% are relevant, regenerate
                     logger.warning(f"Only {len(validated_keywords)}/{len(keywords)} Gemini keywords are relevant. Regenerating...")
                     keywords = generate_keywords(seed_keyword, max_keywords * 2)  # Generate more to filter
@@ -693,9 +689,9 @@ class KeywordAPIClient:
                         kw_words = set(kw_lower.split())
                         if (seed_words & kw_words) or any(word in kw_lower for word in seed_words if len(word) > 2):
                             validated_keywords.append(kw)
-                
+
                 keywords = validated_keywords[:max_keywords]
-            
+
             if not keywords or len(keywords) < max_keywords:
                 logger.warning(f"Gemini returned {len(keywords) if keywords else 0} keywords, expected {max_keywords}. Generating variations...")
                 # Generate more variations to reach max_keywords
@@ -711,20 +707,20 @@ class KeywordAPIClient:
                     f"top {seed_keyword}", f"{seed_keyword} list", f"{seed_keyword} checklist",
                     f"{seed_keyword} template", f"{seed_keyword} framework", f"{seed_keyword} methodology"
                 ]
-                
+
                 if not keywords:
                     keywords = []
-                
+
                 # Add variations that aren't already in the list
                 existing_lower = {kw.lower() for kw in keywords}
                 for var in base_variations:
                     if var.lower() not in existing_lower and len(keywords) < max_keywords:
                         keywords.append(var)
                         existing_lower.add(var.lower())
-            
+
             # Ensure we have at least max_keywords (or as many as possible)
             keywords = keywords[:max_keywords] if len(keywords) > max_keywords else keywords
-            
+
             formatted = []
             for i, kw in enumerate(keywords, 1):
                 formatted.append({
@@ -736,10 +732,10 @@ class KeywordAPIClient:
                     "opportunity_score": 0.0,
                     "data_source": DataSource.UNAVAILABLE.value
                 })
-            
+
             logger.info(f"Gemini generated {len(formatted)} keywords (requested {max_keywords})")
             return formatted
-            
+
         except Exception as e:
             logger.error(f"Gemini fallback error: {e}")
             # Emergency fallback
@@ -761,7 +757,7 @@ class KeywordAPIClient:
         metrics_data, error_info = self._get_keyword_metrics_batch(
             [keyword], location_code, language_code
         )
-        
+
         if metrics_data and len(metrics_data) > 0:
             metric = metrics_data[0]
             return {
@@ -770,7 +766,7 @@ class KeywordAPIClient:
                 "cpc": metric.get("cpc"),
                 "data_source": DataSource.LIVE.value
             }
-        
+
         # Fallback: return default metrics
         return {
             "volume": 0,

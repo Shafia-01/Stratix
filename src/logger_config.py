@@ -8,12 +8,12 @@ def get_logger(name: str) -> logging.Logger:
     Ensures idempotency to avoid duplicate handlers.
     """
     logger = logging.getLogger(name)
-    
+
     # Configure the level from env var or default to INFO
     log_level_str = os.getenv("KEYLYTICS_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
     logger.setLevel(log_level)
-    
+
     # If logger already has handlers, do not add more (idempotency guard)
     if logger.handlers:
         return logger
@@ -45,7 +45,7 @@ def get_logger(name: str) -> logging.Logger:
             log_dir = os.path.dirname(log_file)
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
-            
+
             file_handler = logging.handlers.RotatingFileHandler(
                 log_file, maxBytes=5 * 1024 * 1024, backupCount=3
             )

@@ -155,7 +155,7 @@ def render_agent_mode():
         run_id = st.session_state.agent_run_id
 
         st.markdown("#### ✏️ Edit Research Plan")
-        
+
         # Objectives input
         obj_text = "\n".join(plan.get("objectives", []))
         objectives_input = st.text_area(
@@ -163,7 +163,7 @@ def render_agent_mode():
             value=obj_text,
             height=120
         )
-        
+
         # Modules multi-select
         all_modules = [
             "keyword_discovery",
@@ -177,7 +177,7 @@ def render_agent_mode():
             options=all_modules,
             default=plan.get("requested_modules", ["keyword_discovery"])
         )
-        
+
         # Max keywords
         max_keywords_input = st.slider(
             "Max Keywords:",

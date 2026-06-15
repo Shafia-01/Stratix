@@ -32,7 +32,7 @@ def get_keyword_metrics(keyword):
             return cached
         else:
             logger.info(f"Cache expired for '{keyword}', refreshing...")
-    
+
     logger.info(f"Fetching fresh data from SerpApi for '{keyword}'...")
     url = "https://serpapi.com/search.json"
     params = {"q": keyword, "api_key": SERPAPI_KEY, "engine": "google", "num": "1"}

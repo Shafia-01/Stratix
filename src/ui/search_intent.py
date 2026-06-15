@@ -74,7 +74,7 @@ def render_search_intent():
                 st.warning("⚠️ Please enter at least one keyword.")
         else:
             st.warning("⚠️ Please enter keywords to analyze.")
-    
+
     # Display results
     if "intent_results" in st.session_state and st.session_state.intent_results:
         results = st.session_state.intent_results
@@ -82,7 +82,7 @@ def render_search_intent():
         for result in results:
             intent_color = {
                 "informational": "🔵",
-                "navigational": "🟢", 
+                "navigational": "🟢",
                 "transactional": "🔴",
                 "commercial": "🟡"
             }.get(result["intent_type"], "⚪")

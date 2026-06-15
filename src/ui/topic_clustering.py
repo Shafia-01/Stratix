@@ -77,14 +77,14 @@ def render_topic_clustering():
                             st.markdown(f"- {kw}")
 
 def render_topic_clustering_tab():
-    st.markdown("### 🧩 Topic Clustering")    
-    col1, col2 = st.columns([2, 1])    
+    st.markdown("### 🧩 Topic Clustering")
+    col1, col2 = st.columns([2, 1])
     with col1:
         cluster_keyword = st.text_input(
             "Enter seed keyword for clustering:",
             placeholder="e.g., 'AI tools', 'fitness apps'",
             key="cluster_keyword"
-        )   
+        )
     with col2:
         if st.button("🧩 Cluster Topics", type="primary", use_container_width=True):
             if cluster_keyword:
@@ -94,12 +94,12 @@ def render_topic_clustering_tab():
                         keywords = cached_run_lightweight_agent(cluster_keyword, 10)
                         keywords = prepare_keyword_records(keywords, cluster_keyword)
                         if keywords and len(keywords) > 0:
-                            st.info(f"✅ Generated {len(keywords)} keywords. Now clustering...")                           
+                            st.info(f"✅ Generated {len(keywords)} keywords. Now clustering...")
                             try:
                                 cached_save_to_db(keywords)
                                 st.info("💾 Keywords saved to database")
                             except Exception as db_error:
-                                st.warning(f"⚠️ Database save failed: {db_error}")                            
+                                st.warning(f"⚠️ Database save failed: {db_error}")
                             results = cached_cluster_keywords_semantically(keywords)
                             if results and "clusters" in results and len(results["clusters"]) > 0:
                                 st.session_state.cluster_results = results
@@ -117,24 +117,24 @@ def render_topic_clustering_tab():
                         else:
                             st.error(f"❌ Error: {error_msg}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")    
+                st.warning("⚠️ Please enter a keyword first.")
     # Display results
     if "cluster_results" in st.session_state and st.session_state.cluster_results:
-        results = st.session_state.cluster_results        
+        results = st.session_state.cluster_results
         # Summary
         st.markdown("### 📋 Clustering Summary")
-        st.info(results.get("summary", "No summary available"))        
+        st.info(results.get("summary", "No summary available"))
         # Clusters
         if "clusters" in results and results["clusters"]:
-            st.markdown("### 🎯 Topic Clusters")            
+            st.markdown("### 🎯 Topic Clusters")
             for i, cluster in enumerate(results["clusters"]):
                 with st.expander(f"#{i+1} {cluster['cluster_name']} ({cluster['keyword_count']} keywords)"):
-                    col1, col2 = st.columns(2)                   
+                    col1, col2 = st.columns(2)
                     with col1:
                         st.markdown(f"**Description:** {cluster['description']}")
                         st.markdown(f"**Intent:** {cluster['primary_intent']}")
                         st.markdown(f"**Industry:** {cluster['industry_focus']}")
-                        st.markdown(f"**Opportunity Score:** {cluster['opportunity_score']}")                   
+                        st.markdown(f"**Opportunity Score:** {cluster['opportunity_score']}")
                     with col2:
                         st.markdown("**Keywords:**")
                         for kw in cluster['keywords'][:10]:

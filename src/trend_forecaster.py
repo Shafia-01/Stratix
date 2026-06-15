@@ -45,7 +45,7 @@ def get_historical_trends(keywords_data):
         current_trend = get_trend_score(keyword)
         # Fetch actual historical data (weekly/monthly series) from pytrends
         historical_scores = get_trend_history(keyword)
-        
+
         if historical_scores is None:
             # Mark as unavailable
             historical_data[keyword] = {
@@ -154,11 +154,11 @@ def generate_trend_forecasts(trend_analysis):
         if not hist_scores:
             unavailable_keywords.append(keyword)
             continue
-            
+
         current_trend = analysis.get("current_trend")
         if current_trend is None:
             current_trend = hist_scores[-1]["score"] if hist_scores else 50
-            
+
         slope = analysis["metrics"]["slope"]
         growth_rate = analysis["growth_rate"]
         # Generate 6-month forecast (deterministic)
@@ -226,7 +226,7 @@ def analyze_seasonal_patterns(historical_data):
                 "recommendation": "No seasonal data available."
             }
             continue
-            
+
         # Identify peak and low seasons
         peak_season = max(seasonal_factors, key=lambda x: x["factor"])["month"]
         low_season = min(seasonal_factors, key=lambda x: x["factor"])["month"]
@@ -295,10 +295,10 @@ def generate_seasonal_recommendation(peak_season, low_season):
 
 def generate_trend_insights(forecasts, seasonal_analysis):
     """Generate insights from trend analysis."""
-    insights = []  
+    insights = []
     # Find trending keywords
     trending_keywords = []
-    declining_keywords = [] 
+    declining_keywords = []
     for keyword, forecast in forecasts.items():
         if forecast["trend_direction"] in ["strong_growth", "moderate_growth"]:
             trending_keywords.append({
@@ -361,7 +361,7 @@ def generate_forecast_summary(forecasts, seasonal_analysis):
         direction = forecast["trend_direction"]
         trend_counts[direction] = trend_counts.get(direction, 0) + 1
     # Count seasonal keywords
-    seasonal_count = sum(1 for analysis in seasonal_analysis.values() 
+    seasonal_count = sum(1 for analysis in seasonal_analysis.values()
                         if analysis["seasonality_strength"] > 15)
     summary = "Trend Analysis Summary:\n"
     summary += f"Analyzed {total_keywords} keywords\n"
@@ -380,7 +380,7 @@ def get_trend_visualization_data(historical_data, forecasts):
         historical = historical_data[keyword]["historical_scores"]
         # Forecast data
         forecast = forecasts.get(keyword, {}).get("forecast_scores", [])
-        
+
         all_data = []
         # Add historical data
         for point in historical:

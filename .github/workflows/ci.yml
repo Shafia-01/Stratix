@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Set up test environment
+        run: |
+          cp .env.example .env
+          echo "GEMINI_API_KEY=test_key_for_ci" >> .env
+          echo "SERPAPI_KEY=test_key_for_ci" >> .env
+          echo "KEYLYTICS_DB_PATH=test_keylytics.db" >> .env
+      
+      - name: Run tests
+        run: python -m pytest tests/ -q --tb=short --ignore=tests/integration
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'test_key' }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY || 'test_key' }}
+          KEYLYTICS_DB_PATH: test_keylytics.db
+      
+      - name: Run linter
+        run: ruff check src/ api/ tests/ --select=E,W,F --ignore=E501,E402
