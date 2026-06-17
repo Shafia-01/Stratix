@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 import os
 import time
 import random
@@ -8,7 +8,7 @@ from src.logger_config import get_logger
 logger = get_logger(__name__)
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.Client()
 
 # Use active models for standard/fallback tasks
 GEMINI_MODELS = [
@@ -23,11 +23,14 @@ def safe_gemini_call(prompt, temperature=0.7):
     """Try multiple Gemini models until one succeeds."""
     for model_name in GEMINI_MODELS:
         try:
-            model = genai.GenerativeModel(model_name)
-            result = model.generate_content(prompt)
-            if hasattr(result, "text") and result.text:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config={"temperature": temperature}
+            )
+            if response.text:
                 logger.info(f"Using {model_name}")
-                return result.text.strip()
+                return response.text.strip()
             else:
                 logger.warning(f"No text response from {model_name}")
                 continue

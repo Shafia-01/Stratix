@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -23,11 +23,14 @@ def test_api_quick():
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
         try:
+            client = genai.Client(api_key=gemini_key)
             for model_name in GEMINI_MODELS:
                 try:
-                    model = genai.GenerativeModel(model_name)
-                    result = model.generate_content("Hello")
-                    if hasattr(result, "text") and result.text:
+                    result = client.models.generate_content(
+                        model=model_name,
+                        contents="Hello"
+                    )
+                    if result.text:
                         results["gemini"] = True
                         break
                 except Exception as e:

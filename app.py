@@ -14,16 +14,14 @@ st.set_page_config(page_title="KeyLytics", page_icon="🔑", layout="wide", init
 
 # Lazy imports for heavier libraries
 def lazy_imports():
-    import google.generativeai as genai
     import pandas as pd
     import json
     import plotly.express as px
     import plotly.graph_objects as go
-    return genai, pd, json, px, go
-genai, pd, json, px, go = lazy_imports()
+    return pd, json, px, go
+pd, json, px, go = lazy_imports()
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Services
 from src.services.status_service import check_api_status, test_api_quick
