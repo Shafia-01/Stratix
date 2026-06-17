@@ -1,51 +1,41 @@
-# Web Application Framework
+# Web Application Framework & UI
 streamlit
 
-# AI/ML Libraries
+# AI/ML, Agents & LLM Integration
 google-generativeai
+langchain-core>=0.2.0
+langchain-google-genai>=1.0.0
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=1.0.0
+langsmith>=0.1.0
 
-# Data Processing
+# API Framework & Server
+fastapi>=0.137.1
+uvicorn
+
+# Database & Persistence
+SQLAlchemy
+
+# Data Processing & Visualization
 pandas
 numpy
+plotly
 
-# Environment & Configuration
-python-dotenv
-
-# HTTP Requests & Web Scraping
+# HTTP Requests, Scraping & SEO
 requests
 urllib3
 beautifulsoup4
-
-# Database
-SQLAlchemy
-
-# SEO & Trends Data
 pytrends
+httpx
 
-# Visualization
-plotly
-
-# Utilities
+# Utilities & Configuration
+python-dotenv
 tqdm
-
-# Pydantic & Testing Dependencies
+tenacity
 pydantic>=2.0.0
+
+# Testing & Development
 pytest
 pytest-mock
 pytest-cov
-
-# New additions for Phase 2B
-tenacity
-fastapi>=0.137.1
-uvicorn[standard]
-
-# New additions for Phase 2C
-langchain-core>=0.2.0      # StructuredTool for LangGraph-ready tool adapters
-httpx               # Required by FastAPI TestClient (starlette dependency)
-ruff                # Linting: ruff check src/ api/ tests/
-
-# New additions for Phase 3
-langgraph>=0.2.0
-langchain-google-genai>=1.0.0
-langsmith>=0.1.0
-
+ruff

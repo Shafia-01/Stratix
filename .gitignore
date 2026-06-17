@@ -5,3 +5,7 @@ cache
 docs/
 .pytest_cache/
 .ruff_cache/
+test_keylytics.db
+htmlcov/
+dataforseo_metrics_response.json
+cache/*.csv

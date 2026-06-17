@@ -46,7 +46,7 @@ def test_planner_node_human_edited_plan(base_state):
     }
     state = base_state.copy()
     state["human_feedback"] = {"edited_plan": edited}
-    
+
     with patch("src.graph.nodes.interrupt"):
         res = planner_node(state)
         # Should not interrupt again if it just uses the edited plan
@@ -97,7 +97,7 @@ def test_aggregator_node_success(base_state):
         "requested_modules": ["keyword_discovery", "serp_analysis"],
         "max_keywords": 5
     }
-    
+
     res = aggregator_node(state)
     assert res["confidence_scores"]["keyword_research"] == 0.2  # 1/5
     assert res["confidence_scores"]["serp_analysis"] == 0.2

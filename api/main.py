@@ -16,10 +16,11 @@ Lifespan:
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from api.dependencies import verify_api_key
 
 from src.db_client import connect_db
 from src.exceptions import KeylyticsAPIError, KeylyticsDataError
@@ -141,11 +142,11 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
 # Router registration — single source of truth, all from api/routes/
 # ---------------------------------------------------------------------------
 app.include_router(health.router)                                    # GET /health
-app.include_router(keywords.router, prefix="/keywords", tags=["Keywords"])
-app.include_router(intelligence.router, prefix="/intelligence", tags=["Intelligence"])
-app.include_router(agent_routes.router)                              # /agent/*
-app.include_router(monitor_routes.router)                            # /monitor/*
-app.include_router(evals_routes.router)                              # /evals/*
+app.include_router(keywords.router, prefix="/keywords", tags=["Keywords"], dependencies=[Depends(verify_api_key)])
+app.include_router(intelligence.router, prefix="/intelligence", tags=["Intelligence"], dependencies=[Depends(verify_api_key)])
+app.include_router(agent_routes.router, dependencies=[Depends(verify_api_key)])                              # /agent/*
+app.include_router(monitor_routes.router, dependencies=[Depends(verify_api_key)])                            # /monitor/*
+app.include_router(evals_routes.router, dependencies=[Depends(verify_api_key)])                              # /evals/*
 app.include_router(observability_routes.router)                      # /metrics, /health/detailed
 
 logger.info("Keylytics FastAPI app initialised.")

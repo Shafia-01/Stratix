@@ -24,7 +24,7 @@ def test_start_agent_run_success(mock_compiled_graph):
             "max_keywords": 10
         }
     }
-    
+
     mock_compiled_graph.get_state.return_value = MagicMock(
         values={
             "status": "awaiting_approval",

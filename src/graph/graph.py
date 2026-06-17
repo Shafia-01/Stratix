@@ -16,7 +16,6 @@ Graph topology:
                 └─► END  (rejected)
 """
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 
 from src.graph.state import AgentState
 from src.graph.nodes import (
@@ -82,8 +81,11 @@ def build_graph():
 
     builder.add_edge("persist_node", END)
 
-    # ── Compile with MemorySaver checkpointer ─────────────────────────────
-    checkpointer = MemorySaver()
+    # ── Compile with SqliteSaver checkpointer ─────────────────────────────
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    import os
+    DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
+    checkpointer = SqliteSaver.from_conn_string(f"sqlite:///{DB_PATH}")
     graph = builder.compile(checkpointer=checkpointer)
     logger.info("Keylytics research graph compiled successfully")
     return graph

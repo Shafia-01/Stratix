@@ -25,7 +25,7 @@ def test_seo_cache_hit_within_7_days(tmp_db_path, monkeypatch, mocker):
 
     # Mock requests.get and ensure it's not called
     mock_get = mocker.patch("requests.get")
-    
+
     metrics = get_keyword_metrics("fresh coffee")
     assert metrics["volume"] == 5000
     assert metrics["data_source"] == DataSource.CACHED.value
@@ -54,9 +54,9 @@ def test_seo_cache_expired_triggers_refresh(tmp_db_path, monkeypatch, mocker):
             return {"search_information": {"total_results": 10000000}} # volume = min(10000000/1000, 10000) = 10000
         def raise_for_status(self):
             pass
-    
+
     mock_get = mocker.patch("requests.get", return_value=MockResponse())
-    
+
     metrics = get_keyword_metrics("old coffee")
     assert metrics["volume"] == 10000
     assert metrics["data_source"] == DataSource.ESTIMATED.value
@@ -67,7 +67,7 @@ def test_seo_cache_expired_triggers_refresh(tmp_db_path, monkeypatch, mocker):
 def test_seo_api_exception_fallback(tmp_db_path, mocker):
     # Mock requests.get to raise an exception
     mocker.patch("requests.get", side_effect=requests.exceptions.RequestException("Timeout"))
-    
+
     with pytest.raises(requests.exceptions.RequestException):
         get_keyword_metrics("timeout coffee")
 
@@ -89,7 +89,7 @@ def test_save_to_cache_preserves_complete_row(tmp_db_path):
 
     # Try saving new incomplete metrics to the cache
     save_to_cache("complete coffee", {"volume": 8000, "competition": 0.8, "cpc": 2.0})
-    
+
     # Verify the row volume is still 5000 (not overwritten because row has seed)
     with Session(engine) as session:
         row = session.query(Keyword).filter(Keyword.keyword == "complete coffee").first()

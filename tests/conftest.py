@@ -17,19 +17,20 @@ def mock_env_vars():
     os.environ["DATAFORSEO_PASSWORD"] = "mock_password"
     os.environ["DATAFORSEO_DEMO_MODE"] = "false"
     os.environ["DATAFORSEO_FORCE_SANDBOX"] = "false"
+    os.environ["KEYLYTICS_API_KEY"] = ""  # disable auth in tests
 
 @pytest.fixture(autouse=True)
 def tmp_db_path(tmp_path, monkeypatch):
     """Creates a temporary SQLite database per test."""
     db_file = tmp_path / "test_keylytics.db"
     monkeypatch.setenv("KEYLYTICS_DB_PATH", str(db_file))
-    
+
     # Reset engine and path singletons in db_client
     src.db_client._engine = None
     src.db_client.DB_PATH = str(db_file)
-    
+
     yield db_file
-    
+
     # Cleanup after test
     src.db_client._engine = None
     if db_file.exists():

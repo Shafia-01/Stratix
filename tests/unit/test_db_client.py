@@ -53,11 +53,11 @@ def test_save_to_db_and_intent_normalization(tmp_db_path):
         }
     ]
     save_to_db(records)
-    
+
     # Fetch results
     df = fetch_past_results()
     assert len(df) == 2
-    
+
     # Assertions
     row1 = df[df["keyword"] == "best organic coffee"].iloc[0]
     assert row1["intent"] == "Commercial"
@@ -71,11 +71,11 @@ def test_save_to_db_and_intent_normalization(tmp_db_path):
 def test_save_to_db_failure_path_csv_fallback(tmp_db_path, monkeypatch, tmp_path):
     # Force a database error by monkeypatching connect_db to raise or corrupting session/engine
     monkeypatch.setattr(src.db_client, "connect_db", lambda: create_engine("sqlite:///invalid_path/nonexistent.db"))
-    
+
     # We should change the current working directory or ensure cache folder goes to tmp_path
     cache_dir = tmp_path / "cache"
     monkeypatch.setattr(os, "makedirs", lambda path, exist_ok=True: cache_dir.mkdir(exist_ok=True, parents=True))
-    
+
     # Monkeypatch pandas to_csv destination
     original_to_csv = pd.DataFrame.to_csv
     def mock_to_csv(self, path, *args, **kwargs):
@@ -85,10 +85,10 @@ def test_save_to_db_failure_path_csv_fallback(tmp_db_path, monkeypatch, tmp_path
     monkeypatch.setattr(pd.DataFrame, "to_csv", mock_to_csv)
 
     records = [{"seed": "test", "keyword": "fallback kw", "volume": 100}]
-    
+
     # Should not raise exception
     save_to_db(records)
-    
+
     # Assert CSV file is created in tmp cache
     csv_files = list(cache_dir.glob("keywords_*.csv"))
     assert len(csv_files) == 1
@@ -102,7 +102,7 @@ def test_fetch_past_results_empty_db(tmp_db_path):
     df = fetch_past_results()
     assert isinstance(df, pd.DataFrame)
     assert df.empty
-    
+
     # Check that required columns exist in the empty dataframe's schema/columns
     required_cols = ['seed', 'keyword', 'volume', 'competition', 'cpc', 'score', 'difficulty']
     for col in required_cols:
@@ -113,13 +113,13 @@ def test_fetch_past_results_empty_db(tmp_db_path):
 def test_fetch_past_results_failure_fallback_csv(tmp_db_path, monkeypatch, tmp_path):
     # Force DB fetch error
     monkeypatch.setattr(src.db_client, "connect_db", lambda: create_engine("sqlite:///invalid_path/nonexistent.db"))
-    
+
     # Create a dummy CSV in the cache folder
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir(exist_ok=True)
     # Monkeypatch glob and reading from cache to use our tmp_path cache
     monkeypatch.setattr(glob, "glob", lambda pattern: [str(p) for p in cache_dir.glob("*.csv")])
-    
+
     dummy_csv = cache_dir / "keywords_20260613_120000.csv"
     df_dummy = pd.DataFrame([{
         "seed": "coffee",
@@ -131,7 +131,7 @@ def test_fetch_past_results_failure_fallback_csv(tmp_db_path, monkeypatch, tmp_p
         "difficulty": "Medium"
     }])
     df_dummy.to_csv(dummy_csv, index=False)
-    
+
     df = fetch_past_results()
     assert len(df) == 1
     assert df.iloc[0]["keyword"] == "cached coffee"
@@ -148,7 +148,7 @@ def test_verify_database_schema_valid_and_invalid(tmp_db_path, monkeypatch):
         conn.execute(text("DROP TABLE keywords;"))
         conn.execute(text("CREATE TABLE keywords (id INTEGER PRIMARY KEY, keyword VARCHAR UNIQUE);"))
         conn.commit() # Commit transaction if needed
-        
+
     assert verify_database_schema() is False
 
 
@@ -156,7 +156,7 @@ def test_verify_database_schema_valid_and_invalid(tmp_db_path, monkeypatch):
 def test_intent_cache_round_trip(tmp_db_path):
     # Save intent
     save_intent_to_db("fresh keyword", "Navigational")
-    
+
     # Retrieve intent
     intent = get_cached_intent("fresh keyword")
     assert intent == "Navigational"

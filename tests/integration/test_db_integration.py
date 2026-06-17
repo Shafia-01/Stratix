@@ -5,7 +5,7 @@ from src.db_client import save_to_db, fetch_past_results, verify_database_schema
 def test_db_client_integration_round_trip(tmp_db_path):
     # 1. Verify fresh DB schema is valid
     assert verify_database_schema() is True
-    
+
     # 2. Insert records
     records = [
         {
@@ -22,7 +22,7 @@ def test_db_client_integration_round_trip(tmp_db_path):
         }
     ]
     save_to_db(records)
-    
+
     # 3. Retrieve and assert correctness
     df = fetch_past_results()
     assert len(df) == 1

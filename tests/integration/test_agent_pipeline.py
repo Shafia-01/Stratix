@@ -36,7 +36,7 @@ def test_run_agent_pipeline(tmp_db_path, tmp_path, monkeypatch):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir(exist_ok=True)
     monkeypatch.setattr(os, "makedirs", lambda path, exist_ok=True: cache_dir.mkdir(exist_ok=True, parents=True))
-    
+
     # Mock pd.DataFrame.to_csv to write to temp path
     original_to_csv = pd.DataFrame.to_csv
     def mock_to_csv(self, path, *args, **kwargs):
@@ -46,7 +46,7 @@ def test_run_agent_pipeline(tmp_db_path, tmp_path, monkeypatch):
 
     results = run_agent("organic coffee", max_keywords=2)
     assert len(results) > 0
-    
+
     # Validate structure using Pydantic schema
     for res in results:
         validated = KeywordFinding.model_validate(res)
