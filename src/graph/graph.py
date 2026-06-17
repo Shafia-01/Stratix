@@ -82,10 +82,13 @@ def build_graph():
     builder.add_edge("persist_node", END)
 
     # ── Compile with SqliteSaver checkpointer ─────────────────────────────
+    import sqlite3
     from langgraph.checkpoint.sqlite import SqliteSaver
     import os
     DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
-    checkpointer = SqliteSaver.from_conn_string(f"sqlite:///{DB_PATH}")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
+    checkpointer.setup()
     graph = builder.compile(checkpointer=checkpointer)
     logger.info("Keylytics research graph compiled successfully")
     return graph
