@@ -1,6 +1,6 @@
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 from pytrends.request import TrendReq
 from dotenv import load_dotenv
@@ -122,7 +122,7 @@ def get_cached_trend(keyword):
                 return None
             last_updated = row.last_updated
             if last_updated:
-                delta = datetime.utcnow() - last_updated
+                delta = datetime.now(timezone.utc).replace(tzinfo=None) - last_updated
                 if delta.days < 7:
                     return int(row.trend)
             return None

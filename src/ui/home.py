@@ -54,7 +54,7 @@ def render_home_overview():
                 status_data["active_runs"] = session.query(ResearchRunLog).filter(
                     ResearchRunLog.status.in_(["pending", "in_progress", "awaiting_approval"])
                 ).count()
-            
+
             # Total Intelligence Reports from DB history count
             status_data["total_reports"] = session.query(ResearchRunLog).filter(
                 ResearchRunLog.status == "completed"
@@ -184,7 +184,7 @@ def render_floating_panel():
             if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
                 st.session_state.current_page = "full_strategy"
                 st.rerun()
-        
+
         st.write("")
         col_left, col_mid, col_right = st.columns([1, 2, 1])
         with col_mid:

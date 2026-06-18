@@ -443,7 +443,7 @@ def test_critic_node_pass_verdict(base_state, mock_llm):
         "keyword_findings": [{"keyword": "kw1"}, {"keyword": "kw2"}, {"keyword": "kw3"}]
     }
     state["confidence_scores"] = {"keyword_research": 0.8}
-    
+
     mock_response = MagicMock()
     mock_response.content = json.dumps({
         "weak_claims": [],
@@ -455,7 +455,7 @@ def test_critic_node_pass_verdict(base_state, mock_llm):
     mock_llm.invoke.return_value = mock_response
 
     result = critic_node(state)
-    
+
     assert result["critic_feedback"]["overall_verdict"] == "PASS"
     assert result["critic_feedback"]["critic_score"] == 0.9
     assert result["execution_metadata"]["critic_retries"] == 1
@@ -481,7 +481,7 @@ def test_critic_node_revise_verdict(base_state, mock_llm):
     mock_llm.invoke.return_value = mock_response
 
     result = critic_node(state)
-    
+
     assert result["critic_feedback"]["overall_verdict"] == "REVISE"
     assert result["critic_feedback"]["critic_score"] == 0.3
     assert len(result["critic_feedback"]["issues"]) == 1
@@ -493,7 +493,7 @@ def test_critic_node_llm_failure_defaults_to_pass(base_state, mock_llm):
     mock_llm.invoke.side_effect = Exception("LLM connection error")
 
     result = critic_node(state)
-    
+
     assert result["critic_feedback"]["overall_verdict"] == "PASS"
     assert result["critic_feedback"]["critic_score"] == 0.5
     assert "Critic evaluation failed" in result["critic_feedback"]["issues"][0]
@@ -540,7 +540,7 @@ def test_quality_gate_passes_on_good_data(base_state):
 
     result = quality_gate_node(state)
     summary = result["execution_metadata"]["data_quality_summary"]
-    
+
     assert summary["gate_passed"] is True
     assert len(summary["data_limitations"]) == 0
 
@@ -555,7 +555,7 @@ def test_quality_gate_fails_on_low_confidence(base_state):
 
     result = quality_gate_node(state)
     summary = result["execution_metadata"]["data_quality_summary"]
-    
+
     assert summary["gate_passed"] is False
     assert any("confidence" in lim for lim in summary["data_limitations"])
     assert len(result["errors"]) > 0
@@ -571,7 +571,7 @@ def test_quality_gate_fails_on_few_keywords(base_state):
 
     result = quality_gate_node(state)
     summary = result["execution_metadata"]["data_quality_summary"]
-    
+
     assert summary["gate_passed"] is False
     assert any("keywords found" in lim for lim in summary["data_limitations"])
 
@@ -586,7 +586,7 @@ def test_route_after_quality_gate_retries_once():
         }
     }
     assert route_after_quality_gate(state) == "research_agent_node"
-    
+
     # Retry budget exhausted
     state = {
         "execution_metadata": {
@@ -595,7 +595,7 @@ def test_route_after_quality_gate_retries_once():
         }
     }
     assert route_after_quality_gate(state) == "critic_node"
-    
+
     # Gate passed
     state = {
         "execution_metadata": {

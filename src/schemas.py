@@ -4,7 +4,7 @@ These represent data contracts only (no business logic/agent execution)
 used to structure validation, representation, and serialization of pipeline stages.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from src.data_quality import DataSource
@@ -85,7 +85,7 @@ class IntelligenceFindings(BaseModel):
     topic_clusters: Optional[Dict[str, Any]] = Field(None, description="Aggregated topic cluster analysis raw data")
     trend_forecast: Optional[Dict[str, Any]] = Field(None, description="Aggregated trends forecasting raw data")
     serp_analysis: Optional[Dict[str, Any]] = Field(None, description="Aggregated SERP analysis raw data")
-    generated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp when findings were generated")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="Timestamp when findings were generated")
 
 
 class StrategyReport(BaseModel):
@@ -97,7 +97,7 @@ class StrategyReport(BaseModel):
     findings: IntelligenceFindings = Field(..., description="Underlying search intelligence findings data container")
     top_opportunities: List[KeywordFinding] = Field(..., description="Curated high-scoring keyword opportunities")
     recommendations: List[str] = Field(..., description="List of actionable strategic recommendations")
-    generated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of report generation")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="Timestamp of report generation")
     version: str = Field("phase2c", description="Schema/platform version")
 
 
@@ -111,7 +111,7 @@ class ResearchPlan(BaseModel):
         ..., description="List of components/modules requested for analysis"
     )
     max_keywords: int = Field(..., description="Maximum limit of keyword suggestions to generate")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of plan creation")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="Timestamp of plan creation")
 
     @field_validator("max_keywords")
     @classmethod
@@ -375,7 +375,7 @@ class ReportDiff(BaseModel):
 
     seed_keyword: str = Field(..., description="The monitored seed keyword")
     generated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When this diff was computed"
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="When this diff was computed"
     )
     keyword_deltas: List[KeywordDelta] = Field(
         default_factory=list, description="Per-keyword score changes"
@@ -406,7 +406,7 @@ class EvalResult(BaseModel):
         default_factory=dict, description="Per-dimension breakdown scores"
     )
     evaluated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Evaluation timestamp"
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="Evaluation timestamp"
     )
 
 

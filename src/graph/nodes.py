@@ -847,7 +847,7 @@ def critic_node(state: AgentState) -> AgentState:
     confidence = state.get("confidence_scores") or {}
     metadata = state.get("execution_metadata") or {}
     errors = list(state.get("errors", []))
-    
+
     critic_retries = metadata.get("critic_retries", 0)
 
     llm = _get_llm()
@@ -906,7 +906,7 @@ def route_after_critic(state: AgentState) -> str:
     feedback = state.get("critic_feedback") or {}
     metadata = state.get("execution_metadata") or {}
     critic_retries = metadata.get("critic_retries", 0)
-    
+
     verdict = feedback.get("overall_verdict", "PASS")
     if verdict == "REVISE" and critic_retries <= 1:
         logger.info("critic_node: REVISE verdict — routing back to research_agent_node")
@@ -923,11 +923,11 @@ def quality_gate_node(state: AgentState) -> AgentState:
     Deterministic quality gate. Enforces minimum data standards before
     strategy synthesis. If standards are not met and retry budget remains,
     routes back to research_agent_node.
-    
+
     Gate criteria:
     - keyword_research confidence >= QUALITY_GATE_MIN_KEYWORD_CONFIDENCE
     - at least QUALITY_GATE_MIN_KEYWORDS keyword findings
-    
+
     Adds data_quality_summary to state for use by strategy_agent_node.
     """
     logger.info("quality_gate_node: evaluating data quality")
@@ -935,15 +935,15 @@ def quality_gate_node(state: AgentState) -> AgentState:
     findings = state.get("intelligence_findings") or {}
     metadata = state.get("execution_metadata") or {}
     errors = list(state.get("errors", []))
-    
+
     keyword_confidence = confidence.get("keyword_research", 0.0)
     keyword_count = len(findings.get("keyword_findings", []))
-    
+
     gate_passed = (
         keyword_confidence >= QUALITY_GATE_MIN_KEYWORD_CONFIDENCE
         and keyword_count >= QUALITY_GATE_MIN_KEYWORDS
     )
-    
+
     data_limitations: list[str] = []
     if keyword_confidence < QUALITY_GATE_MIN_KEYWORD_CONFIDENCE:
         data_limitations.append(
@@ -955,26 +955,26 @@ def quality_gate_node(state: AgentState) -> AgentState:
             f"Only {keyword_count} keywords found. "
             "Strategy recommendations are based on limited data."
         )
-    
+
     # Add data limitations from low-confidence tools
     for tool, score in confidence.items():
         if tool != "keyword_research" and score < 0.4:
             data_limitations.append(
                 f"{tool.replace('_', ' ').title()} returned low-confidence data ({score:.0%})."
             )
-    
+
     data_quality_summary = {
         "gate_passed": gate_passed,
         "keyword_confidence": keyword_confidence,
         "keyword_count": keyword_count,
         "data_limitations": data_limitations,
     }
-    
+
     logger.info(
         f"quality_gate_node: gate_passed={gate_passed}, "
         f"keyword_confidence={keyword_confidence:.2f}, keyword_count={keyword_count}"
     )
-    
+
     return {
         **state,
         "execution_metadata": {
@@ -991,15 +991,15 @@ def route_after_quality_gate(state: AgentState) -> str:
     metadata = state.get("execution_metadata") or {}
     summary = metadata.get("data_quality_summary", {})
     gate_passed = summary.get("gate_passed", True)
-    
+
     # Count how many times we've been through the gate
     gate_retries = metadata.get("gate_retries", 0)
-    
+
     if not gate_passed and gate_retries < 1:
         logger.info("quality_gate_node: gate failed — routing back to research_agent_node")
         # Increment retry counter
         metadata["gate_retries"] = gate_retries + 1
         return "research_agent_node"
-    
+
     return "critic_node"
 

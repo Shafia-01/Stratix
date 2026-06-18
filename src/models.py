@@ -10,7 +10,7 @@ Tables:
   eval_results      — LLM-as-judge evaluation scores per run
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime,
@@ -34,7 +34,7 @@ class Keyword(Base):
     difficulty = Column(String(50), nullable=True)
     intent = Column(String(50), nullable=True)
     competitors = Column(Text, nullable=True)  # JSON string
-    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class IntentCache(Base):
@@ -55,7 +55,7 @@ class MonitoringJobModel(Base):
     last_run = Column(DateTime, nullable=True)
     next_run = Column(DateTime, nullable=True)
     status = Column(String(50), nullable=False, default="active")  # active | paused | failed
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class ResearchRunLog(Base):
@@ -68,7 +68,7 @@ class ResearchRunLog(Base):
     status = Column(String(50), nullable=False, default="pending")
     strategy_report = Column(Text, nullable=True)   # JSON string of StrategyReport dict
     confidence_scores = Column(Text, nullable=True)  # JSON string
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     completed_at = Column(DateTime, nullable=True)
 
 
@@ -80,7 +80,7 @@ class ReportDiffModel(Base):
     prev_run_id = Column(String(255), nullable=True)
     curr_run_id = Column(String(255), nullable=True)
     diff_json = Column(Text, nullable=False)   # JSON serialisation of ReportDiff
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class EvalResultModel(Base):
@@ -92,4 +92,4 @@ class EvalResultModel(Base):
     score = Column(Float, nullable=False)
     rationale = Column(Text, nullable=True)
     dimension_scores = Column(Text, nullable=True)   # JSON string
-    evaluated_at = Column(DateTime, default=datetime.utcnow)
+    evaluated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

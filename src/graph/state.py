@@ -56,7 +56,7 @@ class AgentState(TypedDict, total=False):
     # pending | in_progress | awaiting_approval | completed | failed
 
     critic_feedback: Optional[Dict[str, Any]]
-    # Keys: issues (List[str]), weak_claims (List[str]), 
+    # Keys: issues (List[str]), weak_claims (List[str]),
     #       data_gaps (List[str]), overall_verdict (str), critic_score (float)
     critic_retries: int  # default 0, max 1
 

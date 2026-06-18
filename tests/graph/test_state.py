@@ -18,7 +18,7 @@ def test_agent_state_minimal():
 
 
 def test_agent_state_with_plan():
-    from datetime import datetime
+    from datetime import datetime, timezone
     state: AgentState = {
         "seed_keyword": "SEO software",
         "research_plan": {
@@ -26,7 +26,7 @@ def test_agent_state_with_plan():
             "objectives": ["Find keywords", "Analyse SERP"],
             "requested_modules": ["keyword_discovery", "serp_analysis"],
             "max_keywords": 10,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         },
         "status": "awaiting_approval",
         "awaiting_human": True,

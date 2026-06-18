@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import ValidationError
 from src.schemas import (
     CompetitorEntry,
@@ -98,7 +98,7 @@ def test_research_plan_validation():
         "objectives": ["find keywords", "analyze competition"],
         "requested_modules": ["keyword_discovery", "topic_clustering"],
         "max_keywords": 10,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     }
     plan = ResearchPlan(**data)
     assert plan.max_keywords == 10
