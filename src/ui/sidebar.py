@@ -9,7 +9,7 @@ def render_sidebar():
     st.sidebar.markdown("""
     <div class="sidebar-header">
         <h2>Autonomous Multi-Agent Market Intelligence Platform</h2>
-        <p style="font-size: 0.75rem; color: #888;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
+        <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
     </div>
     """, unsafe_allow_html=True)
     st.sidebar.markdown("### 🔧 System Status")

@@ -212,18 +212,17 @@ def get_optimized_css():
     }}
     /* Sidebar Header */
     .sidebar-header {{
-        background: linear-gradient(135deg, {colors['primary']} 0%, {colors['primary_hover']} 100%);
-        color: {colors['text_white']};
-        padding: 20px;
-        border-radius: 12px;
+        color: {colors['primary']};
+        padding: 10px 5px;
         margin-bottom: 20px;
         text-align: center;
     }}
     .sidebar-header h2 {{
         font-family: 'Cambria', serif;
-        font-size: 1.5rem;
-        font-weight: 600;
+        font-size: 1.4rem;
+        font-weight: bold;
         margin: 0;
+        color: {colors['primary']};
     }}
     /* Success/Error Messages */
     .stSuccess {{
