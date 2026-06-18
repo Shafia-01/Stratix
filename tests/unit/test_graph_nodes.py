@@ -28,6 +28,10 @@ from src.graph.nodes import (
     route_after_research,
     route_after_strategy,
     strategy_agent_node,
+    critic_node,
+    quality_gate_node,
+    route_after_critic,
+    route_after_quality_gate,
 )
 from src.graph.state import AgentState
 
@@ -425,3 +429,179 @@ def test_route_after_strategy_regenerate_at_limit():
         "execution_metadata": {"strategy_retries": 1},
     }
     assert route_after_strategy(state) == "persist_node"
+
+
+# ---------------------------------------------------------------------------
+# Critic Node Tests
+# ---------------------------------------------------------------------------
+
+def test_critic_node_pass_verdict(base_state, mock_llm):
+    """If the LLM returns PASS verdict, critic_node should store the feedback in state."""
+    state = dict(base_state)
+    state["intelligence_findings"] = {
+        "seed_keyword": "test",
+        "keyword_findings": [{"keyword": "kw1"}, {"keyword": "kw2"}, {"keyword": "kw3"}]
+    }
+    state["confidence_scores"] = {"keyword_research": 0.8}
+    
+    mock_response = MagicMock()
+    mock_response.content = json.dumps({
+        "weak_claims": [],
+        "data_gaps": [],
+        "issues": [],
+        "overall_verdict": "PASS",
+        "critic_score": 0.9
+    })
+    mock_llm.invoke.return_value = mock_response
+
+    result = critic_node(state)
+    
+    assert result["critic_feedback"]["overall_verdict"] == "PASS"
+    assert result["critic_feedback"]["critic_score"] == 0.9
+    assert result["execution_metadata"]["critic_retries"] == 1
+
+
+def test_critic_node_revise_verdict(base_state, mock_llm):
+    """If LLM returns REVISE verdict, critic_node stores feedback."""
+    state = dict(base_state)
+    state["intelligence_findings"] = {
+        "seed_keyword": "test",
+        "keyword_findings": [{"keyword": "kw1"}]
+    }
+    state["confidence_scores"] = {"keyword_research": 0.2}
+
+    mock_response = MagicMock()
+    mock_response.content = json.dumps({
+        "weak_claims": ["Low keyword count"],
+        "data_gaps": ["keyword_research confidence is low"],
+        "issues": ["Incomplete findings"],
+        "overall_verdict": "REVISE",
+        "critic_score": 0.3
+    })
+    mock_llm.invoke.return_value = mock_response
+
+    result = critic_node(state)
+    
+    assert result["critic_feedback"]["overall_verdict"] == "REVISE"
+    assert result["critic_feedback"]["critic_score"] == 0.3
+    assert len(result["critic_feedback"]["issues"]) == 1
+
+
+def test_critic_node_llm_failure_defaults_to_pass(base_state, mock_llm):
+    """If LLM invoke raises Exception, critic_node defaults to PASS without state corruption."""
+    state = dict(base_state)
+    mock_llm.invoke.side_effect = Exception("LLM connection error")
+
+    result = critic_node(state)
+    
+    assert result["critic_feedback"]["overall_verdict"] == "PASS"
+    assert result["critic_feedback"]["critic_score"] == 0.5
+    assert "Critic evaluation failed" in result["critic_feedback"]["issues"][0]
+
+
+def test_route_after_critic_pass():
+    """overall_verdict=PASS should route to strategy_agent_node."""
+    state: AgentState = {
+        "critic_feedback": {"overall_verdict": "PASS"},
+        "execution_metadata": {"critic_retries": 1}
+    }
+    assert route_after_critic(state) == "strategy_agent_node"
+
+
+def test_route_after_critic_revise_with_retries():
+    """overall_verdict=REVISE and retries <= 1 should route to research_agent_node."""
+    state: AgentState = {
+        "critic_feedback": {"overall_verdict": "REVISE"},
+        "execution_metadata": {"critic_retries": 1}
+    }
+    assert route_after_critic(state) == "research_agent_node"
+
+
+def test_route_after_critic_revise_max_retries():
+    """overall_verdict=REVISE and retries > 1 should route to strategy_agent_node."""
+    state: AgentState = {
+        "critic_feedback": {"overall_verdict": "REVISE"},
+        "execution_metadata": {"critic_retries": 2}
+    }
+    assert route_after_critic(state) == "strategy_agent_node"
+
+
+# ---------------------------------------------------------------------------
+# Quality Gate Node Tests
+# ---------------------------------------------------------------------------
+
+def test_quality_gate_passes_on_good_data(base_state):
+    """If keyword_research confidence >= 0.3 and count >= 3, gate passes."""
+    state = dict(base_state)
+    state["confidence_scores"] = {"keyword_research": 0.8, "serp_analysis": 0.9}
+    state["intelligence_findings"] = {
+        "keyword_findings": [{"keyword": "kw1"}, {"keyword": "kw2"}, {"keyword": "kw3"}]
+    }
+
+    result = quality_gate_node(state)
+    summary = result["execution_metadata"]["data_quality_summary"]
+    
+    assert summary["gate_passed"] is True
+    assert len(summary["data_limitations"]) == 0
+
+
+def test_quality_gate_fails_on_low_confidence(base_state):
+    """If keyword_research confidence < 0.3, gate fails and limitations populated."""
+    state = dict(base_state)
+    state["confidence_scores"] = {"keyword_research": 0.2}
+    state["intelligence_findings"] = {
+        "keyword_findings": [{"keyword": "kw1"}, {"keyword": "kw2"}, {"keyword": "kw3"}]
+    }
+
+    result = quality_gate_node(state)
+    summary = result["execution_metadata"]["data_quality_summary"]
+    
+    assert summary["gate_passed"] is False
+    assert any("confidence" in lim for lim in summary["data_limitations"])
+    assert len(result["errors"]) > 0
+
+
+def test_quality_gate_fails_on_few_keywords(base_state):
+    """If keyword findings count < 3, gate fails."""
+    state = dict(base_state)
+    state["confidence_scores"] = {"keyword_research": 0.8}
+    state["intelligence_findings"] = {
+        "keyword_findings": [{"keyword": "kw1"}]
+    }
+
+    result = quality_gate_node(state)
+    summary = result["execution_metadata"]["data_quality_summary"]
+    
+    assert summary["gate_passed"] is False
+    assert any("keywords found" in lim for lim in summary["data_limitations"])
+
+
+def test_route_after_quality_gate_retries_once():
+    """If gate fails, route back to research if gate_retries == 0, else route to critic."""
+    # Retry budget remains
+    state: AgentState = {
+        "execution_metadata": {
+            "data_quality_summary": {"gate_passed": False},
+            "gate_retries": 0
+        }
+    }
+    assert route_after_quality_gate(state) == "research_agent_node"
+    
+    # Retry budget exhausted
+    state = {
+        "execution_metadata": {
+            "data_quality_summary": {"gate_passed": False},
+            "gate_retries": 1
+        }
+    }
+    assert route_after_quality_gate(state) == "critic_node"
+    
+    # Gate passed
+    state = {
+        "execution_metadata": {
+            "data_quality_summary": {"gate_passed": True},
+            "gate_retries": 0
+        }
+    }
+    assert route_after_quality_gate(state) == "critic_node"
+

@@ -502,6 +502,8 @@ Rules:
    Be specific — reference actual keywords, clusters, or competitor data from the findings.
 4. If confidence for a tool is below 0.4, note the data limitation in executive_summary.
 5. If human_feedback.notes is provided, incorporate those notes into the recommendations.
+6. critic_feedback is provided in the context. Address each issue and weak_claim in the executive_summary or recommendations. Do not ignore them.
+7. data_quality_summary.data_limitations contains a list of known data quality issues. Each limitation MUST be acknowledged in the executive_summary. Do not present low-confidence data as if it were high-confidence.
 
 Return ONLY this JSON structure:
 {
@@ -546,6 +548,8 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         "confidence_scores": confidence,
         "research_objectives": plan.get("objectives", []),
         "human_notes": human_feedback.get("notes", ""),
+        "critic_feedback": state.get("critic_feedback") or {},
+        "data_quality_summary": (state.get("execution_metadata") or {}).get("data_quality_summary", {}),
     }
 
     messages = [
@@ -780,3 +784,204 @@ def route_after_strategy(state: AgentState) -> str:
         if meta.get("strategy_retries", 0) < 1:
             return "strategy_agent_node"
     return "persist_node"
+
+
+# ---------------------------------------------------------------------------
+# CRITIC NODE & QUALITY GATE NODE
+# ---------------------------------------------------------------------------
+
+CRITIC_SYSTEM_PROMPT = """
+You are the Critic Agent for Keylytics, an adversarial quality reviewer for SEO market intelligence findings.
+
+Your job is to challenge the research findings BEFORE a strategy report is written.
+You receive intelligence findings and confidence scores.
+
+Identify:
+1. weak_claims — statements in the keyword findings that are not supported by high-confidence data
+2. data_gaps — modules that returned low confidence (<0.4) but whose results are being used as if reliable
+3. issues — structural problems (too few keywords, no competitor data, missing trends)
+4. overall_verdict — "PASS" if findings are sufficient for a quality report, "REVISE" if critical gaps exist
+
+Be specific. Reference actual keywords, confidence scores, and tool names.
+
+Scoring:
+- overall_verdict = "PASS" if: keyword_research confidence >= 0.4 AND at least 3 keywords found
+- overall_verdict = "REVISE" otherwise
+
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "weak_claims": ["<claim>"],
+  "data_gaps": ["<gap>"],
+  "issues": ["<issue>"],
+  "overall_verdict": "PASS" or "REVISE",
+  "critic_score": <float 0.0-1.0>
+}
+"""
+
+def critic_node(state: AgentState) -> AgentState:
+    """
+    Adversarial critic that reviews intelligence findings before strategy synthesis.
+    Returns critic_feedback to state. If verdict is REVISE and retries < 1,
+    route_after_critic will send back to research_agent_node for targeted retry.
+    """
+    logger.info("critic_node: reviewing intelligence findings")
+    findings = state.get("intelligence_findings") or {}
+    confidence = state.get("confidence_scores") or {}
+    metadata = state.get("execution_metadata") or {}
+    errors = list(state.get("errors", []))
+    
+    critic_retries = metadata.get("critic_retries", 0)
+
+    llm = _get_llm()
+    context = {
+        "intelligence_findings_summary": {
+            "keyword_count": len(findings.get("keyword_findings", [])),
+            "has_competitor_gap": findings.get("competitor_gap") is not None,
+            "has_serp_analysis": findings.get("serp_analysis") is not None,
+            "has_trend_forecast": findings.get("trend_forecast") is not None,
+            "has_topic_clusters": findings.get("topic_clusters") is not None,
+        },
+        "confidence_scores": confidence,
+        "errors_so_far": errors,
+    }
+
+    messages = [
+        SystemMessage(content=CRITIC_SYSTEM_PROMPT),
+        HumanMessage(content=f"Review these findings:\n{json.dumps(context, indent=2)}"),
+    ]
+
+    critic_feedback: Dict[str, Any] = {}
+    try:
+        response = llm.invoke(messages)
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        critic_feedback = json.loads(raw.strip())
+        logger.info(
+            f"critic_node: verdict={critic_feedback.get('overall_verdict')}, "
+            f"score={critic_feedback.get('critic_score')}"
+        )
+    except Exception as e:
+        logger.warning(f"critic_node: failed — {e}; defaulting to PASS")
+        critic_feedback = {
+            "weak_claims": [],
+            "data_gaps": [],
+            "issues": [f"Critic evaluation failed: {str(e)}"],
+            "overall_verdict": "PASS",
+            "critic_score": 0.5,
+        }
+
+    metadata["critic_retries"] = critic_retries + 1
+
+    return {
+        **state,
+        "critic_feedback": critic_feedback,
+        "execution_metadata": metadata,
+        "human_feedback": None,
+    }
+
+
+def route_after_critic(state: AgentState) -> str:
+    """Route based on critic verdict. REVISE with retries available → back to research."""
+    feedback = state.get("critic_feedback") or {}
+    metadata = state.get("execution_metadata") or {}
+    critic_retries = metadata.get("critic_retries", 0)
+    
+    verdict = feedback.get("overall_verdict", "PASS")
+    if verdict == "REVISE" and critic_retries <= 1:
+        logger.info("critic_node: REVISE verdict — routing back to research_agent_node")
+        return "research_agent_node"
+    return "strategy_agent_node"
+
+
+# Configurable thresholds
+QUALITY_GATE_MIN_KEYWORD_CONFIDENCE = 0.3
+QUALITY_GATE_MIN_KEYWORDS = 3
+
+def quality_gate_node(state: AgentState) -> AgentState:
+    """
+    Deterministic quality gate. Enforces minimum data standards before
+    strategy synthesis. If standards are not met and retry budget remains,
+    routes back to research_agent_node.
+    
+    Gate criteria:
+    - keyword_research confidence >= QUALITY_GATE_MIN_KEYWORD_CONFIDENCE
+    - at least QUALITY_GATE_MIN_KEYWORDS keyword findings
+    
+    Adds data_quality_summary to state for use by strategy_agent_node.
+    """
+    logger.info("quality_gate_node: evaluating data quality")
+    confidence = state.get("confidence_scores") or {}
+    findings = state.get("intelligence_findings") or {}
+    metadata = state.get("execution_metadata") or {}
+    errors = list(state.get("errors", []))
+    
+    keyword_confidence = confidence.get("keyword_research", 0.0)
+    keyword_count = len(findings.get("keyword_findings", []))
+    
+    gate_passed = (
+        keyword_confidence >= QUALITY_GATE_MIN_KEYWORD_CONFIDENCE
+        and keyword_count >= QUALITY_GATE_MIN_KEYWORDS
+    )
+    
+    data_limitations: list[str] = []
+    if keyword_confidence < QUALITY_GATE_MIN_KEYWORD_CONFIDENCE:
+        data_limitations.append(
+            f"Keyword research confidence is low ({keyword_confidence:.0%}). "
+            "Results may not reflect accurate search volumes."
+        )
+    if keyword_count < QUALITY_GATE_MIN_KEYWORDS:
+        data_limitations.append(
+            f"Only {keyword_count} keywords found. "
+            "Strategy recommendations are based on limited data."
+        )
+    
+    # Add data limitations from low-confidence tools
+    for tool, score in confidence.items():
+        if tool != "keyword_research" and score < 0.4:
+            data_limitations.append(
+                f"{tool.replace('_', ' ').title()} returned low-confidence data ({score:.0%})."
+            )
+    
+    data_quality_summary = {
+        "gate_passed": gate_passed,
+        "keyword_confidence": keyword_confidence,
+        "keyword_count": keyword_count,
+        "data_limitations": data_limitations,
+    }
+    
+    logger.info(
+        f"quality_gate_node: gate_passed={gate_passed}, "
+        f"keyword_confidence={keyword_confidence:.2f}, keyword_count={keyword_count}"
+    )
+    
+    return {
+        **state,
+        "execution_metadata": {
+            **metadata,
+            "data_quality_summary": data_quality_summary,
+        },
+        "errors": errors + (data_limitations if not gate_passed else []),
+        "human_feedback": None,
+    }
+
+
+def route_after_quality_gate(state: AgentState) -> str:
+    """Gate failed with retry budget → back to research. Gate passed → critic."""
+    metadata = state.get("execution_metadata") or {}
+    summary = metadata.get("data_quality_summary", {})
+    gate_passed = summary.get("gate_passed", True)
+    
+    # Count how many times we've been through the gate
+    gate_retries = metadata.get("gate_retries", 0)
+    
+    if not gate_passed and gate_retries < 1:
+        logger.info("quality_gate_node: gate failed — routing back to research_agent_node")
+        # Increment retry counter
+        metadata["gate_retries"] = gate_retries + 1
+        return "research_agent_node"
+    
+    return "critic_node"
+

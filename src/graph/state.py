@@ -55,6 +55,11 @@ class AgentState(TypedDict, total=False):
     status: str
     # pending | in_progress | awaiting_approval | completed | failed
 
+    critic_feedback: Optional[Dict[str, Any]]
+    # Keys: issues (List[str]), weak_claims (List[str]), 
+    #       data_gaps (List[str]), overall_verdict (str), critic_score (float)
+    critic_retries: int  # default 0, max 1
+
     errors: List[str]
     # Non-fatal errors accumulated across nodes; graph continues unless
     # keyword_research completely fails

@@ -409,3 +409,25 @@ class EvalResult(BaseModel):
         default_factory=datetime.utcnow, description="Evaluation timestamp"
     )
 
+
+class TimelineEvent(BaseModel):
+    event_type: str  # "node_start" | "node_end" | "tool_call" | "hitl_interrupt" | "error"
+    node_name: str
+    timestamp: str
+    duration_ms: Optional[float] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    # For tool_call events: tool_name, success, result_keys
+    # For hitl_interrupt: checkpoint_name
+    # For errors: error_message
+
+class ExecutionTimeline(BaseModel):
+    run_id: str
+    seed_keyword: str
+    status: str
+    total_duration_ms: Optional[float] = None
+    events: List[TimelineEvent]
+    confidence_scores: Dict[str, float] = Field(default_factory=dict)
+    critic_verdict: Optional[str] = None
+    eval_scores: Dict[str, float] = Field(default_factory=dict)
+
+

@@ -22,10 +22,14 @@ from src.graph.nodes import (
     planner_node,
     research_agent_node,
     aggregator_node,
+    quality_gate_node,
+    critic_node,
     strategy_agent_node,
     persist_node,
     route_after_plan,
     route_after_research,
+    route_after_quality_gate,
+    route_after_critic,
     route_after_strategy,
 )
 from src.logger_config import get_logger
@@ -43,6 +47,8 @@ def build_graph():
     builder.add_node("planner_node", planner_node)
     builder.add_node("research_agent_node", research_agent_node)
     builder.add_node("aggregator_node", aggregator_node)
+    builder.add_node("quality_gate_node", quality_gate_node)
+    builder.add_node("critic_node", critic_node)
     builder.add_node("strategy_agent_node", strategy_agent_node)
     builder.add_node("persist_node", persist_node)
 
@@ -68,7 +74,25 @@ def build_graph():
         },
     )
 
-    builder.add_edge("aggregator_node", "strategy_agent_node")
+    builder.add_edge("aggregator_node", "quality_gate_node")
+
+    builder.add_conditional_edges(
+        "quality_gate_node",
+        route_after_quality_gate,
+        {
+            "research_agent_node": "research_agent_node",
+            "critic_node": "critic_node",
+        },
+    )
+
+    builder.add_conditional_edges(
+        "critic_node",
+        route_after_critic,
+        {
+            "research_agent_node": "research_agent_node",
+            "strategy_agent_node": "strategy_agent_node",
+        },
+    )
 
     builder.add_conditional_edges(
         "strategy_agent_node",

@@ -33,6 +33,7 @@ from api.routes import agent as agent_routes
 from api.routes import monitor as monitor_routes
 from api.routes import evals as evals_routes
 from api.routes import observability as observability_routes
+from api.routes import timeline as timeline_routes
 
 logger = get_logger(__name__)
 
@@ -148,6 +149,7 @@ app.include_router(agent_routes.router, dependencies=[Depends(verify_api_key)]) 
 app.include_router(monitor_routes.router, dependencies=[Depends(verify_api_key)])                            # /monitor/*
 app.include_router(evals_routes.router, dependencies=[Depends(verify_api_key)])                              # /evals/*
 app.include_router(observability_routes.router)                      # /metrics, /health/detailed
+app.include_router(timeline_routes.router, dependencies=[Depends(verify_api_key)])
 
 logger.info("Keylytics FastAPI app initialised.")
 
