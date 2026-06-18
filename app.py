@@ -10,7 +10,7 @@ from src.logger_config import get_logger
 logger = get_logger("app")
 
 # Set up page configurations
-st.set_page_config(page_title="Stratix AI — Market Intelligence Platform", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Stratix — Market Intelligence Platform", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
 
 # Lazy imports for heavier libraries
 def lazy_imports():

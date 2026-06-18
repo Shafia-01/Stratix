@@ -8,7 +8,7 @@ from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
+DB_PATH = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
 
 _engine = None
 

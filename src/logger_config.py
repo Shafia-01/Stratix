@@ -10,7 +10,7 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
     # Configure the level from env var or default to INFO
-    log_level_str = os.getenv("KEYLYTICS_LOG_LEVEL", "INFO").upper()
+    log_level_str = (os.getenv("STRATIX_LOG_LEVEL") or os.getenv("KEYLYTICS_LOG_LEVEL", "INFO")).upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
     logger.setLevel(log_level)
 
@@ -38,7 +38,7 @@ def get_logger(name: str) -> logging.Logger:
     logger.addHandler(console_handler)
 
     # Optional Rotating File Handler
-    log_file = os.getenv("KEYLYTICS_LOG_FILE")
+    log_file = os.getenv("STRATIX_LOG_FILE") or os.getenv("KEYLYTICS_LOG_FILE")
     if log_file:
         try:
             # Ensure the directory exists

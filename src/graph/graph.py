@@ -109,12 +109,12 @@ def build_graph():
     import sqlite3
     from langgraph.checkpoint.sqlite import SqliteSaver
     import os
-    DB_PATH = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
+    DB_PATH = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     checkpointer = SqliteSaver(conn)
     checkpointer.setup()
     graph = builder.compile(checkpointer=checkpointer)
-    logger.info("Keylytics research graph compiled successfully")
+    logger.info("Stratix research graph compiled successfully")
     return graph
 
 

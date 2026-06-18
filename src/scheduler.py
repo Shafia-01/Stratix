@@ -58,7 +58,7 @@ class KeylyticsScheduler:
             return
 
         import os
-        db_path = os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
+        db_path = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
 
         jobstores = {
             "default": SQLAlchemyJobStore(url=f"sqlite:///{db_path}"),
@@ -426,4 +426,5 @@ class KeylyticsScheduler:
 
 
 # Alias for backward compatibility and rebranding
+StratixScheduler = KeylyticsScheduler
 StratixAIScheduler = KeylyticsScheduler

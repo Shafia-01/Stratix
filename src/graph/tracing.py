@@ -27,7 +27,7 @@ def get_run_config(seed_keyword: str, run_id: str) -> dict:
             "seed_keyword": seed_keyword,
             "run_id": run_id,
             "version": "phase3",
-            "environment": os.getenv("KEYLYTICS_ENV", "development"),
+            "environment": os.getenv("STRATIX_ENV") or os.getenv("KEYLYTICS_ENV", "development"),
         },
     }
 

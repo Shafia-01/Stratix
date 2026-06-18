@@ -40,7 +40,7 @@ def render_agent_timeline():
         with st.spinner("Reconstructing execution timeline..."):
             try:
                 headers = {}
-                api_key = os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
+                api_key = os.getenv("STRATIX_API_KEY") or os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
                 if api_key:
                     headers["X-API-Key"] = api_key
                 resp = requests.get(f"{API_BASE}/timeline/{run_id}", headers=headers, timeout=30)
