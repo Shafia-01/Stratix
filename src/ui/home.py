@@ -19,8 +19,8 @@ def render_home_overview():
                 <div class="app-logo" style="margin-bottom: -35px; margin-top: -150px;" >
                     <img src="data:image/png;base64,{logo_base64}" width="150" style="vertical-align:middle; margin:0; padding:0;" />
                 </div>
-                <h1 class="app-title">KeyLytics</h1>
-                <p class="app-subtitle">Autonomous Multi-Agent Market Intelligence Platform</p>
+                <h1 class="app-title">Stratix AI</h1>
+                <p class="app-subtitle">Where Autonomous Agents Turn Market Signals into Strategy</p>
             </div>
         </div>
     </div>
@@ -63,7 +63,7 @@ def render_home_overview():
         if api_reachable:
             try:
                 headers = {}
-                api_key = os.getenv("KEYLYTICS_API_KEY")
+                api_key = os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
                 if api_key:
                     headers["X-API-Key"] = api_key
                 jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=headers, timeout=3)

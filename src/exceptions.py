@@ -1,13 +1,19 @@
-class KeylyticsError(Exception):
-    """Base exception class for all Keylytics errors."""
+class StratixAIError(Exception):
+    """Base exception class for all Stratix AI errors."""
     pass
 
 
-class KeylyticsAPIError(KeylyticsError):
+class StratixAIAPIError(StratixAIError):
     """Exception raised for errors in external API calls (e.g. SerpApi, DataForSEO, Gemini, Pytrends)."""
     pass
 
 
-class KeylyticsDataError(KeylyticsError):
+class StratixAIDataError(StratixAIError):
     """Exception raised for data processing, validation, or consistency errors."""
     pass
+
+
+# Backward compatibility aliases
+KeylyticsError = StratixAIError
+KeylyticsAPIError = StratixAIAPIError
+KeylyticsDataError = StratixAIDataError

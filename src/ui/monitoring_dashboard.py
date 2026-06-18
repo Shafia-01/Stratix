@@ -8,7 +8,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 def _get_headers() -> dict:
     headers = {}
-    api_key = os.getenv("KEYLYTICS_API_KEY")
+    api_key = os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
     if api_key:
         headers["X-API-Key"] = api_key
     return headers

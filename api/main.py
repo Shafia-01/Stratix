@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from api.dependencies import verify_api_key
 
 from src.db_client import connect_db
-from src.exceptions import KeylyticsAPIError, KeylyticsDataError
+from src.exceptions import StratixAIAPIError, StratixAIDataError
 from src.security_utils import redact_api_keys
 from src.logger_config import get_logger
 
@@ -43,7 +43,7 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Initialise DB, warm compiled graph, and start scheduler before first request."""
-    logger.info("Keylytics API starting up — initialising database …")
+    logger.info("Stratix AI API starting up — initialising database …")
     try:
         connect_db()
         logger.info("Database connection established and schema verified.")
@@ -61,12 +61,12 @@ async def lifespan(application: FastAPI):
     # Start keyword monitoring scheduler
     _scheduler = None
     try:
-        from src.scheduler import KeylyticsScheduler
+        from src.scheduler import StratixAIScheduler
         from src.graph.graph import get_compiled_graph as _gcg
-        _scheduler = KeylyticsScheduler(graph_fn=_gcg)
+        _scheduler = StratixAIScheduler(graph_fn=_gcg)
         _scheduler.start()
         application.state.scheduler = _scheduler
-        logger.info("KeylyticsScheduler started.")
+        logger.info("StratixAIScheduler started.")
     except Exception as exc:
         logger.error(f"Scheduler startup failed (non-fatal): {exc}", exc_info=True)
 
@@ -76,14 +76,14 @@ async def lifespan(application: FastAPI):
     if _scheduler is not None:
         try:
             _scheduler.shutdown()
-            logger.info("KeylyticsScheduler shut down.")
+            logger.info("StratixAIScheduler shut down.")
         except Exception as exc:
             logger.error(f"Scheduler shutdown error: {exc}", exc_info=True)
 
 
 app = FastAPI(
-    title="Keylytics API",
-    description="HTTP API surface for the Keylytics SEO research pipeline and agent tools.",
+    title="Stratix AI API",
+    description="HTTP API surface for the Stratix AI SEO research pipeline and agent tools.",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -118,17 +118,17 @@ async def validation_error_handler(request: Request, exc: ValidationError) -> JS
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 
-@app.exception_handler(KeylyticsAPIError)
-async def keylytics_api_error_handler(request: Request, exc: KeylyticsAPIError) -> JSONResponse:
+@app.exception_handler(StratixAIAPIError)
+async def stratix_ai_api_error_handler(request: Request, exc: StratixAIAPIError) -> JSONResponse:
     msg = redact_api_keys(str(exc))
-    logger.error(f"KeylyticsAPIError on {request.url}: {msg}")
+    logger.error(f"StratixAIAPIError on {request.url}: {msg}")
     return JSONResponse(status_code=502, content={"detail": msg})
 
 
-@app.exception_handler(KeylyticsDataError)
-async def keylytics_data_error_handler(request: Request, exc: KeylyticsDataError) -> JSONResponse:
+@app.exception_handler(StratixAIDataError)
+async def stratix_ai_data_error_handler(request: Request, exc: StratixAIDataError) -> JSONResponse:
     msg = redact_api_keys(str(exc))
-    logger.error(f"KeylyticsDataError on {request.url}: {msg}")
+    logger.error(f"StratixAIDataError on {request.url}: {msg}")
     return JSONResponse(status_code=502, content={"detail": msg})
 
 
@@ -151,5 +151,5 @@ app.include_router(evals_routes.router, dependencies=[Depends(verify_api_key)]) 
 app.include_router(observability_routes.router)                      # /metrics, /health/detailed
 app.include_router(timeline_routes.router, dependencies=[Depends(verify_api_key)])
 
-logger.info("Keylytics FastAPI app initialised.")
+logger.info("Stratix AI FastAPI app initialised.")
 

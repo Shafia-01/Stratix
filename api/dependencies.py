@@ -24,10 +24,10 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
     """
-    Validates the X-API-Key header against KEYLYTICS_API_KEY env var.
-    If KEYLYTICS_API_KEY is not set, authentication is disabled (dev mode).
+    Validates the X-API-Key header against STRATIX_AI_API_KEY (or KEYLYTICS_API_KEY) env var.
+    If neither is set, authentication is disabled (dev mode).
     """
-    expected_key = os.getenv("KEYLYTICS_API_KEY", "")
+    expected_key = os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY", "")
     if not expected_key:
         # Auth disabled in development if env var not set
         return "dev-mode"

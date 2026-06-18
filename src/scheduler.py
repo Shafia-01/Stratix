@@ -423,3 +423,7 @@ class KeylyticsScheduler:
                 session.commit()
         except Exception as e:
             logger.error(f"_log_run_complete failed: {e}", exc_info=True)
+
+
+# Alias for backward compatibility and rebranding
+StratixAIScheduler = KeylyticsScheduler
