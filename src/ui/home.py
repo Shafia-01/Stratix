@@ -184,6 +184,10 @@ def render_floating_panel():
             if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
                 st.session_state.current_page = "full_strategy"
                 st.rerun()
+        
+        st.write("")
+        col_left, col_mid, col_right = st.columns([1, 2, 1])
+        with col_mid:
             if st.button("🤖 Agent Mode", key="fp_am", use_container_width=True):
                 st.session_state.current_page = "agent_mode"
                 st.rerun()
