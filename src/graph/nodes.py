@@ -766,6 +766,9 @@ def route_after_research(state: AgentState) -> str:
     kw_result = collected.get("keyword_research", {})
     if isinstance(kw_result, dict) and "error" in kw_result:
         return "__end__"
+    items = kw_result.get("items", []) if isinstance(kw_result, dict) else []
+    if not items:
+        return "__end__"
     return "aggregator_node"
 
 
