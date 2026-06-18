@@ -11,6 +11,7 @@ Provides a conversational-style interface for:
 import requests
 import streamlit as st
 import pandas as pd
+import os
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -18,9 +19,17 @@ logger = get_logger(__name__)
 API_BASE = "http://localhost:8000"
 
 
+def _get_headers() -> dict:
+    headers = {}
+    api_key = os.getenv("KEYLYTICS_API_KEY")
+    if api_key:
+        headers["X-API-Key"] = api_key
+    return headers
+
+
 def _post(endpoint: str, payload: dict) -> dict:
     try:
-        r = requests.post(f"{API_BASE}{endpoint}", json=payload, timeout=120)
+        r = requests.post(f"{API_BASE}{endpoint}", json=payload, headers=_get_headers(), timeout=120)
         r.raise_for_status()
         return r.json()
     except requests.exceptions.ConnectionError:
@@ -31,7 +40,7 @@ def _post(endpoint: str, payload: dict) -> dict:
 
 def _get(endpoint: str) -> dict:
     try:
-        r = requests.get(f"{API_BASE}{endpoint}", timeout=30)
+        r = requests.get(f"{API_BASE}{endpoint}", headers=_get_headers(), timeout=30)
         r.raise_for_status()
         return r.json()
     except requests.exceptions.ConnectionError:

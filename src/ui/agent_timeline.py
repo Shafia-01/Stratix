@@ -39,7 +39,11 @@ def render_agent_timeline():
     if st.button("📊 Load Timeline", type="primary"):
         with st.spinner("Reconstructing execution timeline..."):
             try:
-                resp = requests.get(f"{API_BASE}/timeline/{run_id}", timeout=30)
+                headers = {}
+                api_key = os.getenv("KEYLYTICS_API_KEY")
+                if api_key:
+                    headers["X-API-Key"] = api_key
+                resp = requests.get(f"{API_BASE}/timeline/{run_id}", headers=headers, timeout=30)
                 if resp.status_code == 404:
                     st.error("Run not found. Check the Run ID and try again.")
                     return

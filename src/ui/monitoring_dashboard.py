@@ -6,6 +6,13 @@ import plotly.express as px
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
+def _get_headers() -> dict:
+    headers = {}
+    api_key = os.getenv("KEYLYTICS_API_KEY")
+    if api_key:
+        headers["X-API-Key"] = api_key
+    return headers
+
 def render_monitoring_dashboard():
     st.title("🛡️ Intelligence Monitoring & Quality Analytics Center")
     st.markdown("Track keyword performance shifts over time, manage recurring monitoring schedules, and view LLM-as-judge evaluation analytics.")
@@ -33,7 +40,7 @@ def render_monitoring_dashboard():
                             resp = requests.post(f"{API_BASE_URL}/monitor/add", json={
                                 "seed_keyword": seed_keyword.strip(),
                                 "interval_hours": interval_hours
-                            })
+                            }, headers=_get_headers())
                             if resp.status_code == 200:
                                 st.success(f"Successfully scheduled monitoring for '{seed_keyword}' every {interval_hours} hours!")
                                 st.rerun()
@@ -44,7 +51,7 @@ def render_monitoring_dashboard():
 
         # Fetch and list existing jobs
         try:
-            resp = requests.get(f"{API_BASE_URL}/monitor/jobs")
+            resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=_get_headers())
             if resp.status_code == 200:
                 jobs = resp.json()
                 if jobs:
@@ -59,7 +66,7 @@ def render_monitoring_dashboard():
                                 st.markdown(f"**Next Run:** {job.get('next_run_time') or 'N/A'}")
                             with col4:
                                 if st.button("🗑️", key=f"del_job_{job['job_id']}", help="Delete monitoring job"):
-                                    del_resp = requests.delete(f"{API_BASE_URL}/monitor/{job['job_id']}")
+                                    del_resp = requests.delete(f"{API_BASE_URL}/monitor/{job['job_id']}", headers=_get_headers())
                                     if del_resp.status_code == 200:
                                         st.success("Deleted job")
                                         st.rerun()
@@ -81,7 +88,7 @@ def render_monitoring_dashboard():
 
         # 1. Fetch search history / monitored runs
         try:
-            jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs")
+            jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=_get_headers())
             if jobs_resp.status_code == 200:
                 jobs = jobs_resp.json()
                 if not jobs:
@@ -90,7 +97,7 @@ def render_monitoring_dashboard():
                     unique_keywords = list(set(j['seed_keyword'] for j in jobs))
                     selected_seed = st.selectbox("Select Monitored Keyword", unique_keywords)
 
-                    hist_resp = requests.get(f"{API_BASE_URL}/monitor/history/{selected_seed}")
+                    hist_resp = requests.get(f"{API_BASE_URL}/monitor/history/{selected_seed}", headers=_get_headers())
                     if hist_resp.status_code == 200:
                         history = hist_resp.json()
                         if not history:
@@ -126,7 +133,7 @@ def render_monitoring_dashboard():
                                         diff_resp = requests.get(f"{API_BASE_URL}/monitor/diff", params={
                                             "newer_run_id": newer_run_id,
                                             "older_run_id": older_run_id
-                                        })
+                                        }, headers=_get_headers())
                                         if diff_resp.status_code == 200:
                                             diff_data = diff_resp.json()
 
@@ -189,7 +196,7 @@ def render_monitoring_dashboard():
 
         try:
             # Let user search keyword trends using active jobs
-            jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs")
+            jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=_get_headers())
             if jobs_resp.status_code == 200:
                 jobs = jobs_resp.json()
                 if jobs:
@@ -197,7 +204,7 @@ def render_monitoring_dashboard():
                     selected_trend_seed = st.selectbox("Select Keyword to Track Score Trends", unique_keywords, key="trend_seed_select")
 
                     # Fetch trends
-                    trends_resp = requests.get(f"{API_BASE_URL}/evals/trends/{selected_trend_seed}")
+                    trends_resp = requests.get(f"{API_BASE_URL}/evals/trends/{selected_trend_seed}", headers=_get_headers())
                     if trends_resp.status_code == 200:
                         trends = trends_resp.json()
                         if not trends:

@@ -62,7 +62,11 @@ def render_home_overview():
 
         if api_reachable:
             try:
-                jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", timeout=3)
+                headers = {}
+                api_key = os.getenv("KEYLYTICS_API_KEY")
+                if api_key:
+                    headers["X-API-Key"] = api_key
+                jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=headers, timeout=3)
                 if jobs_resp.status_code == 200:
                     status_data["active_jobs"] = len([j for j in jobs_resp.json() if j.get("status") == "active"])
             except Exception:
