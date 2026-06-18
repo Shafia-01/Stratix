@@ -7,10 +7,10 @@ import plotly.express as px
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 def render_monitoring_dashboard():
-    st.title("🛡️ Keyword Monitoring & Evaluation Dashboard")
+    st.title("🛡️ Intelligence Monitoring & Quality Analytics Center")
     st.markdown("Track keyword performance shifts over time, manage recurring monitoring schedules, and view LLM-as-judge evaluation analytics.")
 
-    tabs = st.tabs(["🕒 Monitoring Schedules", "📊 Historical Runs & Diffs", "🤖 LLM Evaluation Analytics"])
+    tabs = st.tabs(["🕒 Automated Intelligence Jobs", "📊 Intelligence Report History", "🤖 Quality Evaluation Analytics"])
 
     # ---------------------------------------------------------
     # TAB 1: Monitoring Schedules

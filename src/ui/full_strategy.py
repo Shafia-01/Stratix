@@ -27,7 +27,7 @@ def cached_analyze_serp_opportunities(keyword):
 def render_full_strategy():
     """🧩 Full Strategy: Run all modules together"""
     st.markdown("### 🧩 Full Strategy Analysis")
-    st.markdown("Run all modules together for comprehensive SEO strategy.")
+    st.markdown("Run all modules together for comprehensive market strategy.")
     col1, col2 = st.columns([2, 1])
     with col1:
         strategy_keyword = st.text_input(

@@ -20,33 +20,85 @@ def render_home_overview():
                     <img src="data:image/png;base64,{logo_base64}" width="150" style="vertical-align:middle; margin:0; padding:0;" />
                 </div>
                 <h1 class="app-title">KeyLytics</h1>
-                <p class="app-subtitle">Advanced SEO Research & Analysis Platform</p>
+                <p class="app-subtitle">Autonomous Multi-Agent Market Intelligence Platform</p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # Pipeline Status Section
+    st.markdown("#### 🤖 Pipeline Status")
+    status_data = {"active_runs": 0, "total_reports": 0, "active_jobs": 0}
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        import requests
+        import os
+
+        API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+        # Check if API is reachable
+        api_reachable = False
+        try:
+            health_resp = requests.get(f"{API_BASE_URL}/health", timeout=3)
+            if health_resp.status_code == 200:
+                api_reachable = True
+        except Exception:
+            pass
+
+        engine = connect_db()
+        with Session(engine) as session:
+            if api_reachable:
+                # Active runs: in progress/awaiting approval
+                status_data["active_runs"] = session.query(ResearchRunLog).filter(
+                    ResearchRunLog.status.in_(["pending", "in_progress", "awaiting_approval"])
+                ).count()
+            
+            # Total Intelligence Reports from DB history count
+            status_data["total_reports"] = session.query(ResearchRunLog).filter(
+                ResearchRunLog.status == "completed"
+            ).count()
+
+        if api_reachable:
+            try:
+                jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", timeout=3)
+                if jobs_resp.status_code == 200:
+                    status_data["active_jobs"] = len([j for j in jobs_resp.json() if j.get("status") == "active"])
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    col_stat1, col_stat2, col_stat3 = st.columns(3)
+    with col_stat1:
+        st.metric("Active Research Runs", status_data["active_runs"])
+    with col_stat2:
+        st.metric("Total Intelligence Reports", status_data["total_reports"])
+    with col_stat3:
+        st.metric("Active Monitoring Jobs", status_data["active_jobs"])
+
     # Quick buttons using Streamlit buttons
     st.markdown("### 🚀 Quick Actions")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        if st.button("🔍 Keyword Discovery", use_container_width=True):
+        if st.button("🔍 Research Pipeline", use_container_width=True):
             st.session_state.current_page = "keyword_discovery"
             st.rerun()
     with col2:
-        if st.button("🧩 Competitor Gap", use_container_width=True):
+        if st.button("🎯 Competitor Intelligence", use_container_width=True):
             st.session_state.current_page = "competitor_gap"
             st.rerun()
     with col3:
-        if st.button("📈 Trend Forecasting", use_container_width=True):
+        if st.button("📈 Market Trends", use_container_width=True):
             st.session_state.current_page = "trend_forecasting"
             st.rerun()
     with col4:
-        if st.button("🧩 Full Strategy", use_container_width=True):
+        if st.button("⚡ Full Intelligence Run", use_container_width=True):
             st.session_state.current_page = "full_strategy"
             st.rerun()
     with col5:
-        if st.button("🤖 Agent Mode", use_container_width=True):
+        if st.button("🤖 Autonomous Agent", use_container_width=True):
             st.session_state.current_page = "agent_mode"
             st.rerun()
 

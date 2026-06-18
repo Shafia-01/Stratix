@@ -44,9 +44,9 @@ def render_agent_mode():
     """🤖 Agent Mode: Autonomous multi-agent SEO research pipeline"""
     st.markdown("### 🤖 Agent Mode — Autonomous Research Pipeline")
     st.markdown(
-        "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 specialised tools**. "
-        "The agent plans, researches, and synthesises a full SEO strategy autonomously — "
-        "with human approval at each key decision point."
+        "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 Specialized Intelligence Tools**. "
+        "The agent autonomously plans, researches, critiques, and synthesises market intelligence — "
+        "with human approval at each critical decision point."
     )
 
     # ── Init session state ─────────────────────────────────────────────────
@@ -323,7 +323,7 @@ def render_agent_mode():
     elif stage == "done":
         report = st.session_state.agent_strategy_report or {}
         st.balloons()
-        st.success("🎉 Research process successfully completed! Findings have been written to the database.")
+        st.success("🎉 Intelligence report successfully generated and persisted to the database.")
 
         st.markdown("##### 📝 Final Strategy Report Overview")
         st.markdown(report.get("executive_summary", ""))

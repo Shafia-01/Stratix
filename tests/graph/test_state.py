@@ -52,3 +52,25 @@ def test_agent_state_confidence_scores():
     }
     assert state["confidence_scores"]["keyword_research"] == 0.8
     assert state["confidence_scores"]["serp_analysis"] == 1.0
+
+
+def test_agent_state_critic_feedback():
+    state: AgentState = {
+        "seed_keyword": "AI tools",
+        "status": "in_progress",
+        "awaiting_human": False,
+        "messages": [],
+        "errors": [],
+        "critic_feedback": {
+            "weak_claims": ["claim1"],
+            "data_gaps": ["gap1"],
+            "issues": ["issue1"],
+            "overall_verdict": "REVISE",
+            "critic_score": 0.3
+        },
+        "critic_retries": 1
+    }
+    assert state["critic_feedback"]["overall_verdict"] == "REVISE"
+    assert state["critic_feedback"]["critic_score"] == 0.3
+    assert state["critic_retries"] == 1
+

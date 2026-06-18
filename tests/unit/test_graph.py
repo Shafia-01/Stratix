@@ -118,6 +118,9 @@ def test_route_after_plan():
 
 def test_route_after_research():
     state: AgentState = {"collected_data": {"keyword_research": {"items": []}}}
+    assert route_after_research(state) == "__end__"
+
+    state = {"collected_data": {"keyword_research": {"items": [{"keyword": "coffee"}]}}}
     assert route_after_research(state) == "aggregator_node"
 
     state = {"collected_data": {}}

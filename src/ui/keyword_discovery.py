@@ -14,8 +14,8 @@ logger = get_logger(__name__)
 
 def render_keyword_discovery():
     """🔍 Keyword Discovery: Find, rank, and score keywords"""
-    st.markdown("### 🔍 Keyword Discovery")
-    st.markdown("Find, rank, and score keywords with comprehensive metrics and trend analysis.")
+    st.markdown("### 🔍 Market Research Pipeline")
+    st.markdown("Autonomous keyword discovery with volume, CPC, competition analysis, and intent classification.")
     # Input bar
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
