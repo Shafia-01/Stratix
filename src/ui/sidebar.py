@@ -1,14 +1,15 @@
 import streamlit as st
 from src.logger_config import get_logger
-from src.services.status_service import get_system_status, cached_verify_database_schema
-from src.services.keyword_service import cached_fetch_past_results
+from src.services.status_service import get_system_status
+from src.services.keyword_service import cached_fetch_past_results, cached_verify_database_schema
 
 logger = get_logger(__name__)
 
 def render_sidebar():
     st.sidebar.markdown("""
     <div class="sidebar-header">
-        <h2>AI-Powered SEO Keyword Intelligence System</h2>
+        <h2>Autonomous Multi-Agent Market Intelligence Platform</h2>
+        <p style="font-size: 0.75rem; color: #888;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
     </div>
     """, unsafe_allow_html=True)
     st.sidebar.markdown("### 🔧 System Status")
@@ -58,11 +59,11 @@ def render_sidebar():
                 schema_ok = cached_verify_database_schema()
                 df_test = cached_fetch_past_results(limit=1)
                 if schema_ok and not df_test.empty:
-                    st.session_state.db_status = f"✅ Connected ({len(df_test)} records)"
+                     st.session_state.db_status = f"✅ Connected ({len(df_test)} records)"
                 elif schema_ok:
-                    st.session_state.db_status = "✅ Connected (0 records)"
+                     st.session_state.db_status = "✅ Connected (0 records)"
                 else:
-                    st.session_state.db_status = "⚠️ Schema issues detected"
+                     st.session_state.db_status = "⚠️ Schema issues detected"
             except Exception as e:
                 error_msg = str(e)
                 if "Access denied" in error_msg:
@@ -94,19 +95,24 @@ def render_sidebar():
     st.sidebar.markdown("---")
     # Database History
     st.sidebar.markdown("### 📂 Database History")
-    if st.sidebar.button("📊 Show History", use_container_width=True):
+    if st.sidebar.button("📂 Intelligence Archive", use_container_width=True):
         st.session_state.current_page = "search_history"
         st.rerun()
 
     # Agent Mode
     st.sidebar.markdown("### 🤖 Autonomous Agent")
-    if st.sidebar.button("🤖 Agent Mode", use_container_width=True):
+    if st.sidebar.button("🤖 Autonomous Pipeline", use_container_width=True):
         st.session_state.current_page = "agent_mode"
+        st.rerun()
+
+    # Execution Timeline
+    if st.sidebar.button("🗂️ Execution Timeline", use_container_width=True):
+        st.session_state.current_page = "agent_timeline"
         st.rerun()
 
     # Monitoring Dashboard
     st.sidebar.markdown("### 🛡️ Monitoring & Evaluation")
-    if st.sidebar.button("🛡️ Monitor Dashboard", use_container_width=True):
+    if st.sidebar.button("🛡️ Intelligence Monitor", use_container_width=True):
         st.session_state.current_page = "monitoring_dashboard"
         st.rerun()
 

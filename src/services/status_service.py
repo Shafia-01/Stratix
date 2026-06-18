@@ -5,7 +5,7 @@ from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-GEMINI_MODELS = ["gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "learnlm-2.0-flash-experimental"]
+GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
 def check_api_status():
     """Check API keys status."""

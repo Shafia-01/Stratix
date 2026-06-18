@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from src.services.competitor_service import cached_analyze_competitor_gap
+@st.cache_data(ttl=1800)
+def cached_analyze_competitor_gap(keyword):
+    from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
+    return analyze_competitor_keyword_gap(keyword)
+
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
 def render_competitor_gap():

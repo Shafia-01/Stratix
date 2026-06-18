@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+@st.cache_data(ttl=1800)
+def cached_analyze_trend_forecasting(keywords):
+    from src.trend_forecaster import analyze_trend_forecasting
+    return analyze_trend_forecasting(keywords)
+
 from src.services.keyword_service import cached_run_lightweight_agent
-from src.services.trend_service import cached_analyze_trend_forecasting
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
 def render_trend_forecasting():

@@ -10,13 +10,9 @@ logger = get_logger(__name__)
 load_dotenv()
 client = genai.Client()
 
-# Use active models for standard/fallback tasks
 GEMINI_MODELS = [
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "learnlm-2.0-flash-experimental"
+    "gemini-2.5-flash-lite"
 ]
 
 def safe_gemini_call(prompt, temperature=0.7):

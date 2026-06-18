@@ -2,10 +2,27 @@ import streamlit as st
 import pandas as pd
 from src.services.keyword_service import cached_run_lightweight_agent, prepare_keyword_records, cached_save_to_db
 from src.services.metrics_service import update_global_metrics, increment_daily_requests, add_recent_search
-from src.services.competitor_service import cached_analyze_competitor_gap
-from src.services.clustering_service import cached_cluster_keywords_semantically
-from src.services.trend_service import cached_analyze_trend_forecasting
-from src.services.serp_service import cached_analyze_serp_opportunities
+
+@st.cache_data(ttl=1800)
+def cached_analyze_competitor_gap(keyword):
+    from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
+    return analyze_competitor_keyword_gap(keyword)
+
+@st.cache_data(ttl=1800)
+def cached_cluster_keywords_semantically(keywords):
+    from src.topic_clusterer import cluster_keywords_semantically
+    return cluster_keywords_semantically(keywords)
+
+@st.cache_data(ttl=1800)
+def cached_analyze_trend_forecasting(keywords):
+    from src.trend_forecaster import analyze_trend_forecasting
+    return analyze_trend_forecasting(keywords)
+
+@st.cache_data(ttl=1800)
+def cached_analyze_serp_opportunities(keyword):
+    from src.serp_analyzer import analyze_serp_opportunities
+    return analyze_serp_opportunities(keyword)
+
 
 def render_full_strategy():
     """🧩 Full Strategy: Run all modules together"""

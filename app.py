@@ -10,7 +10,7 @@ from src.logger_config import get_logger
 logger = get_logger("app")
 
 # Set up page configurations
-st.set_page_config(page_title="KeyLytics", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Keylytics — Market Intelligence Platform", page_icon="🔑", layout="wide", initial_sidebar_state="expanded")
 
 # Lazy imports for heavier libraries
 def lazy_imports():
@@ -35,15 +35,10 @@ from src.ui.sidebar import render_sidebar
 from src.ui.home import render_home_overview, render_floating_panel
 from src.ui.keyword_discovery import render_keyword_discovery
 from src.ui.competitor_gap import render_competitor_gap
-from src.ui.search_intent import render_search_intent
 from src.ui.topic_clustering import render_topic_clustering
 from src.ui.trend_forecasting import render_trend_forecasting
 from src.ui.serp_analysis import render_serp_analysis
-from src.ui.content_optimization import render_content_optimization
-from src.ui.conversion_mapping import render_conversion_mapping
-from src.ui.industry_focus import render_industry_focus
 from src.ui.full_strategy import render_full_strategy
-from src.ui.chat import render_chat_interface
 from src.ui.search_history import render_search_history
 from src.ui.agent_mode import render_agent_mode
 
@@ -109,28 +104,21 @@ def main():
         render_keyword_discovery()
     elif current_page == "competitor_gap":
         render_competitor_gap()
-    elif current_page == "search_intent":
-        render_search_intent()
     elif current_page == "topic_clustering":
         render_topic_clustering()
     elif current_page == "trend_forecasting":
         render_trend_forecasting()
     elif current_page == "serp_analysis":
         render_serp_analysis()
-    elif current_page == "content_optimization":
-        render_content_optimization()
-    elif current_page == "conversion_mapping":
-        render_conversion_mapping()
-    elif current_page == "industry_focus":
-        render_industry_focus()
     elif current_page == "full_strategy":
         render_full_strategy()
-    elif current_page == "chat":
-        render_chat_interface()
     elif current_page == "search_history":
         render_search_history()
     elif current_page == "agent_mode":
         render_agent_mode()
+    elif current_page == "agent_timeline":
+        from src.ui.agent_timeline import render_agent_timeline
+        render_agent_timeline()
     elif current_page == "monitoring_dashboard":
         from src.ui.monitoring_dashboard import render_monitoring_dashboard
         render_monitoring_dashboard()
@@ -140,3 +128,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

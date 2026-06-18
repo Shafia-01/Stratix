@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+@st.cache_data(ttl=1800)
+def cached_cluster_keywords_semantically(keywords):
+    from src.topic_clusterer import cluster_keywords_semantically
+    return cluster_keywords_semantically(keywords)
+
 from src.services.keyword_service import cached_run_lightweight_agent
-from src.services.clustering_service import cached_cluster_keywords_semantically
 
 def render_topic_clustering():
     """🧠 Topic Clustering: Group related keywords"""
