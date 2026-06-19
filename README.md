@@ -151,9 +151,9 @@ python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 & streamlit run app.
 
 ## Documentation
 
-- [API Reference](file:///c:/Users/Shafia/PROJECTS/Keylytics/API.md) — Complete endpoint specs, request/response models, and headers.
-- [Architecture Deep Dive](file:///c:/Users/Shafia/PROJECTS/Keylytics/ARCHITECTURE.md) — LangGraph topology details, node contracts, and state schema design.
-- [Design Decisions Log](file:///c:/Users/Shafia/PROJECTS/Keylytics/DESIGN_DECISIONS.md) — Engineering trade-offs regarding storage, framework choices, and monitoring.
+- [API Reference](Stratix/docs/API.md) — Complete endpoint specs, request/response models, and headers.
+- [Architecture Deep Dive](Stratix/docs/ARCHITECTURE.md) — LangGraph topology details, node contracts, and state schema design.
+- [Design Decisions Log](Stratix/docs/DESIGN_DECISIONS.md) — Engineering trade-offs regarding storage, framework choices, and monitoring.
 
 ---
 
