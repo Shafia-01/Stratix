@@ -1,3 +1,15 @@
+---
+title: Stratix
+emoji: 📈
+colorFrom: purple
+colorTo: indigo
+sdk: streamlit
+sdk_version: 1.46.1
+python_version: 3.11
+app_file: app.py
+pinned: false
+---
+
 <div align="center">
   <img src="assets/keylytics_icon.png" width="120" alt="Stratix Logo">
   <h1><strong>Stratix</strong></h1>
