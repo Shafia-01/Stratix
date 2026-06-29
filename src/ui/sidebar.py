@@ -9,6 +9,7 @@ def render_sidebar():
     st.sidebar.markdown("""
     <div class="sidebar-header">
         <h2>Autonomous Multi-Agent Market Intelligence Platform</h2>
+        <hr style="border: none; height: 2px; background: #051B4A; margin: 10px 0; border-radius: 1.5px;" />
         <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
     </div>
     """, unsafe_allow_html=True)

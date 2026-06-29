@@ -99,7 +99,8 @@ def main():
     current_page = st.session_state.current_page
     
     if current_page == "home":
-        render_home_overview()
+        if not st.session_state.get("panel_open", False):
+            render_home_overview()
     elif current_page == "keyword_discovery":
         render_keyword_discovery()
     elif current_page == "competitor_gap":
