@@ -12,7 +12,8 @@ def render_sidebar():
         <hr style="border: none; height: 2px; background: #051B4A; margin: 10px 0; border-radius: 1.5px;" />
         <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
     </div>
-    """, unsafe_allow_html=True)    st.sidebar.markdown("<h3 style='text-align: center;'>🔧 System Status</h3>", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+    st.sidebar.markdown("<h3 style='text-align: center;'>🔧 System Status</h3>", unsafe_allow_html=True)
     api_status, api_test = get_system_status()
     st.sidebar.markdown("""
     <div class="system-status">
