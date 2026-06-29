@@ -93,7 +93,6 @@ def render_sidebar():
             if st.sidebar.button("🗑️", help="Clear status", key="clear_db_status"):
                 del st.session_state.db_status
                 st.rerun()
-    st.sidebar.markdown("---")
     # Database History
     st.sidebar.markdown("### 📂 Database History")
     if st.sidebar.button("📂 Intelligence Archive", use_container_width=True):
@@ -107,6 +106,7 @@ def render_sidebar():
         st.rerun()
 
     # Execution Timeline
+    st.sidebar.markdown("### 🗂️ Execution Timeline")
     if st.sidebar.button("🗂️ Execution Timeline", use_container_width=True):
         st.session_state.current_page = "agent_timeline"
         st.rerun()

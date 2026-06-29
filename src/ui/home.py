@@ -154,34 +154,44 @@ def render_floating_panel():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔍 Keyword Discovery", key="fp_kd", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "keyword_discovery"
                 st.rerun()
             if st.button("🧩 Competitor Gap", key="fp_cg", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "competitor_gap"
                 st.rerun()
             if st.button("🎯 Search Intent", key="fp_si", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "search_intent"
                 st.rerun()
             if st.button("🧠 Topic Clustering", key="fp_tc", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "topic_clustering"
                 st.rerun()
             if st.button("📈 Trend Forecasting", key="fp_tf", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "trend_forecasting"
                 st.rerun()
         with col2:
             if st.button("📰 SERP Analysis", key="fp_sa", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "serp_analysis"
                 st.rerun()
             if st.button("🧾 Content Optimization", key="fp_co", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "content_optimization"
                 st.rerun()
             if st.button("💰 Conversion Mapping", key="fp_cm", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "conversion_mapping"
                 st.rerun()
             if st.button("🌐 Industry Focus", key="fp_if", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "industry_focus"
                 st.rerun()
             if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "full_strategy"
                 st.rerun()
 
@@ -189,6 +199,7 @@ def render_floating_panel():
         col_left, col_mid, col_right = st.columns([1, 2, 1])
         with col_mid:
             if st.button("🤖 Agent Mode", key="fp_am", use_container_width=True):
+                st.session_state.panel_open = False
                 st.session_state.current_page = "agent_mode"
                 st.rerun()
 
