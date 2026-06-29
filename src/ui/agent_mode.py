@@ -16,7 +16,7 @@ from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 def _get_headers() -> dict:
