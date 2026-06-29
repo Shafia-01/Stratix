@@ -12,8 +12,7 @@ def render_sidebar():
         <hr style="border: none; height: 2px; background: #051B4A; margin: 10px 0; border-radius: 1.5px;" />
         <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
     </div>
-    """, unsafe_allow_html=True)
-    st.sidebar.markdown("### 🔧 System Status")
+    """, unsafe_allow_html=True)    st.sidebar.markdown("<h3 style='text-align: center;'>🔧 System Status</h3>", unsafe_allow_html=True)
     api_status, api_test = get_system_status()
     st.sidebar.markdown("""
     <div class="system-status">
@@ -33,7 +32,7 @@ def render_sidebar():
         "✅ Online" if api_test["serpapi"] else "❌ Offline"
     ), unsafe_allow_html=True)
     # Model Status
-    st.sidebar.markdown("### 🤖 Model Status")
+    st.sidebar.markdown("<h3 style='text-align: center;'>🤖 Model Status</h3>", unsafe_allow_html=True)
     from src.services.status_service import GEMINI_MODELS
     st.sidebar.markdown("""
     <div class="system-status">
@@ -51,8 +50,6 @@ def render_sidebar():
         </div>
     </div>
     """.format(len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)
-    # Database Status (simplified)
-    st.sidebar.markdown("### 💾 Database")
     # Use a placeholder that doesn't make heavy DB calls on every render
     if st.sidebar.button("🔍 Check Database Status", use_container_width=True):
         with st.spinner("Checking database..."):
@@ -68,13 +65,13 @@ def render_sidebar():
             except Exception as e:
                 error_msg = str(e)
                 if "Access denied" in error_msg:
-                    st.session_state.db_status = "❌ Access denied - Check credentials"
+                     st.session_state.db_status = "❌ Access denied - Check credentials"
                 elif "Can't connect" in error_msg or "Connection refused" in error_msg:
-                    st.session_state.db_status = "❌ Can't connect - Check if MySQL is running"
+                     st.session_state.db_status = "❌ Can't connect - Check if MySQL is running"
                 elif "Unknown database" in error_msg:
-                    st.session_state.db_status = "❌ Database doesn't exist"
+                     st.session_state.db_status = "❌ Database doesn't exist"
                 else:
-                    st.session_state.db_status = f"❌ Connection failed: {error_msg[:50]}..."
+                     st.session_state.db_status = f"❌ Connection failed: {error_msg[:50]}..."
         st.rerun()
 
     # Display the last database check result if available
@@ -93,32 +90,24 @@ def render_sidebar():
             if st.sidebar.button("🗑️", help="Clear status", key="clear_db_status"):
                 del st.session_state.db_status
                 st.rerun()
-    # Database History
-    st.sidebar.markdown("### 📂 Database History")
     if st.sidebar.button("📂 Intelligence Archive", use_container_width=True):
         st.session_state.current_page = "search_history"
         st.rerun()
 
-    # Agent Mode
-    st.sidebar.markdown("### 🤖 Autonomous Agent")
     if st.sidebar.button("🤖 Autonomous Pipeline", use_container_width=True):
         st.session_state.current_page = "agent_mode"
         st.rerun()
 
-    # Agent Trace Logs
-    st.sidebar.markdown("### 🗂️ Agent Trace Logs")
     if st.sidebar.button("🗂️ Agent Trace Logs", use_container_width=True):
         st.session_state.current_page = "agent_timeline"
         st.rerun()
 
-    # Monitoring Dashboard
-    st.sidebar.markdown("### 🛡️ Monitoring & Evaluation")
     if st.sidebar.button("🛡️ Intelligence Monitor", use_container_width=True):
         st.session_state.current_page = "monitoring_dashboard"
         st.rerun()
 
     # Recent Searches (optimized)
-    st.sidebar.markdown("### 🔍 Recent Searches")
+    st.sidebar.markdown("<h3 style='text-align: center;'>🔍 Recent Searches</h3>", unsafe_allow_html=True)
     # Display recent searches from session state only
     if st.session_state.search_history:
         for i, search in enumerate(st.session_state.search_history[-3:]):
