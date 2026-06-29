@@ -105,9 +105,9 @@ def render_sidebar():
         st.session_state.current_page = "agent_mode"
         st.rerun()
 
-    # Execution Timeline
-    st.sidebar.markdown("### 🗂️ Execution Timeline")
-    if st.sidebar.button("🗂️ Execution Timeline", use_container_width=True):
+    # Agent Trace Logs
+    st.sidebar.markdown("### 🗂️ Agent Trace Logs")
+    if st.sidebar.button("🗂️ Agent Trace Logs", use_container_width=True):
         st.session_state.current_page = "agent_timeline"
         st.rerun()
 

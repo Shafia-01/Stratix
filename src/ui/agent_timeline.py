@@ -27,17 +27,17 @@ EVENT_COLORS = {
 }
 
 def render_agent_timeline():
-    st.markdown("### 🗂️ Agent Execution Timeline")
+    st.markdown("### 🗂️ Agent Trace Logs")
     st.markdown("Detailed breakdown of every decision, tool call, and quality check in the research pipeline.")
 
     run_id = st.text_input("Enter Run ID:", placeholder="Paste a run_id from an Agent Mode research run")
 
     if not run_id:
-        st.info("Enter a Run ID from Agent Mode to view its execution timeline.")
+        st.info("Enter a Run ID from Agent Mode to view its trace logs.")
         return
 
-    if st.button("📊 Load Timeline", type="primary"):
-        with st.spinner("Reconstructing execution timeline..."):
+    if st.button("📊 Load Trace Logs", type="primary"):
+        with st.spinner("Reconstructing agent trace logs..."):
             try:
                 headers = {}
                 api_key = os.getenv("STRATIX_API_KEY") or os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
