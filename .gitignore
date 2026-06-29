@@ -1,0 +1,15 @@
+.env
+.env.backup
+__pycache__/
+cache
+.pytest_cache/
+.ruff_cache/
+test_keylytics.db
+htmlcov/
+dataforseo_metrics_response.json
+cache/*.csv
+*.db
+*.db-wal
+*.db-shm
+.coverage
+coverage.xml

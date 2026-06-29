@@ -1,0 +1,41 @@
+# Web Application Framework & UI
+streamlit
+
+# AI/ML, Agents & LLM Integration
+google-generativeai
+langchain-core>=0.2.0
+langchain-google-genai>=1.0.0
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=1.0.0
+langsmith>=0.1.0
+
+# API Framework & Server
+fastapi>=0.137.1
+uvicorn
+
+# Database & Persistence
+SQLAlchemy
+
+# Data Processing & Visualization
+pandas
+numpy
+plotly
+
+# HTTP Requests, Scraping & SEO
+requests
+urllib3
+beautifulsoup4
+pytrends
+httpx
+
+# Utilities & Configuration
+python-dotenv
+tqdm
+tenacity
+pydantic>=2.0.0
+
+# Testing & Development
+pytest
+pytest-mock
+pytest-cov
+ruff
