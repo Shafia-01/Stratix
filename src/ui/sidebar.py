@@ -39,7 +39,7 @@ def render_sidebar():
     <div class="system-status">
         <div class="status-item">
             <span class="status-label">Model Type</span>
-            <span class="status-value">Gemini 2.5 Flash</span>
+            <span class="status-value">Primary + {} Fallbacks</span>
         </div>
         <div class="status-item">
             <span class="status-label">Active Models</span>
@@ -50,7 +50,7 @@ def render_sidebar():
             <span class="status-value">{}</span>
         </div>
     </div>
-    """.format(len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)
+    """.format(len(GEMINI_MODELS) - 1, len(GEMINI_MODELS), st.session_state.get("daily_requests", 0)), unsafe_allow_html=True)
     # Use a placeholder that doesn't make heavy DB calls on every render
     if st.sidebar.button("🔍 Check Database Status", use_container_width=True):
         with st.spinner("Checking database..."):

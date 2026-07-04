@@ -30,29 +30,50 @@ def render_agent_timeline():
     st.markdown("### 🗂️ Agent Trace Logs")
     st.markdown("Detailed breakdown of every decision, tool call, and quality check in the research pipeline.")
 
-    run_id = st.text_input("Enter Run ID:", placeholder="Paste a run_id from an Agent Mode research run")
-
-    if not run_id:
-        st.info("Enter a Run ID from Agent Mode to view its trace logs.")
+    # Fetch historical runs
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        engine = connect_db()
+        with Session(engine) as session:
+            runs = session.query(ResearchRunLog).order_by(ResearchRunLog.started_at.desc()).all()
+    except Exception as e:
+        st.error(f"Failed to fetch runs: {e}")
         return
 
-    if st.button("📊 Load Trace Logs", type="primary"):
-        with st.spinner("Reconstructing agent trace logs..."):
-            try:
-                headers = {}
-                api_key = os.getenv("STRATIX_API_KEY") or os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
-                if api_key:
-                    headers["X-API-Key"] = api_key
-                resp = requests.get(f"{API_BASE}/timeline/{run_id}", headers=headers, timeout=30)
-                if resp.status_code == 404:
-                    st.error("Run not found. Check the Run ID and try again.")
-                    return
-                resp.raise_for_status()
-                data = resp.json()
-                st.session_state.timeline_data = data
-            except Exception as e:
-                st.error(f"Failed to load timeline: {e}")
+    if not runs:
+        st.info("No research runs found in database.")
+        return
+
+    run_options = {f"{r.seed_keyword} ({r.run_id[:8]}) - {r.started_at}": r.run_id for r in runs}
+
+    default_index = 0
+    if st.session_state.get("timeline_run_id"):
+        for idx, rid in enumerate(run_options.values()):
+            if rid == st.session_state.timeline_run_id:
+                default_index = idx
+                break
+
+    selected_label = st.selectbox("Select Research Run:", list(run_options.keys()), index=default_index, key="timeline_run_select")
+    run_id = run_options[selected_label]
+
+    # Auto-load on selection
+    if run_id:
+        try:
+            headers = {}
+            api_key = os.getenv("STRATIX_API_KEY") or os.getenv("STRATIX_AI_API_KEY") or os.getenv("KEYLYTICS_API_KEY")
+            if api_key:
+                headers["X-API-Key"] = api_key
+            resp = requests.get(f"{API_BASE}/timeline/{run_id}", headers=headers, timeout=30)
+            if resp.status_code == 200:
+                st.session_state.timeline_data = resp.json()
+            else:
+                st.error("Failed to load timeline details.")
                 return
+        except Exception as e:
+            st.error(f"Failed to load timeline: {e}")
+            return
 
     if "timeline_data" not in st.session_state:
         return
