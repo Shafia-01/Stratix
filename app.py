@@ -113,8 +113,12 @@ def main():
         render_serp_analysis()
     elif current_page == "full_strategy":
         render_full_strategy()
-    elif current_page == "search_history":
-        render_search_history()
+    elif current_page == "executive_reports":
+        from src.ui.executive_reports import render_executive_reports
+        render_executive_reports()
+    elif current_page == "analytics":
+        from src.ui.analytics import render_analytics
+        render_analytics()
     elif current_page == "agent_mode":
         render_agent_mode()
     elif current_page == "agent_timeline":

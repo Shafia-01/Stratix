@@ -91,21 +91,44 @@ def render_sidebar():
             if st.sidebar.button("🗑️", help="Clear status", key="clear_db_status"):
                 del st.session_state.db_status
                 st.rerun()
-    if st.sidebar.button("📂 Intelligence Archive", use_container_width=True):
-        st.session_state.current_page = "search_history"
-        st.rerun()
+    st.sidebar.markdown("<h3 style='text-align: center;'>🗺️ Navigation</h3>", unsafe_allow_html=True)
 
-    if st.sidebar.button("🤖 Autonomous Pipeline", use_container_width=True):
+    if st.sidebar.button("🤖 Autonomous Research", use_container_width=True):
         st.session_state.current_page = "agent_mode"
         st.rerun()
 
-    if st.sidebar.button("🗂️ Agent Trace Logs", use_container_width=True):
-        st.session_state.current_page = "agent_timeline"
+    if st.sidebar.button("📈 Executive Reports", use_container_width=True):
+        st.session_state.current_page = "executive_reports"
+        st.rerun()
+
+    if st.sidebar.button("📊 Unified Analytics", use_container_width=True):
+        st.session_state.current_page = "analytics"
         st.rerun()
 
     if st.sidebar.button("🛡️ Intelligence Monitor", use_container_width=True):
         st.session_state.current_page = "monitoring_dashboard"
         st.rerun()
+
+    # Collapsible tools section
+    with st.sidebar.expander("🔧 Single-Shot Tools", expanded=False):
+        if st.button("🔑 Keyword Discovery", use_container_width=True):
+            st.session_state.current_page = "keyword_discovery"
+            st.rerun()
+        if st.button("🧩 Competitor Gap", use_container_width=True):
+            st.session_state.current_page = "competitor_gap"
+            st.rerun()
+        if st.button("📰 SERP Analysis", use_container_width=True):
+            st.session_state.current_page = "serp_analysis"
+            st.rerun()
+        if st.button("🧠 Topic Clustering", use_container_width=True):
+            st.session_state.current_page = "topic_clustering"
+            st.rerun()
+        if st.button("📈 Trend Forecasting", use_container_width=True):
+            st.session_state.current_page = "trend_forecasting"
+            st.rerun()
+        if st.button("⚡ Full Strategy Utility", use_container_width=True):
+            st.session_state.current_page = "full_strategy"
+            st.rerun()
 
     # Recent Searches (optimized)
     st.sidebar.markdown("<h3 style='text-align: center;'>🔍 Recent Searches</h3>", unsafe_allow_html=True)
