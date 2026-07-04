@@ -12,6 +12,7 @@ import requests
 import streamlit as st
 import pandas as pd
 import os
+import json
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -47,6 +48,150 @@ def _get(endpoint: str) -> dict:
         return {"error": "Cannot connect to FastAPI server."}
     except Exception as e:
         return {"error": str(e)}
+
+
+def run_and_display_stream(payload: dict) -> dict:
+    """Run the agent pipeline using SSE streaming and display live execution logs."""
+    nodes = [
+        "planner_node",
+        "research_agent_node",
+        "aggregator_node",
+        "quality_gate_node",
+        "critic_node",
+        "strategy_agent_node",
+        "persist_node"
+    ]
+    node_states = {n: "pending" for n in nodes}
+    tool_calls = []
+    confidence_scores = None
+    critic_feedback = None
+    errors = []
+    run_id = None
+    checkpoint_reached = None
+    checkpoint_data = None
+    completed = False
+
+    status_placeholder = st.empty()
+    progress_placeholder = st.empty()
+    logs_placeholder = st.empty()
+    metrics_placeholder = st.empty()
+    critic_placeholder = st.empty()
+
+    try:
+        url = f"{API_BASE}/agent/stream"
+        resp = requests.post(url, json=payload, headers=_get_headers(), stream=True, timeout=300)
+        resp.raise_for_status()
+
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            decoded = line.decode("utf-8").strip()
+            if not decoded.startswith("data: "):
+                continue
+
+            try:
+                data = json.loads(decoded[6:])
+            except Exception:
+                continue
+
+            event = data.get("event")
+            if event == "run_started":
+                run_id = data.get("run_id")
+                st.session_state.agent_run_id = run_id
+                status_placeholder.info(f"🚀 **Started Autonomous Execution Run:** `{run_id}`")
+            elif event == "node_start":
+                node = data.get("node")
+                if node in node_states:
+                    node_states[node] = "running"
+            elif event == "node_complete":
+                node = data.get("node")
+                if node in node_states:
+                    node_states[node] = "completed"
+                if "confidence_scores" in data:
+                    confidence_scores = data["confidence_scores"]
+                if "critic_feedback" in data:
+                    critic_feedback = data["critic_feedback"]
+                if "errors" in data:
+                    errors.extend(data["errors"])
+            elif event == "tool_start":
+                tool = data.get("tool")
+                tool_calls.append({"tool": tool, "status": "running"})
+            elif event == "tool_complete":
+                tool = data.get("tool")
+                success = data.get("success", True)
+                for tc in reversed(tool_calls):
+                    if tc["tool"] == tool and tc["status"] == "running":
+                        tc["status"] = "success" if success else "failed"
+                        break
+            elif event == "checkpoint":
+                checkpoint_reached = data.get("checkpoint")
+                checkpoint_data = data.get("checkpoint_data")
+            elif event == "completed":
+                completed = True
+            elif event == "error":
+                st.error(f"❌ Pipeline error: {data.get('message')}")
+
+            # Update UI
+            with progress_placeholder.container():
+                st.markdown("### 🔄 Graph Execution Progress")
+                cols = st.columns(len(nodes))
+                for idx, node in enumerate(nodes):
+                    with cols[idx]:
+                        state = node_states[node]
+                        label = node.replace("_node", "").replace("_", " ").title()
+                        if state == "pending":
+                            st.markdown(f"⚪ **{label}**\n*(pending)*")
+                        elif state == "running":
+                            st.markdown(f"🔵 **{label}**\n*(running...)*")
+                        elif state == "completed":
+                            st.markdown(f"🟢 **{label}**\n*(complete)*")
+                        else:
+                            st.markdown(f"🔴 **{label}**\n*(failed)*")
+
+            if tool_calls:
+                with logs_placeholder.container():
+                    st.markdown("#### 🛠️ Tool Execution Logs")
+                    for tc in tool_calls:
+                        t_label = tc["tool"].replace("_", " ").title()
+                        if tc["status"] == "running":
+                            st.info(f"⏳ Running tool: `{t_label}`...")
+                        elif tc["status"] == "success":
+                            st.success(f"✅ Tool `{t_label}` completed successfully.")
+                        else:
+                            st.error(f"❌ Tool `{t_label}` failed.")
+
+            if confidence_scores:
+                with metrics_placeholder.container():
+                    st.markdown("#### 📊 Current Confidence Scores")
+                    c_cols = st.columns(len(confidence_scores))
+                    for c_idx, (m, score) in enumerate(confidence_scores.items()):
+                        with c_cols[c_idx]:
+                            st.metric(m.replace("_", " ").title(), f"{score * 100:.0f}%")
+
+            if critic_feedback:
+                with critic_placeholder.container():
+                    st.markdown("#### 🛡️ Adversarial Critic Verdict")
+                    verdict = critic_feedback.get("overall_verdict", "UNKNOWN")
+                    if verdict == "PASS":
+                        st.success("Verdict: **PASS**")
+                    else:
+                        st.warning("Verdict: **REVISE**")
+                        issues = critic_feedback.get("issues", [])
+                        if issues:
+                            st.write(f"Reasoning: {issues[0] if isinstance(issues, list) else issues}")
+
+    except Exception as e:
+        st.error(f"❌ Connection to backend streaming failed: {e}")
+
+    return {
+        "run_id": run_id,
+        "checkpoint": checkpoint_reached,
+        "checkpoint_data": checkpoint_data,
+        "completed": completed,
+        "confidence_scores": confidence_scores,
+        "critic_feedback": critic_feedback,
+        "errors": errors
+    }
 
 
 def render_agent_mode():
@@ -88,17 +233,17 @@ def render_agent_mode():
             st.write("")
             if st.button("🚀 Start Agent", type="primary", use_container_width=True):
                 if keyword:
-                    with st.spinner("🧠 Planning research strategy..."):
-                        result = _post("/agent/run", {"seed_keyword": keyword})
-                    if "error" in result:
-                        st.error(f"❌ {result['error']}")
-                    else:
+                    result = run_and_display_stream({"seed_keyword": keyword})
+                    if result.get("checkpoint") == "plan_approval":
                         st.session_state.agent_run_id = result["run_id"]
-                        st.session_state.agent_research_plan = (
-                            result.get("checkpoint_data") or {}
-                        ).get("research_plan")
+                        st.session_state.agent_research_plan = result.get("checkpoint_data", {}).get("research_plan")
                         st.session_state.agent_stage = "plan_review"
                         st.rerun()
+                    elif result.get("completed"):
+                        st.session_state.agent_stage = "done"
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to complete agent run or reach checkpoint.")
                 else:
                     st.warning("⚠️ Please enter a keyword first.")
 
@@ -125,26 +270,22 @@ def render_agent_mode():
 
         with col1:
             if st.button("✅ Approve Plan", type="primary", use_container_width=True):
-                with st.spinner("🔬 Running autonomous research (this may take 30-90 seconds)..."):
-                    result = _post("/agent/resume", {
-                        "run_id": run_id,
-                        "human_feedback": {"approved": True},
-                    })
-                if "error" in result:
-                    st.error(f"❌ {result['error']}")
-                else:
-                    status = result.get("status")
-                    if status == "awaiting_approval":
-                        cp = result.get("checkpoint_data") or {}
-                        st.session_state.agent_strategy_report = cp.get("strategy_report")
-                        st.session_state.agent_confidence = cp.get("confidence_scores")
-                        st.session_state.agent_warnings = cp.get("warnings", [])
-                        st.session_state.agent_stage = "report_review"
-                    elif status == "completed":
-                        st.session_state.agent_stage = "done"
-                    else:
-                        st.session_state.agent_stage = "done"
+                result = run_and_display_stream({
+                    "run_id": run_id,
+                    "human_feedback": {"approved": True},
+                })
+                if result.get("checkpoint") == "report_approval":
+                    cp = result.get("checkpoint_data") or {}
+                    st.session_state.agent_strategy_report = cp.get("strategy_report")
+                    st.session_state.agent_confidence = cp.get("confidence_scores")
+                    st.session_state.agent_warnings = cp.get("warnings", [])
+                    st.session_state.agent_stage = "report_review"
                     st.rerun()
+                elif result.get("completed"):
+                    st.session_state.agent_stage = "done"
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to resume agent execution.")
 
         with col2:
             if st.button("✏️ Edit Plan", use_container_width=True):
@@ -205,29 +346,25 @@ def render_agent_mode():
                     "requested_modules": selected_modules,
                     "max_keywords": max_keywords_input
                 }
-                with st.spinner("🔬 Running autonomous research with updated plan (this may take 30-90 seconds)..."):
-                    result = _post("/agent/resume", {
-                        "run_id": run_id,
-                        "human_feedback": {
-                            "approved": True,
-                            "edited_plan": edited_plan
-                        }
-                    })
-                if "error" in result:
-                    st.error(f"❌ {result['error']}")
-                else:
-                    status = result.get("status")
-                    if status == "awaiting_approval":
-                        cp = result.get("checkpoint_data") or {}
-                        st.session_state.agent_strategy_report = cp.get("strategy_report")
-                        st.session_state.agent_confidence = cp.get("confidence_scores")
-                        st.session_state.agent_warnings = cp.get("warnings", [])
-                        st.session_state.agent_stage = "report_review"
-                    elif status == "completed":
-                        st.session_state.agent_stage = "done"
-                    else:
-                        st.session_state.agent_stage = "done"
+                result = run_and_display_stream({
+                    "run_id": run_id,
+                    "human_feedback": {
+                        "approved": True,
+                        "edited_plan": edited_plan
+                    }
+                })
+                if result.get("checkpoint") == "report_approval":
+                    cp = result.get("checkpoint_data") or {}
+                    st.session_state.agent_strategy_report = cp.get("strategy_report")
+                    st.session_state.agent_confidence = cp.get("confidence_scores")
+                    st.session_state.agent_warnings = cp.get("warnings", [])
+                    st.session_state.agent_stage = "report_review"
                     st.rerun()
+                elif result.get("completed"):
+                    st.session_state.agent_stage = "done"
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to resume agent execution.")
 
         with col2:
             if st.button("🔙 Back", use_container_width=True):
@@ -287,37 +424,37 @@ def render_agent_mode():
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("✅ Approve & Save", type="primary", use_container_width=True):
-                with st.spinner("💾 Finalising and saving..."):
-                    result = _post("/agent/resume", {
-                        "run_id": run_id,
-                        "human_feedback": {"approved": True}
-                    })
-                if "error" in result:
-                    st.error(f"❌ {result['error']}")
-                else:
+                result = run_and_display_stream({
+                    "run_id": run_id,
+                    "human_feedback": {"approved": True}
+                })
+                if result.get("completed"):
                     st.session_state.agent_stage = "done"
                     st.rerun()
+                else:
+                    st.error("❌ Failed to complete agent run.")
 
         with col2:
             if st.button("🔄 Request Regeneration", use_container_width=True):
-                with st.spinner("🔄 Regenerating strategy report..."):
-                    result = _post("/agent/resume", {
-                        "run_id": run_id,
-                        "human_feedback": {
-                            "regenerate": True,
-                            "notes": feedback_notes
-                        }
-                    })
-                if "error" in result:
-                    st.error(f"❌ {result['error']}")
-                else:
-                    status = result.get("status")
+                result = run_and_display_stream({
+                    "run_id": run_id,
+                    "human_feedback": {
+                        "regenerate": True,
+                        "notes": feedback_notes
+                    }
+                })
+                if result.get("checkpoint") == "report_approval":
                     cp = result.get("checkpoint_data") or {}
                     st.session_state.agent_strategy_report = cp.get("strategy_report") or report
                     st.session_state.agent_confidence = cp.get("confidence_scores") or confidence
                     st.session_state.agent_warnings = cp.get("warnings", [])
                     st.session_state.agent_stage = "report_review"
                     st.rerun()
+                elif result.get("completed"):
+                    st.session_state.agent_stage = "done"
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to resume agent execution.")
 
         with col3:
             if st.button("❌ Reject & Restart", use_container_width=True):

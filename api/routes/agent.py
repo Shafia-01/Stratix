@@ -6,9 +6,12 @@ POST /agent/resume  — Resume a paused run with human feedback
 GET  /agent/status/{run_id} — Poll current state of a run
 """
 import uuid
+import json
+import asyncio
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.graph.graph import get_compiled_graph
@@ -176,3 +179,115 @@ async def get_run_status(run_id: str) -> RunResponse:
     except Exception as e:
         logger.error(f"get_run_status failed for run_id={run_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class StreamRequest(BaseModel):
+    seed_keyword: Optional[str] = Field(None, description="Seed keyword to research")
+    user_goal: Optional[str] = Field(None, description="Optional free-text goal")
+    run_id: Optional[str] = Field(None, description="Run ID to resume")
+    human_feedback: Optional[Dict[str, Any]] = Field(None, description="Human feedback for resume")
+
+
+async def event_generator(request: StreamRequest):
+    graph = get_compiled_graph()
+    if request.run_id:
+        run_id = request.run_id
+        config = {"configurable": {"thread_id": run_id}}
+        update_data = {"awaiting_human": False}
+        if request.human_feedback:
+            update_data["human_feedback"] = request.human_feedback
+        graph.update_state(config, update_data)
+        initial_state = None
+    else:
+        run_id = str(uuid.uuid4())
+        config = get_run_config(request.seed_keyword or "", run_id)
+        initial_state = {
+            "seed_keyword": request.seed_keyword or "",
+            "status": "pending",
+            "awaiting_human": False,
+            "messages": [],
+            "errors": [],
+            "execution_metadata": build_initial_metadata(run_id),
+            "human_feedback": None,
+        }
+
+    yield f"data: {json.dumps({'event': 'run_started', 'run_id': run_id})}\n\n"
+
+    try:
+        async for event in graph.astream_events(initial_state, config, version="v2"):
+            event_type = event.get("event")
+            name = event.get("name")
+            metadata = event.get("metadata", {})
+            node_name = metadata.get("langgraph_node")
+
+            if event_type == "on_chain_start" and node_name:
+                yield f"data: {json.dumps({'event': 'node_start', 'node': node_name})}\n\n"
+            elif event_type == "on_chain_end" and node_name:
+                output = event.get("data", {}).get("output", {})
+                payload = {'event': 'node_complete', 'node': node_name}
+                if isinstance(output, dict):
+                    if "confidence_scores" in output and output["confidence_scores"]:
+                        payload["confidence_scores"] = output["confidence_scores"]
+                    if "critic_feedback" in output and output["critic_feedback"]:
+                        payload["critic_feedback"] = output["critic_feedback"]
+                    if "errors" in output and output["errors"]:
+                        payload["errors"] = output["errors"]
+                yield f"data: {json.dumps(payload)}\n\n"
+            elif event_type == "on_tool_start":
+                yield f"data: {json.dumps({'event': 'tool_start', 'tool': name})}\n\n"
+            elif event_type == "on_tool_end":
+                output = event.get("data", {}).get("output", {})
+                success = True
+                error_msg = None
+                if isinstance(output, dict) and "error" in output:
+                    success = False
+                    error_msg = output["error"]
+                yield f"data: {json.dumps({'event': 'tool_complete', 'tool': name, 'success': success, 'error': error_msg})}\n\n"
+    except asyncio.CancelledError:
+        logger.info(f"Stream connection cancelled for run_id={run_id}")
+        raise
+    except Exception as e:
+        logger.error(f"Stream execution failed for run_id={run_id}: {e}", exc_info=True)
+        yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+    finally:
+        try:
+            current_state = graph.get_state(config)
+            if current_state and current_state.next:
+                next_node = current_state.next[0]
+                values = current_state.values
+                status = values.get("status")
+
+                if next_node == "research_agent_node" or status == "awaiting_plan_approval":
+                    checkpoint_type = "plan_approval"
+                    checkpoint_data = {
+                        "research_plan": values.get("research_plan"),
+                    }
+                else:
+                    checkpoint_type = "report_approval"
+                    checkpoint_data = {
+                        "research_plan": values.get("research_plan"),
+                        "strategy_report": values.get("strategy_report"),
+                        "confidence_scores": values.get("confidence_scores"),
+                        "warnings": values.get("errors", []),
+                    }
+                yield f"data: {json.dumps({
+                    'event': 'checkpoint',
+                    'checkpoint': checkpoint_type,
+                    'status': status,
+                    'checkpoint_data': checkpoint_data
+                })}\n\n"
+            else:
+                current_state = graph.get_state(config)
+                values = current_state.values if current_state else {}
+                status = values.get("status", "completed")
+                yield f"data: {json.dumps({'event': 'completed', 'status': status})}\n\n"
+        except Exception as e:
+            logger.error(f"Failed to fetch final state for run_id={run_id}: {e}")
+
+
+@router.post("/stream")
+async def stream_agent(request: StreamRequest):
+    if not request.run_id and not request.seed_keyword:
+        raise HTTPException(status_code=400, detail="Either run_id or seed_keyword must be provided.")
+    return StreamingResponse(event_generator(request), media_type="text/event-stream")
+
