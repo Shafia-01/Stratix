@@ -137,13 +137,14 @@ def render_home_overview():
     except Exception:
         pass
 
+    from src.ui.components import render_card
     col_stat1, col_stat2, col_stat3 = st.columns(3)
     with col_stat1:
-        st.metric("Active Research Runs", status_data["active_runs"])
+        render_card("Active Research Runs", str(status_data["active_runs"]), "Executing or awaiting approval", "🔬")
     with col_stat2:
-        st.metric("Total Intelligence Reports", status_data["total_reports"])
+        render_card("Total Intelligence Reports", str(status_data["total_reports"]), "Saved research reports", "📄")
     with col_stat3:
-        st.metric("Active Monitoring Jobs", status_data["active_jobs"])
+        render_card("Active Monitoring Jobs", str(status_data["active_jobs"]), "Scheduled tracking campaigns", "🕒")
 
     # Quick buttons
     st.markdown("### 🚀 Quick Actions")
