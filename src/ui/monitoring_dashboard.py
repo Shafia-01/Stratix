@@ -115,30 +115,14 @@ def render_monitoring_dashboard():
                             if len(filtered_runs) < 2:
                                 st.info("At least 2 runs are required to compute a report difference.")
                             else:
-                                run_options = {f"{r[time_col]} ({r['run_id'][:8]})": r["run_id"] for _, r in filtered_runs.iterrows()}
-
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    newer_run_label = st.selectbox("Newer Run (A)", list(run_options.keys()), index=0)
-                                with col2:
-                                    older_run_label = st.selectbox("Older Run (B)", list(run_options.keys()), index=min(1, len(run_options)-1))
-
-                                newer_run_id = run_options[newer_run_label]
-                                older_run_id = run_options[older_run_label]
-
-                                if newer_run_id == older_run_id:
-                                    st.warning("Please select two different runs to compare.")
-                                elif st.button("Compute Report Diff"):
+                                if st.button("View Latest Diff"):
                                     try:
-                                        diff_resp = requests.get(f"{API_BASE_URL}/monitor/diff", params={
-                                            "newer_run_id": newer_run_id,
-                                            "older_run_id": older_run_id
-                                        }, headers=_get_headers())
+                                        diff_resp = requests.get(f"{API_BASE_URL}/monitor/diff/{selected_seed}", headers=_get_headers())
                                         if diff_resp.status_code == 200:
                                             diff_data = diff_resp.json()
 
                                             st.success("Diff generated successfully!")
-                                            st.markdown("### 📝 Diff Summary: A vs B")
+                                            st.markdown("### 📝 Diff Summary: Latest vs Previous Run")
                                             st.info(diff_data.get("summary") or "No changes detected.")
 
                                             # Confidence deltas

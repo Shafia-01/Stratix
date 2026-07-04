@@ -872,7 +872,7 @@ The client approves the final strategic findings:
 
 ## 5. Tool Registry Endpoints
 
-The `/intelligence/*` endpoints map directly to individual tools registered in the platform's central registry ([registry.py](file:///c:/Users/Shafia/PROJECTS/Stratix/src/tools/registry.py)):
+The `/intelligence/*` endpoints map directly to individual tools registered in the platform's central registry ([registry.py](../src/tools/registry.py)):
 
 * `POST /intelligence/serp` $\rightarrow$ `serp_analysis`
 * `POST /intelligence/competitors` $\rightarrow$ `competitor_gap`
@@ -886,4 +886,4 @@ These endpoints expose individual tool capabilities directly to clients for one-
 
 Instead of routing requests over HTTP, the graph utilizes the `invoke_tool()` helper framework. This wrapper acts as an exception-eating dispatch mechanism: network timeouts or parsing exceptions are converted into structured errors (`{"error": ..., "tool": ...}`) and written directly back into the graph's execution state rather than crashing the orchestrator thread.
 
-For more details on how these registry nodes are wired together inside the multi-agent graph, see [ARCHITECTURE.md](file:///c:/Users/Shafia/PROJECTS/Stratix/docs/ARCHITECTURE.md).
+For more details on how these registry nodes are wired together inside the multi-agent graph, see [ARCHITECTURE.md](./ARCHITECTURE.md).

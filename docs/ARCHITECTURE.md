@@ -107,7 +107,7 @@ Retry limits are strictly checked inside routing helpers to prevent infinite exe
 
 ## 3. State Schema (`AgentState`)
 
-The state schema is defined in [state.py](file:///c:/Users/Shafia/PROJECTS/Stratix/src/graph/state.py) as a `TypedDict`. Individual fields are marked as optional so that executing nodes can update slices of the state independently.
+The state schema is defined in [state.py](../src/graph/state.py) as a `TypedDict`. Individual fields are marked as optional so that executing nodes can update slices of the state independently.
 
 | Field Name | Type | Initializing Node | Downstream Reading Nodes |
 | :--- | :--- | :--- | :--- |
@@ -189,7 +189,7 @@ By separating these checks, Stratix avoids sending empty or low-density data to 
 
 ## 6. Tool Invocation Inside the Graph
 
-Stratix uses a unified registry ([registry.py](file:///c:/Users/Shafia/PROJECTS/Stratix/src/tools/registry.py)) to map and execute tools. However, the graph and the REST API use two distinct invocation pathways:
+Stratix uses a unified registry ([registry.py](../src/tools/registry.py)) to map and execute tools. However, the graph and the REST API use two distinct invocation pathways:
 
 ```
                             ┌─────────────────────┐

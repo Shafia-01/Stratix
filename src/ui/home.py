@@ -161,10 +161,6 @@ def render_floating_panel():
                 st.session_state.panel_open = False
                 st.session_state.current_page = "competitor_gap"
                 st.rerun()
-            if st.button("🎯 Search Intent", key="fp_si", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "search_intent"
-                st.rerun()
             if st.button("🧠 Topic Clustering", key="fp_tc", use_container_width=True):
                 st.session_state.panel_open = False
                 st.session_state.current_page = "topic_clustering"
@@ -177,18 +173,6 @@ def render_floating_panel():
             if st.button("📰 SERP Analysis", key="fp_sa", use_container_width=True):
                 st.session_state.panel_open = False
                 st.session_state.current_page = "serp_analysis"
-                st.rerun()
-            if st.button("🧾 Content Optimization", key="fp_co", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "content_optimization"
-                st.rerun()
-            if st.button("💰 Conversion Mapping", key="fp_cm", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "conversion_mapping"
-                st.rerun()
-            if st.button("🌐 Industry Focus", key="fp_if", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "industry_focus"
                 st.rerun()
             if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
                 st.session_state.panel_open = False
