@@ -32,7 +32,7 @@ from src.ui.theme import load_custom_css
 load_custom_css()
 
 from src.ui.sidebar import render_sidebar
-from src.ui.home import render_home_overview, render_floating_panel
+from src.ui.home import render_home_overview, render_floating_panel, render_landing_page
 from src.ui.keyword_discovery import render_keyword_discovery
 from src.ui.competitor_gap import render_competitor_gap
 from src.ui.topic_clustering import render_topic_clustering
@@ -85,50 +85,54 @@ def main():
             if st.button("🔄 Retest APIs", type="secondary"):
                 st.rerun()
 
-    render_sidebar()
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col5:
-        if st.button("🏠 Home", use_container_width=True):
-            st.session_state.current_page = "home"
-            st.rerun()
-        toggle_text = "Hide Features" if st.session_state.get("panel_open", False) else "Show Features"
-        if st.button(toggle_text, use_container_width=True):
-            st.session_state.panel_open = not st.session_state.get("panel_open", False)
-            st.rerun()
-    render_floating_panel()
     current_page = st.session_state.current_page
-    
-    if current_page == "home":
-        if not st.session_state.get("panel_open", False):
-            render_home_overview()
-    elif current_page == "keyword_discovery":
-        render_keyword_discovery()
-    elif current_page == "competitor_gap":
-        render_competitor_gap()
-    elif current_page == "topic_clustering":
-        render_topic_clustering()
-    elif current_page == "trend_forecasting":
-        render_trend_forecasting()
-    elif current_page == "serp_analysis":
-        render_serp_analysis()
-    elif current_page == "full_strategy":
-        render_full_strategy()
-    elif current_page == "executive_reports":
-        from src.ui.executive_reports import render_executive_reports
-        render_executive_reports()
-    elif current_page == "analytics":
-        from src.ui.analytics import render_analytics
-        render_analytics()
-    elif current_page == "agent_mode":
-        render_agent_mode()
-    elif current_page == "agent_timeline":
-        from src.ui.agent_timeline import render_agent_timeline
-        render_agent_timeline()
-    elif current_page == "monitoring_dashboard":
-        from src.ui.monitoring_dashboard import render_monitoring_dashboard
-        render_monitoring_dashboard()
+
+    if current_page == "landing":
+        render_landing_page()
     else:
-        render_home_overview()
+        render_sidebar()
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col5:
+            if st.button("🏠 Home", use_container_width=True):
+                st.session_state.current_page = "home"
+                st.rerun()
+            toggle_text = "Hide Features" if st.session_state.get("panel_open", False) else "Show Features"
+            if st.button(toggle_text, use_container_width=True):
+                st.session_state.panel_open = not st.session_state.get("panel_open", False)
+                st.rerun()
+        render_floating_panel()
+        
+        if current_page == "home":
+            if not st.session_state.get("panel_open", False):
+                render_home_overview()
+        elif current_page == "keyword_discovery":
+            render_keyword_discovery()
+        elif current_page == "competitor_gap":
+            render_competitor_gap()
+        elif current_page == "topic_clustering":
+            render_topic_clustering()
+        elif current_page == "trend_forecasting":
+            render_trend_forecasting()
+        elif current_page == "serp_analysis":
+            render_serp_analysis()
+        elif current_page == "full_strategy":
+            render_full_strategy()
+        elif current_page == "executive_reports":
+            from src.ui.executive_reports import render_executive_reports
+            render_executive_reports()
+        elif current_page == "analytics":
+            from src.ui.analytics import render_analytics
+            render_analytics()
+        elif current_page == "agent_mode":
+            render_agent_mode()
+        elif current_page == "agent_timeline":
+            from src.ui.agent_timeline import render_agent_timeline
+            render_agent_timeline()
+        elif current_page == "monitoring_dashboard":
+            from src.ui.monitoring_dashboard import render_monitoring_dashboard
+            render_monitoring_dashboard()
+        else:
+            render_home_overview()
 
 
 if __name__ == "__main__":

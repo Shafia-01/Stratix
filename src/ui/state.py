@@ -4,7 +4,7 @@ from datetime import datetime
 def initialize_session_state():
     """Initialize session state variables."""
     return {
-        "current_page": "home",
+        "current_page": "landing",
         "keyword_results": [],
         "competitor_results": None,
         "cluster_results": None,
