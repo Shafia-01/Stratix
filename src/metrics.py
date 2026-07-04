@@ -80,27 +80,45 @@ class KeylyticsMetrics:
 
     def increment(self, name: str, labels: Optional[Dict[str, str]] = None, amount: float = 1.0) -> None:
         """Increment a counter metric."""
-        key = _label_key(labels)
-        with self._lock:
-            self._counters[name][key] += amount
-            if labels:
-                self._label_map["counter"][name + key] = labels
+        names = [name]
+        if name.startswith("keylytics_"):
+            names.append(name.replace("keylytics_", "stratix_", 1))
+        elif name.startswith("stratix_"):
+            names.append(name.replace("stratix_", "keylytics_", 1))
+        for n in names:
+            key = _label_key(labels)
+            with self._lock:
+                self._counters[n][key] += amount
+                if labels:
+                    self._label_map["counter"][n + key] = labels
 
     def observe(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Record a histogram observation."""
-        key = _label_key(labels)
-        with self._lock:
-            self._histograms[name][key].append(value)
-            if labels:
-                self._label_map["histogram"][name + key] = labels
+        names = [name]
+        if name.startswith("keylytics_"):
+            names.append(name.replace("keylytics_", "stratix_", 1))
+        elif name.startswith("stratix_"):
+            names.append(name.replace("stratix_", "keylytics_", 1))
+        for n in names:
+            key = _label_key(labels)
+            with self._lock:
+                self._histograms[n][key].append(value)
+                if labels:
+                    self._label_map["histogram"][n + key] = labels
 
     def gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Set a gauge metric to an absolute value."""
-        key = _label_key(labels)
-        with self._lock:
-            self._gauges[name][key] = value
-            if labels:
-                self._label_map["gauge"][name + key] = labels
+        names = [name]
+        if name.startswith("keylytics_"):
+            names.append(name.replace("keylytics_", "stratix_", 1))
+        elif name.startswith("stratix_"):
+            names.append(name.replace("stratix_", "keylytics_", 1))
+        for n in names:
+            key = _label_key(labels)
+            with self._lock:
+                self._gauges[n][key] = value
+                if labels:
+                    self._label_map["gauge"][n + key] = labels
 
     # ── Prometheus text format ─────────────────────────────────────────────
 

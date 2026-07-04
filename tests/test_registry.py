@@ -39,6 +39,8 @@ class TestGetToolSchemas:
             assert "name" in schema
             assert "description" in schema
             assert "input_schema" in schema
+            assert schema["name"] != ""
+            assert schema["description"] != ""
 
     def test_each_schema_is_valid_json_schema(self):
         """input_schema must be a dict with 'type' and 'properties'."""
@@ -46,6 +48,7 @@ class TestGetToolSchemas:
             input_schema = schema["input_schema"]
             assert isinstance(input_schema, dict)
             assert "properties" in input_schema
+            assert input_schema.get("type") == "object"
 
     def test_schema_names_match_registry_keys(self):
         schemas = get_tool_schemas()
