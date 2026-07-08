@@ -49,7 +49,6 @@ def _get_llm() -> ChatGoogleGenerativeAI:
         convert_system_message_to_human=True,
     )
     fallback_models = [
-        "gemma-4-26b-a4b-it",
         "gemini-3.1-flash-lite",
         "gemini-2.5-flash-lite",
         "gemini-3.5-flash",

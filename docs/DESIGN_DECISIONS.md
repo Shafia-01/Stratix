@@ -42,7 +42,7 @@ This document serves as the official design log of key architectural decisions a
 
 ### Multi-model Gemini fallback chain over a single pinned model
 **Context:** API rate limits, transient provider issues, or model deprecations can break the agent graph execution midway.
-**Decision:** We chose a hierarchical model fallback chain (`gemma-4-31b-it`, `gemma-4-26b-a4b-it`, `gemini-3.1-flash-lite`, etc.) utilizing LangChain's `with_fallbacks()` mechanism.
+**Decision:** We chose a hierarchical model fallback chain (`gemma-4-31b-it`, `gemini-3.1-flash-lite`, etc.) utilizing LangChain's `with_fallbacks()` mechanism.
 **Alternatives considered:** We considered pinning all LLM calls to a single, high-performing model to ensure output formatting consistency. However, this leaves the application vulnerable to immediate failures if the primary model hits quota exhaustion. A cascading fallback list increases execution reliability.
 **Trade-offs accepted:** We accept variance in response time and formatting accuracy when execution falls through to smaller models in the chain. We mitigate this by defining structured output schemas to force smaller models to adhere to required JSON shapes.
 

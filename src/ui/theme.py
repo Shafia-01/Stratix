@@ -542,13 +542,16 @@ def get_optimized_css():
     }}
 
     /* Custom CSS to replace sidebar collapse/expand buttons with << and >> */
-    button[data-testid="stSidebarCollapseButton"] span,
-    [data-testid="collapsedSidebarCodegen"] button span {{
+    button[class*="e1e4lema"] *,
+    button[data-testid="stSidebarCollapseButton"] *,
+    [data-testid="collapsedSidebarCodegen"] button * {{
         font-size: 0 !important;
         color: transparent !important;
+        display: none !important;
     }}
 
-    button[data-testid="stSidebarCollapseButton"] span::after {{
+    .stSidebar button[class*="e1e4lema"]::after,
+    .stSidebar button[data-testid="stSidebarCollapseButton"]::after {{
         content: "<<" !important;
         font-family: 'Cambria', Georgia, serif !important;
         font-size: 1.2rem !important;
@@ -557,7 +560,8 @@ def get_optimized_css():
         display: inline-block !important;
     }}
 
-    [data-testid="collapsedSidebarCodegen"] button span::after {{
+    [data-testid="collapsedSidebarCodegen"] button::after,
+    div:not(.stSidebar) > button[class*="e1e4lema"]::after {{
         content: ">>" !important;
         font-family: 'Cambria', Georgia, serif !important;
         font-size: 1.2rem !important;
