@@ -13,8 +13,8 @@ from src.services.metrics_service import update_global_metrics, increment_daily_
 logger = get_logger(__name__)
 
 def render_keyword_discovery():
-    """🔍 Keyword Discovery: Find, rank, and score keywords"""
-    st.markdown("### 🔍 Market Research Pipeline")
+    """ Keyword Discovery: Find, rank, and score keywords"""
+    st.markdown("###  Market Research Pipeline")
     st.markdown("Autonomous keyword discovery with volume, CPC, competition analysis, and intent classification.")
     # Input bar
     col1, col2, col3 = st.columns([3, 1, 1])
@@ -31,7 +31,7 @@ def render_keyword_discovery():
             key="discovery_mode"
         )
     with col3:
-        if st.button("🚀 Analyze", type="primary", use_container_width=True):
+        if st.button(" Analyze", type="primary", use_container_width=True):
             if keyword_input:
                 keyword_limit = {
                     "Quick (5)": 5,
@@ -49,7 +49,7 @@ def render_keyword_discovery():
                         # If results are fewer than requested, try to generate more
                         if results and len(results) > 0:
                             if len(results) < keyword_limit:
-                                st.warning(f"⚠️ Only {len(results)} keywords were generated. This might be due to API limitations or caching.")
+                                st.warning(f" Only {len(results)} keywords were generated. This might be due to API limitations or caching.")
                                 st.session_state.keyword_results = results
                             else:
                                 st.session_state.keyword_results = results[:keyword_limit]
@@ -64,18 +64,18 @@ def render_keyword_discovery():
                             try:
                                 cached_save_to_db(st.session_state.keyword_results)
                             except Exception as db_error:
-                                st.warning(f"⚠️ Database save failed: {db_error}")
+                                st.warning(f" Database save failed: {db_error}")
                             add_recent_search(keyword_input)
                             increment_daily_requests()
-                            st.success(f"✅ Analyzed {len(st.session_state.keyword_results)} keywords!")
+                            st.success(f" Analyzed {len(st.session_state.keyword_results)} keywords!")
                         else:
-                            st.error("❌ No keywords found. Please try a different term.")
+                            st.error(" No keywords found. Please try a different term.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        st.error(f" Error: {str(e)}")
                         import traceback
                         st.error(f"Details: {traceback.format_exc()}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")
+                st.warning(" Please enter a keyword first.")
     # Display results
     if "keyword_results" in st.session_state and st.session_state.keyword_results:
         results = st.session_state.keyword_results
@@ -87,11 +87,11 @@ def render_keyword_discovery():
         df_display = df[display_columns].copy()
 
         # Metrics table
-        st.markdown("#### 📊 Metrics Table")
+        st.markdown("####  Metrics Table")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
         # Trend graph
         if 'volume' in df.columns and 'score' in df.columns:
-            st.markdown("#### 📈 Trend Graph")
+            st.markdown("####  Trend Graph")
             fig = px.scatter(
                 df.head(20),
                 x='volume',

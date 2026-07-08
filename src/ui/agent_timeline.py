@@ -9,12 +9,12 @@ import os
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 NODE_ICONS = {
-    "planner_node": "🧠",
-    "research_agent_node": "🔬",
-    "aggregator_node": "⚙️",
+    "planner_node": "",
+    "research_agent_node": "",
+    "aggregator_node": "",
     "quality_gate_node": "🚪",
-    "critic_node": "🔍",
-    "strategy_agent_node": "📊",
+    "critic_node": "",
+    "strategy_agent_node": "",
     "persist_node": "💾",
 }
 
@@ -99,7 +99,7 @@ def render_agent_timeline():
     # Confidence scores
     confidence = data.get("confidence_scores", {})
     if confidence:
-        st.markdown("#### 📊 Module Confidence Scores")
+        st.markdown("####  Module Confidence Scores")
         conf_cols = st.columns(len(confidence))
         for i, (module, score) in enumerate(confidence.items()):
             color = "🟢" if score >= 0.7 else "🟡" if score >= 0.4 else "🔴"
@@ -112,7 +112,7 @@ def render_agent_timeline():
 
     # Eval scores
     if eval_scores:
-        st.markdown("#### 🤖 LLM Evaluation Scores")
+        st.markdown("####  LLM Evaluation Scores")
         eval_cols = st.columns(len(eval_scores))
         for i, (eval_type, score) in enumerate(eval_scores.items()):
             with eval_cols[i]:
@@ -132,14 +132,14 @@ def render_agent_timeline():
 
     for event in node_events:
         node = event["node_name"]
-        icon = NODE_ICONS.get(node, "⚙️")
+        icon = NODE_ICONS.get(node, "")
         event_type = event["event_type"]
 
         if event_type == "hitl_interrupt":
             checkpoint = event.get("metadata", {}).get("checkpoint", "")
             st.warning(f"⏸️ **HUMAN APPROVAL REQUIRED** — `{checkpoint}`")
         elif event_type == "error":
-            st.error(f"❌ Error in pipeline: {event.get('metadata', {}).get('error_message', 'Unknown error')}")
+            st.error(f" Error in pipeline: {event.get('metadata', {}).get('error_message', 'Unknown error')}")
         else:
             with st.expander(f"{icon} {node.replace('_', ' ').title()}", expanded=False):
                 meta = event.get("metadata", {})
@@ -172,11 +172,11 @@ def render_agent_timeline():
                     st.markdown("*Node executed successfully*")
 
     if tool_events:
-        st.markdown("#### 🔧 Tool Call Details")
+        st.markdown("####  Tool Call Details")
         for event in tool_events:
             meta = event.get("metadata", {})
             tool_name = meta.get("tool_name", "unknown")
             count = meta.get("call_count", 1)
             success = meta.get("success", True)
-            status_icon = "✅" if success else "❌"
+            status_icon = "" if success else ""
             st.markdown(f"{status_icon} `{tool_name}` — called {count} time(s)")

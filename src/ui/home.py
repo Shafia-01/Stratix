@@ -14,102 +14,116 @@ def load_base64_image(path):
 def render_landing_page():
     logo_base64 = load_base64_image("assets/keylytics_icon.png")
 
-    st.markdown(f"""
-    <div style="text-align: center; padding: 40px 20px;">
-        <div style="margin-bottom: 20px;">
-            <img src="data:image/png;base64,{logo_base64}" width="120" style="vertical-align:middle;" />
-        </div>
-        <h1 style="font-size: 4.5rem; font-weight: 700; color: #051B4A; margin-bottom: 10px; font-family: 'Cambria', serif;">Stratix</h1>
-        <p style="font-size: 1.8rem; color: #232527; margin-bottom: 30px; font-family: 'Cambria', serif;">Where Autonomous Agents Turn Market Signals into Strategy</p>
-        <p style="font-size: 1.2rem; color: #232527; max-width: 800px; margin: 0 auto 40px auto; line-height: 1.6; font-family: 'Cambria', serif;">
-            Stratix automates comprehensive market intelligence research end-to-end. Powered by a stateful LangGraph orchestrator, Gemini LLMs, and high-fidelity search APIs, it turns raw keyword signals into executive intelligence reports with adversarial oversight.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 1. Primary CTA
-    col_l, col_btn, col_r = st.columns([2, 1, 2])
-    with col_btn:
-        if st.button("🚀 Launch Platform", type="primary", use_container_width=True, key="launch_platform_cta"):
-            st.session_state.current_page = "home"
-            st.rerun()
-
-    st.markdown("<hr style='border: none; height: 1.5px; background: #051B4A; margin: 40px 0;' />", unsafe_allow_html=True)
-
-    # 2. Graph Topology Visualization
-    st.markdown("<h3 style='text-align: center; font-family: Cambria, serif;'>🤖 LangGraph Agent Pipeline Architecture</h3>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin: 20px 0; padding: 20px; background-color: #FFFFFF; border-radius: 12px; border: 1.5px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">1. Planner Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A; text-align: center;">[HITL 1]<br/>Plan Approval</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">2. Research Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">3. Aggregator Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">4. Quality Gate Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">5. Critic Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">6. Strategy Node</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A; text-align: center;">[HITL 2]<br/>Report Approval</div>
-        <div style="font-weight: bold; color: #051B4A;">➡</div>
-        <div style="padding: 10px; background-color: #6EE7B7; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: bold; color: #051B4A;">7. Persist Node</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 3. Why different callouts
-    st.markdown("<h3 style='text-align: center; font-family: Cambria, serif;'>💡 Enterprise-Grade Capabilities</h3>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("""
-        <div class="summary-card" style="height: 180px;">
-            <div class="summary-card-title">🤖 Multi-Agent Orchestration</div>
-            <div class="summary-card-desc">Specialized planner, researcher, aggregator, critic, and strategy nodes work in synergy to deliver complete strategies.</div>
+    _, center_col, _ = st.columns([1, 10, 1])
+    with center_col:
+        # Centered Hero block
+        st.markdown(f"""
+        <div style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10px 20px; gap: 8px;">
+            <div style="height: auto; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+                <img src="data:image/png;base64,{logo_base64}" height="120" style="object-fit: contain;" />
+            </div>
+            <h1 style="font-size: 3.5rem; font-weight: 700; color: #051B4A; margin: 0 0 4px 0; font-family: 'Cambria', serif; line-height: 1.0;">Stratix</h1>
+            <p style="font-size: 1.6rem; color: #051B4A; margin: 0; font-family: 'Cambria', serif; font-weight: bold; font-style: italic;">Where Autonomous Agents Turn Market Signals into Strategy</p>
+            <p style="font-size: 1.15rem; color: #000000; max-width: 800px; margin: 8px 0 0 0; line-height: 1.6;">
+                Stratix automates comprehensive market intelligence research end-to-end. Powered by a stateful LangGraph orchestrator, Gemini LLMs, and high-fidelity search APIs, it turns raw keyword signals into executive intelligence reports with adversarial oversight.
+            </p>
         </div>
         """, unsafe_allow_html=True)
+
+        # Primary CTA
+        col_l, col_btn, col_r = st.columns([2, 1.5, 2])
+        with col_btn:
+            if st.button("Launch Platform", type="primary", use_container_width=True, key="launch_platform_cta"):
+                st.session_state.current_page = "home"
+                st.rerun()
+
+        st.markdown("<hr style='border: none; height: 1.5px; background: #051B4A; margin: 40px 0;' />", unsafe_allow_html=True)
+
+        # Graph Topology Visualization
+        st.markdown("<h3 style='text-align: center; font-family: Cambria, serif; font-size: 1.5rem; color: #051B4A;'>LangGraph Agent Pipeline Architecture</h3>", unsafe_allow_html=True)
         st.markdown("""
-        <div class="summary-card" style="height: 180px;">
-            <div class="summary-card-title">🛡️ Adversarial Self-Critique</div>
-            <div class="summary-card-desc">The Critic Node challenges findings for weak claims and missing information, prompting automatic retries before final synthesis.</div>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin: 20px 0; padding: 20px; background-color: #FFFFFF; border-radius: 12px; border: 1.5px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">1. Planner Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">Plan Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 1</span></div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">2. Research Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">3. Aggregator Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">4. Quality Gate Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">5. Critic Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">6. Strategy Node</div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">Report Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 2</span></div>
+            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: #6EE7B7; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">7. Persist Node</div>
         </div>
         """, unsafe_allow_html=True)
-    with c2:
-        st.markdown("""
-        <div class="summary-card" style="height: 180px;">
-            <div class="summary-card-title">🔬 Human-in-the-Loop Gates</div>
-            <div class="summary-card-desc">Stateful interrupts pause execution at planning and report stages, allowing operators to verify, edit, or reject progress.</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("""
-        <div class="summary-card" style="height: 180px;">
-            <div class="summary-card-title">📊 LLM-as-Judge Evaluation</div>
-            <div class="summary-card-desc">Every run undergoes systematic quality checks assessing plan coverage, report density, and search tool reliability.</div>
-        </div>
-        """, unsafe_allow_html=True)
+
+        st.markdown("<h3 style='text-align: center; font-family: Cambria, serif; font-size: 1.5rem; color: #051B4A; margin-top: 30px;'>Enterprise-Grade Capabilities</h3>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("""
+            <div class="summary-card" style="min-height: 190px; height: auto; margin-bottom: 20px; background-color: #FFFFFF; border: 2px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 12px; text-align: center; width: 100%;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M10 6.5h4M10 17.5h4M6.5 10v4M17.5 10v4"></path></svg>
+                    <div class="summary-card-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; color: #051B4A; width: 100%;">Multi-Agent Orchestration</div>
+                </div>
+                <div class="summary-card-desc" style="font-size: 0.9rem; color: #000000; font-weight: 400; line-height: 1.5; text-align: center; width: 100%;">Specialized planner, researcher, aggregator, critic, and strategy nodes work in synergy to deliver complete strategies.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown("""
+            <div class="summary-card" style="min-height: 190px; height: auto; margin-bottom: 20px; background-color: #FFFFFF; border: 2px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 12px; text-align: center; width: 100%;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <div class="summary-card-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; color: #051B4A; width: 100%;">Adversarial Self-Critique</div>
+                </div>
+                <div class="summary-card-desc" style="font-size: 0.9rem; color: #000000; font-weight: 400; line-height: 1.5; text-align: center; width: 100%;">The Critic Node challenges findings for weak claims and missing information, prompting automatic retries before final synthesis.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.markdown("""
+            <div class="summary-card" style="min-height: 190px; height: auto; margin-bottom: 20px; background-color: #FFFFFF; border: 2px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 12px; text-align: center; width: 100%;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <div class="summary-card-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; color: #051B4A; width: 100%;">Human-in-the-Loop Gates</div>
+                </div>
+                <div class="summary-card-desc" style="font-size: 0.9rem; color: #000000; font-weight: 400; line-height: 1.5; text-align: center; width: 100%;">Stateful interrupts pause execution at planning and report stages, allowing operators to verify, edit, or reject progress.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown("""
+            <div class="summary-card" style="min-height: 190px; height: auto; margin-bottom: 20px; background-color: #FFFFFF; border: 2px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 12px; text-align: center; width: 100%;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    <div class="summary-card-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; color: #051B4A; width: 100%;">LLM-as-Judge Evaluation</div>
+                </div>
+                <div class="summary-card-desc" style="font-size: 0.9rem; color: #000000; font-weight: 400; line-height: 1.5; text-align: center; width: 100%;">Every run undergoes systematic quality checks assessing plan coverage, report density, and search tool reliability.</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 def render_home_overview():
     logo_base64 = load_base64_image("assets/keylytics_icon.png")
 
     # Welcome section
     st.markdown(f"""
-    <div style="width:100%; display:flex; justify-content:center;">
-        <div class="home-container">
-            <div class="welcome-section">
-                <div class="app-logo" style="margin-bottom: -35px; margin-top: -150px;" >
-                    <img src="data:image/png;base64,{logo_base64}" width="150" style="vertical-align:middle; margin:0; padding:0;" />
+    <div style="width:100%; display:flex; justify-content:center; padding: 10px 0;">
+        <div class="home-container" style="max-width: 900px; width: 100%;">
+            <div class="welcome-section" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;">
+                <div class="app-logo" style="height: auto; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+                    <img src="data:image/png;base64,{logo_base64}" height="140" style="object-fit: contain;" />
                 </div>
-                <h1 class="app-title">Stratix</h1>
-                <p class="app-subtitle">Where Autonomous Agents Turn Market Signals into Strategy</p>
+                <h1 class="app-title" style="font-size: 3.5rem; font-weight: 700; color: #051B4A; margin: 0 0 4px 0;">Stratix</h1>
+                <p class="app-subtitle" style="font-size: 1.5rem; color: #051B4A; margin: 0; font-weight: bold; font-style: italic;">Where Autonomous Agents Turn Market Signals into Strategy</p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Pipeline Status Section
-    st.markdown("#### 🤖 Pipeline Status")
+    st.markdown("#### Pipeline Status")
     status_data = {"active_runs": 0, "total_reports": 0, "active_jobs": 0}
     try:
         engine = connect_db()
@@ -140,65 +154,39 @@ def render_home_overview():
     from src.ui.components import render_card
     col_stat1, col_stat2, col_stat3 = st.columns(3)
     with col_stat1:
-        render_card("Active Research Runs", str(status_data["active_runs"]), "Executing or awaiting approval", "🔬")
+        render_card(
+            title="Active Research Runs",
+            value=str(status_data["active_runs"]),
+            desc="Executing or awaiting approval",
+            icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>'
+        )
     with col_stat2:
-        render_card("Total Intelligence Reports", str(status_data["total_reports"]), "Saved research reports", "📄")
+        render_card(
+            title="Total Intelligence Reports",
+            value=str(status_data["total_reports"]),
+            desc="Saved research reports",
+            icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>'
+        )
     with col_stat3:
-        render_card("Active Monitoring Jobs", str(status_data["active_jobs"]), "Scheduled tracking campaigns", "🕒")
+        render_card(
+            title="Active Monitoring Jobs",
+            value=str(status_data["active_jobs"]),
+            desc="Scheduled tracking campaigns",
+            icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+        )
 
     # Quick buttons
-    st.markdown("### 🚀 Quick Actions")
+    st.markdown("### Quick Actions")
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🤖 Autonomous Research", use_container_width=True):
+        if st.button("Autonomous Research", use_container_width=True):
             st.session_state.current_page = "agent_mode"
             st.rerun()
     with col2:
-        if st.button("📈 Executive Reports", use_container_width=True):
+        if st.button("Executive Reports", use_container_width=True):
             st.session_state.current_page = "executive_reports"
             st.rerun()
     with col3:
-        if st.button("📊 Unified Analytics", use_container_width=True):
+        if st.button("Unified Analytics", use_container_width=True):
             st.session_state.current_page = "analytics"
             st.rerun()
-
-def render_floating_panel():
-    """Render the floating features panel"""
-    if st.session_state.get("panel_open", False):
-        st.markdown("### 🚀 All Features")
-        # Feature buttons in columns
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔍 Keyword Discovery", key="fp_kd", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "keyword_discovery"
-                st.rerun()
-            if st.button("🧩 Competitor Gap", key="fp_cg", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "competitor_gap"
-                st.rerun()
-            if st.button("🧠 Topic Clustering", key="fp_tc", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "topic_clustering"
-                st.rerun()
-            if st.button("📈 Trend Forecasting", key="fp_tf", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "trend_forecasting"
-                st.rerun()
-        with col2:
-            if st.button("📰 SERP Analysis", key="fp_sa", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "serp_analysis"
-                st.rerun()
-            if st.button("🧩 Full Strategy", key="fp_fs", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "full_strategy"
-                st.rerun()
-
-        st.write("")
-        col_left, col_mid, col_right = st.columns([1, 2, 1])
-        with col_mid:
-            if st.button("🤖 Agent Mode", key="fp_am", use_container_width=True):
-                st.session_state.panel_open = False
-                st.session_state.current_page = "agent_mode"
-                st.rerun()

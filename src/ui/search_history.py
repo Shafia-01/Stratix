@@ -9,7 +9,7 @@ def render_search_history():
         try:
             df_history = cached_fetch_past_results(limit=100)
             if not df_history.empty:
-                st.success(f"✅ Loaded {len(df_history)} records from database")
+                st.success(f" Loaded {len(df_history)} records from database")
                 # Filters
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -65,5 +65,5 @@ def render_search_history():
             else:
                 st.warning("No search history found. Try running some keyword analyses first.")
         except Exception as e:
-            st.error(f"❌ Error loading history: {str(e)}")
-            st.info("💡 Make sure your database is running and properly configured")
+            st.error(f" Error loading history: {str(e)}")
+            st.info(" Make sure your database is running and properly configured")

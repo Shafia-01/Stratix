@@ -12,7 +12,7 @@ def get_color_theme():
         "bg_card": "#FFFFFF",
         "bg_sidebar": "#FFC7CF",
         "text_primary": "#000000",
-        "text_secondary": "#232527",
+        "text_secondary": "#000000",
         "text_white": "#FFFFFF",
         "border_light": "#000000",
         "border_dark": "#051B4A",
@@ -27,13 +27,14 @@ def get_optimized_css():
     colors = get_color_theme()
     return f"""
     <style>
-    /* Import Cambria font and Material Icons */
-    @import url('https://fonts.googleapis.com/css2?family=Cambria:wght@400;500;600;700&display=swap');
+    /* Import Inter & Cambria fonts and Material Icons */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cambria:wght@400;700&display=swap');
     @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
     /* Global Styles */
     .main {{
         background-color: {colors['bg_main']} !important;
-        font-family: 'Cambria', serif !important;
+        font-family: 'Cambria', Georgia, serif !important;
     }}
 
     /* Force theme colors on main containers */
@@ -44,31 +45,50 @@ def get_optimized_css():
     div[data-testid="stAppViewContainer"] {{
         background-color: {colors['bg_main']} !important;
     }}
-    /* Apply Cambria only to specific text elements, NOT buttons or icons */
-    body, p, div.stMarkdown, div.stText, h1, h2, h3, h4, h5, h6,
-    label, input, textarea, select, option {{
-        font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+
+    /* Global typography system using Cambria as default */
+    body, p, div.stMarkdown, div.stText, label, input, textarea, select, option {{
+        font-family: 'Cambria', Georgia, serif !important;
+        font-weight: 400 !important;
     }}
-    /* DO NOT apply Cambria to buttons, icons, or navigation */
-    button, [data-testid="stSidebarNav"], [data-testid="stSidebarNav"] * {{
-        font-family: inherit !important;
+
+    /* Apply Cambria to span except those that are material icons or icons */
+    span:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]):not([class*="st-"]):not([id*="icon"]):not([id*="Icon"]) {{
+        font-family: 'Cambria', Georgia, serif !important;
     }}
-    /* Apply Cambria only to text content, NOT interactive elements */
-    .stMarkdown, .stText, .stTitle, .stHeader, .stSubheader {{
-        font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+
+    /* Headings and Titles */
+    h1, h2, h3, h4, h5, h6 {{
+        font-family: 'Cambria', Georgia, serif !important;
+        font-weight: 600 !important;
+        color: #051B4A !important;
     }}
-    /* DO NOT override buttons, inputs, or interactive elements */
+
+    /* Cambria reserved strictly for main brand titles */
+    .app-title, .brand-title, .landing-brand, h1.app-title, #stratix-wordmark {{
+        font-family: 'Cambria', Georgia, serif !important;
+        font-weight: 700 !important;
+    }}
+
+    /* Apply Cambria to all interactive elements */
     .stButton, .stButton > button, .stSelectbox, .stTextInput, .stTextArea {{
-        font-family: inherit !important;
+        font-family: 'Cambria', Georgia, serif !important;
     }}
-    /* Apply Cambria only to text content in sidebar */
-    .stSidebar .stMarkdown, .stSidebar .stText {{
-        font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+
+    /* Do not override icon fonts */
+    .material-icons, [class*="material-icons"], [class*="Icon-"], [data-testid="collapsedSidebarCodegen"] *, [data-testid="stSidebarCollapseButton"] * {{
+        font-family: 'Material Icons', sans-serif !important;
     }}
-    /* Sidebar Styling */
+
+    /* Sidebar Styling and Typography */
+    .stSidebar .stMarkdown, .stSidebar .stText, .stSidebar div {{
+        font-family: 'Cambria', Georgia, serif !important;
+    }}
+
+    .stSidebar span:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]) {{
+        font-family: 'Cambria', Georgia, serif !important;
+    }}
+
     .css-1d391kg {{
         background-color: {colors['bg_sidebar']} !important;
         border-right: 2px solid {colors['border_light']};
@@ -270,7 +290,7 @@ def get_optimized_css():
         border: 2px solid #051B4A !important;
         border-radius: 8px !important;
         font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+        font-weight: 500 !important;
         transition: all 0.3s ease !important;
     }}
     .stDownloadButton button:hover {{
@@ -286,7 +306,7 @@ def get_optimized_css():
         border: 2px solid #051B4A !important;
         border-radius: 8px !important;
         font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+        font-weight: 500 !important;
         transition: all 0.3s ease !important;
     }}
     /* Sidebar Buttons */
@@ -294,7 +314,12 @@ def get_optimized_css():
         border: 2px solid #051B4A !important;
         border-radius: 8px !important;
         font-family: 'Cambria', serif !important;
-        font-weight: bold !important;
+        font-weight: 500 !important;
+        padding: 10px 16px !important;
+        height: auto !important;
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         }}
         /* Primary Buttons */
     .stButton > button:first-child {{
@@ -370,20 +395,18 @@ def get_optimized_css():
         font-family: 'Cambria', serif;
         font-size: 6rem;
         font-weight: 700;
-        color: #1F2937;
+        color: #051B4A !important;
         margin: 0;
         line-height: 0.8;
-        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
     }}
     .app-subtitle {{
         font-family: 'Cambria', serif;
         font-size: 1.8rem;
-        color: #6B7280;
+        color: #051B4A !important;
         margin: 0;
         line-height: 1;
+        font-weight: bold !important;
+        font-style: italic !important;
     }}
     .quick-buttons {{
         display: flex;
@@ -423,10 +446,11 @@ def get_optimized_css():
         border: 1.5px solid #051B4A;
         text-align: center;
         transition: all 0.3s ease;
-        height: 300px;
+        height: auto;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+        margin-bottom: 20px;
     }}
     .summary-card:hover {{
         transform: translateY(-4px);
@@ -460,7 +484,7 @@ def get_optimized_css():
         color: #232527;
         flex-grow: 1;
         display: flex;
-        align-items: flex-end;
+        align-items: flex-start;
     }}
     /* System Status Styles */
     .system-status {{
@@ -516,22 +540,32 @@ def get_optimized_css():
         margin: 15px 0 !important;
         border-radius: 1.5px !important;
     }}
-    </style>
-    <script>
-    function fixBackButton() {{
-        // Simple text replacement
-        const elements = document.querySelectorAll('*');
-        elements.forEach(element => {{
-            if (element.textContent && element.textContent.includes('keyboard_double_arrow_right')) {{
-                element.innerHTML = element.innerHTML.replace(/keyboard_double_arrow_right/g, '>>');
-            }}
-        }});
+
+    /* Custom CSS to replace sidebar collapse/expand buttons with << and >> */
+    button[data-testid="stSidebarCollapseButton"] span,
+    [data-testid="collapsedSidebarCodegen"] button span {{
+        font-size: 0 !important;
+        color: transparent !important;
     }}
-    // Run multiple times to catch dynamic content
-    fixBackButton();
-    setTimeout(fixBackButton, 500);
-    setTimeout(fixBackButton, 1000);
-    </script>
+
+    button[data-testid="stSidebarCollapseButton"] span::after {{
+        content: "<<" !important;
+        font-family: 'Cambria', Georgia, serif !important;
+        font-size: 1.2rem !important;
+        color: #051B4A !important;
+        visibility: visible !important;
+        display: inline-block !important;
+    }}
+
+    [data-testid="collapsedSidebarCodegen"] button span::after {{
+        content: ">>" !important;
+        font-family: 'Cambria', Georgia, serif !important;
+        font-size: 1.2rem !important;
+        color: #051B4A !important;
+        visibility: visible !important;
+        display: inline-block !important;
+    }}
+    </style>
     """
 
 def load_custom_css():

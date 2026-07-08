@@ -9,8 +9,8 @@ def cached_cluster_keywords_semantically(keywords):
 from src.services.keyword_service import cached_run_lightweight_agent
 
 def render_topic_clustering():
-    """🧠 Topic Clustering: Group related keywords"""
-    st.markdown("### 🧠 Topic Clustering")
+    """ Topic Clustering: Group related keywords"""
+    st.markdown("###  Topic Clustering")
     st.markdown("Group related keywords into semantic clusters for better content strategy.")
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -20,7 +20,7 @@ def render_topic_clustering():
             key="cluster_keyword_new"
         )
     with col2:
-        if st.button("🧠 Cluster Topics", type="primary", use_container_width=True):
+        if st.button(" Cluster Topics", type="primary", use_container_width=True):
             if cluster_keyword:
                 with st.spinner("Clustering topics..."):
                     try:
@@ -29,15 +29,15 @@ def render_topic_clustering():
                             results = cached_cluster_keywords_semantically(keywords)
                             if results and "clusters" in results and len(results["clusters"]) > 0:
                                 st.session_state.cluster_results = results
-                                st.success(f"✅ Found {len(results['clusters'])} topic clusters!")
+                                st.success(f" Found {len(results['clusters'])} topic clusters!")
                             else:
-                                st.warning("⚠️ No clusters found. Try a different keyword.")
+                                st.warning(" No clusters found. Try a different keyword.")
                         else:
-                            st.error("❌ No keywords found for clustering.")
+                            st.error(" No keywords found for clustering.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        st.error(f" Error: {str(e)}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")
+                st.warning(" Please enter a keyword first.")
     # Display results
     if "cluster_results" in st.session_state and st.session_state.cluster_results:
         results = st.session_state.cluster_results

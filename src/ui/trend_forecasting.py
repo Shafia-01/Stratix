@@ -10,8 +10,8 @@ from src.services.keyword_service import cached_run_lightweight_agent
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
 def render_trend_forecasting():
-    """📈 Trend Forecasting: Predict keyword trends"""
-    st.markdown("### 📈 Trend Forecasting")
+    """ Trend Forecasting: Predict keyword trends"""
+    st.markdown("###  Trend Forecasting")
     st.markdown("Predict keyword trends with 6-month forecasts and seasonal analysis.")
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -21,7 +21,7 @@ def render_trend_forecasting():
             key="trend_keyword_new"
         )
     with col2:
-        if st.button("📈 Forecast Trends", type="primary", use_container_width=True):
+        if st.button(" Forecast Trends", type="primary", use_container_width=True):
             if trend_keyword:
                 with st.spinner("Analyzing trends..."):
                     try:
@@ -31,22 +31,22 @@ def render_trend_forecasting():
                             st.session_state.trend_results = results
                             add_recent_search(trend_keyword)
                             increment_daily_requests()
-                            st.success("✅ Trend analysis complete!")
+                            st.success(" Trend analysis complete!")
                         else:
-                            st.error("❌ No keywords found for trend analysis.")
+                            st.error(" No keywords found for trend analysis.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        st.error(f" Error: {str(e)}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")
+                st.warning(" Please enter a keyword first.")
 
     # Display results
     if "trend_results" in st.session_state and st.session_state.trend_results:
         results = st.session_state.trend_results
         # Line graph
         if "forecasts" in results and results["forecasts"]:
-            st.markdown("#### 📊 Trend Forecasts")
+            st.markdown("####  Trend Forecasts")
             for keyword, forecast in list(results["forecasts"].items())[:3]:
-                with st.expander(f"📈 {keyword} - {forecast['trend_direction']}"):
+                with st.expander(f" {keyword} - {forecast['trend_direction']}"):
                     st.markdown(f"**Predicted Growth:** {forecast['predicted_growth']}%")
                     st.markdown(f"**Recommendation:** {forecast['recommendation']}")
                     # Forecast chart
@@ -67,7 +67,7 @@ def render_trend_forecasting():
                         st.plotly_chart(fig, use_container_width=True)
         # Seasonal peaks
         if "seasonal_analysis" in results and results["seasonal_analysis"]:
-            st.markdown("#### 🗓️ Seasonal Peaks")
+            st.markdown("####  Seasonal Peaks")
             for keyword, analysis in list(results["seasonal_analysis"].items())[:3]:
                 growth_rate = analysis.get('growth_rate')
                 growth_text = f"{growth_rate}%" if growth_rate is not None else "N/A"

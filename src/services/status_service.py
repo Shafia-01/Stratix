@@ -54,12 +54,16 @@ def test_api_quick():
             import requests
             url = "https://serpapi.com/search.json"
             params = {"q": "test", "api_key": serpapi_key, "engine": "google", "num": "1"}
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 results["serpapi"] = "search_information" in data or "error" not in data
             else:
                 logger.error(f"SerpApi HTTP error: {response.status_code}")
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"SerpApi test timed out: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"SerpApi connection failed: {e}")
         except Exception:
             logger.exception("SerpApi test failed")
 

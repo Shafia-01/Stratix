@@ -1,5 +1,5 @@
 """
-🤖 Agent Mode — Streamlit UI for the LangGraph autonomous research pipeline.
+ Agent Mode — Streamlit UI for the LangGraph autonomous research pipeline.
 
 Provides a conversational-style interface for:
 1. Entering a seed keyword
@@ -98,7 +98,7 @@ def run_and_display_stream(payload: dict) -> dict:
             if event == "run_started":
                 run_id = data.get("run_id")
                 st.session_state.agent_run_id = run_id
-                status_placeholder.info(f"🚀 **Started Autonomous Execution Run:** `{run_id}`")
+                status_placeholder.info(f" **Started Autonomous Execution Run:** `{run_id}`")
             elif event == "node_start":
                 node = data.get("node")
                 if node in node_states:
@@ -129,7 +129,7 @@ def run_and_display_stream(payload: dict) -> dict:
             elif event == "completed":
                 completed = True
             elif event == "error":
-                st.error(f"❌ Pipeline error: {data.get('message')}")
+                st.error(f" Pipeline error: {data.get('message')}")
 
             # Update UI
             with progress_placeholder.container():
@@ -156,13 +156,13 @@ def run_and_display_stream(payload: dict) -> dict:
                         if tc["status"] == "running":
                             st.info(f"⏳ Running tool: `{t_label}`...")
                         elif tc["status"] == "success":
-                            st.success(f"✅ Tool `{t_label}` completed successfully.")
+                            st.success(f" Tool `{t_label}` completed successfully.")
                         else:
-                            st.error(f"❌ Tool `{t_label}` failed.")
+                            st.error(f" Tool `{t_label}` failed.")
 
             if confidence_scores:
                 with metrics_placeholder.container():
-                    st.markdown("#### 📊 Current Confidence Scores")
+                    st.markdown("####  Current Confidence Scores")
                     c_cols = st.columns(len(confidence_scores))
                     for c_idx, (m, score) in enumerate(confidence_scores.items()):
                         with c_cols[c_idx]:
@@ -170,7 +170,7 @@ def run_and_display_stream(payload: dict) -> dict:
 
             if critic_feedback:
                 with critic_placeholder.container():
-                    st.markdown("#### 🛡️ Adversarial Critic Verdict")
+                    st.markdown("####  Adversarial Critic Verdict")
                     verdict = critic_feedback.get("overall_verdict", "UNKNOWN")
                     if verdict == "PASS":
                         st.success("Verdict: **PASS**")
@@ -181,7 +181,7 @@ def run_and_display_stream(payload: dict) -> dict:
                             st.write(f"Reasoning: {issues[0] if isinstance(issues, list) else issues}")
 
     except Exception as e:
-        st.error(f"❌ Connection to backend streaming failed: {e}")
+        st.error(f" Connection to backend streaming failed: {e}")
 
     return {
         "run_id": run_id,
@@ -195,8 +195,8 @@ def run_and_display_stream(payload: dict) -> dict:
 
 
 def render_agent_mode():
-    """🤖 Agent Mode: Autonomous multi-agent SEO research pipeline"""
-    st.markdown("### 🤖 Agent Mode — Autonomous Research Pipeline")
+    """ Agent Mode: Autonomous multi-agent SEO research pipeline"""
+    st.markdown("###  Agent Mode — Autonomous Research Pipeline")
     st.markdown(
         "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 Specialized Intelligence Tools**. "
         "The agent autonomously plans, researches, critiques, and synthesises market intelligence — "
@@ -231,7 +231,7 @@ def render_agent_mode():
         with col2:
             st.write("")  # spacing
             st.write("")
-            if st.button("🚀 Start Agent", type="primary", use_container_width=True):
+            if st.button(" Start Agent", type="primary", use_container_width=True):
                 if keyword:
                     result = run_and_display_stream({"seed_keyword": keyword})
                     if result.get("checkpoint") == "plan_approval":
@@ -243,16 +243,16 @@ def render_agent_mode():
                         st.session_state.agent_stage = "done"
                         st.rerun()
                     else:
-                        st.error("❌ Failed to complete agent run or reach checkpoint.")
+                        st.error(" Failed to complete agent run or reach checkpoint.")
                 else:
-                    st.warning("⚠️ Please enter a keyword first.")
+                    st.warning(" Please enter a keyword first.")
 
     # ── STAGE: Plan Review (HITL Checkpoint 1) ─────────────────────────────
     elif stage == "plan_review":
         plan = st.session_state.agent_research_plan or {}
         run_id = st.session_state.agent_run_id
 
-        st.markdown("#### 📋 AI-Generated Research Plan")
+        st.markdown("####  AI-Generated Research Plan")
         st.info(
             "The AI has generated a research plan. Review it below, then approve "
             "to start data collection or edit before proceeding."
@@ -269,7 +269,7 @@ def render_agent_mode():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            if st.button("✅ Approve Plan", type="primary", use_container_width=True):
+            if st.button(" Approve Plan", type="primary", use_container_width=True):
                 result = run_and_display_stream({
                     "run_id": run_id,
                     "human_feedback": {"approved": True},
@@ -285,15 +285,15 @@ def render_agent_mode():
                     st.session_state.agent_stage = "done"
                     st.rerun()
                 else:
-                    st.error("❌ Failed to resume agent execution.")
+                    st.error(" Failed to resume agent execution.")
 
         with col2:
-            if st.button("✏️ Edit Plan", use_container_width=True):
+            if st.button(" Edit Plan", use_container_width=True):
                 st.session_state.agent_stage = "edit_plan"
                 st.rerun()
 
         with col3:
-            if st.button("❌ Cancel Plan", use_container_width=True):
+            if st.button(" Cancel Plan", use_container_width=True):
                 st.session_state.agent_stage = "input"
                 st.session_state.agent_run_id = None
                 st.session_state.agent_research_plan = None
@@ -304,7 +304,7 @@ def render_agent_mode():
         plan = st.session_state.agent_research_plan or {}
         run_id = st.session_state.agent_run_id
 
-        st.markdown("#### ✏️ Edit Research Plan")
+        st.markdown("####  Edit Research Plan")
 
         # Objectives input
         obj_text = "\n".join(plan.get("objectives", []))
@@ -364,7 +364,7 @@ def render_agent_mode():
                     st.session_state.agent_stage = "done"
                     st.rerun()
                 else:
-                    st.error("❌ Failed to resume agent execution.")
+                    st.error(" Failed to resume agent execution.")
 
         with col2:
             if st.button("🔙 Back", use_container_width=True):
@@ -378,16 +378,16 @@ def render_agent_mode():
         warnings = st.session_state.agent_warnings or []
         run_id = st.session_state.agent_run_id
 
-        st.markdown("#### 📋 AI-Generated Strategy Report")
+        st.markdown("####  AI-Generated Strategy Report")
         st.info("Please review the final strategy report before it is saved to the database.")
 
         if warnings:
-            with st.expander("⚠️ Execution Warnings", expanded=False):
+            with st.expander(" Execution Warnings", expanded=False):
                 for w in warnings:
                     st.warning(w)
 
         # Confidence scores
-        st.markdown("##### 📊 Module Confidence Scores")
+        st.markdown("#####  Module Confidence Scores")
         cols = st.columns(len(confidence) if confidence else 1)
         for i, (module, score) in enumerate(confidence.items()):
             with cols[i % len(cols)]:
@@ -398,14 +398,14 @@ def render_agent_mode():
         st.markdown(report.get("executive_summary", "No summary generated."))
 
         # Recommendations
-        st.markdown("##### 💡 Recommendations")
+        st.markdown("#####  Recommendations")
         for rec in report.get("recommendations", []):
             st.markdown(f"- {rec}")
 
         # Top Opportunities
         opps = report.get("top_opportunities", [])
         if opps:
-            st.markdown("##### 📈 Top Opportunities")
+            st.markdown("#####  Top Opportunities")
             df = pd.DataFrame(opps)
             # Reorder columns for display
             display_cols = ["keyword", "volume", "difficulty", "intent", "score", "data_source"]
@@ -423,7 +423,7 @@ def render_agent_mode():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("✅ Approve & Save", type="primary", use_container_width=True):
+            if st.button(" Approve & Save", type="primary", use_container_width=True):
                 result = run_and_display_stream({
                     "run_id": run_id,
                     "human_feedback": {"approved": True}
@@ -432,7 +432,7 @@ def render_agent_mode():
                     st.session_state.agent_stage = "done"
                     st.rerun()
                 else:
-                    st.error("❌ Failed to complete agent run.")
+                    st.error(" Failed to complete agent run.")
 
         with col2:
             if st.button("🔄 Request Regeneration", use_container_width=True):
@@ -454,10 +454,10 @@ def render_agent_mode():
                     st.session_state.agent_stage = "done"
                     st.rerun()
                 else:
-                    st.error("❌ Failed to resume agent execution.")
+                    st.error(" Failed to resume agent execution.")
 
         with col3:
-            if st.button("❌ Reject & Restart", use_container_width=True):
+            if st.button(" Reject & Restart", use_container_width=True):
                 st.session_state.agent_stage = "input"
                 st.session_state.agent_run_id = None
                 st.session_state.agent_research_plan = None
@@ -469,12 +469,12 @@ def render_agent_mode():
     elif stage == "done":
         report = st.session_state.agent_strategy_report or {}
         st.balloons()
-        st.success("🎉 Intelligence report successfully generated and persisted to the database.")
+        st.success(" Intelligence report successfully generated and persisted to the database.")
 
         st.markdown("##### 📝 Final Strategy Report Overview")
         st.markdown(report.get("executive_summary", ""))
 
-        st.markdown("##### 💡 Core Recommendations")
+        st.markdown("#####  Core Recommendations")
         for rec in report.get("recommendations", []):
             st.markdown(f"- {rec}")
 

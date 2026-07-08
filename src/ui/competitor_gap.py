@@ -9,8 +9,8 @@ def cached_analyze_competitor_gap(keyword):
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
 def render_competitor_gap():
-    """🧩 Competitor Gap: Compare your keywords vs. competitors"""
-    st.markdown("### 🧩 Competitor Gap Analysis")
+    """ Competitor Gap: Compare your keywords vs. competitors"""
+    st.markdown("###  Competitor Gap Analysis")
     st.markdown("Compare your keywords against competitors to find missing opportunities.")
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -25,7 +25,7 @@ def render_competitor_gap():
             placeholder="e.g., 'task management tools'",
             key="competitor_keyword"
         )
-    if st.button("🔍 Analyze Gap", type="primary"):
+    if st.button(" Analyze Gap", type="primary"):
         if your_keyword and competitor_keyword:
             with st.spinner("Analyzing competitor gaps..."):
                 try:
@@ -34,13 +34,13 @@ def render_competitor_gap():
                         st.session_state.competitor_results = results
                         add_recent_search(your_keyword)
                         increment_daily_requests()
-                        st.success("✅ Competitor analysis complete!")
+                        st.success(" Competitor analysis complete!")
                     else:
-                        st.warning("⚠️ Analysis completed but no competitor data found.")
+                        st.warning(" Analysis completed but no competitor data found.")
                 except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    st.error(f" Error: {str(e)}")
         else:
-            st.warning("⚠️ Please enter both keywords.")
+            st.warning(" Please enter both keywords.")
     # Display results
     if "competitor_results" in st.session_state and st.session_state.competitor_results:
         results = st.session_state.competitor_results
@@ -53,7 +53,7 @@ def render_competitor_gap():
                     st.markdown(f"**Reasoning:** {opp['reasoning']}")
         # Bar chart
         if "opportunities" in results and results["opportunities"]:
-            st.markdown("#### 📊 Gap Analysis Chart")
+            st.markdown("####  Gap Analysis Chart")
             gap_data = []
             for opp in results["opportunities"][:10]:
                 gap_data.append({

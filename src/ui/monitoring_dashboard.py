@@ -16,16 +16,16 @@ def _get_headers() -> dict:
     return headers
 
 def render_monitoring_dashboard():
-    st.title("🛡️ Intelligence Monitoring & Quality Analytics Center")
+    st.title(" Intelligence Monitoring & Quality Analytics Center")
     st.markdown("Track keyword performance shifts over time, manage recurring monitoring schedules, and view LLM-as-judge evaluation analytics.")
 
-    tabs = st.tabs(["🕒 Automated Intelligence Jobs", "📊 Intelligence Report History", "🤖 Quality Evaluation Analytics"])
+    tabs = st.tabs([" Automated Intelligence Jobs", " Intelligence Report History", " Quality Evaluation Analytics"])
 
     # ---------------------------------------------------------
     # TAB 1: Monitoring Schedules
     # ---------------------------------------------------------
     with tabs[0]:
-        st.header("🕒 Active Monitoring Jobs")
+        st.header(" Active Monitoring Jobs")
 
         # Form to add a new job
         with st.expander("➕ Create New Monitoring Job", expanded=False):
@@ -67,7 +67,7 @@ def render_monitoring_dashboard():
                             with col3:
                                 st.markdown(f"**Next Run:** {job.get('next_run_time') or 'N/A'}")
                             with col4:
-                                if st.button("🗑️", key=f"del_job_{job['job_id']}", help="Delete monitoring job"):
+                                if st.button("", key=f"del_job_{job['job_id']}", help="Delete monitoring job"):
                                     del_resp = requests.delete(f"{API_BASE_URL}/monitor/{job['job_id']}", headers=_get_headers())
                                     if del_resp.status_code == 200:
                                         st.success("Deleted job")
@@ -86,12 +86,12 @@ def render_monitoring_dashboard():
     # TAB 2: Historical Runs & Archives
     # ---------------------------------------------------------
     with tabs[1]:
-        st.header("📊 Historical Runs & Archives")
+        st.header(" Historical Runs & Archives")
 
-        sub_tabs = st.tabs(["📄 Strategy Report Diffs", "🔑 Keyword Database Archives"])
+        sub_tabs = st.tabs([" Strategy Report Diffs", " Keyword Database Archives"])
 
         with sub_tabs[0]:
-            st.subheader("📄 Monitored Report History & Diffs")
+            st.subheader(" Monitored Report History & Diffs")
             try:
                 jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=_get_headers())
                 if jobs_resp.status_code == 200:
@@ -116,7 +116,7 @@ def render_monitoring_dashboard():
                                 st.dataframe(filtered_runs[display_cols], use_container_width=True)
 
                                 # Diff comparison selection
-                                st.subheader("🔍 Compare Consecutive Strategy Reports")
+                                st.subheader(" Compare Consecutive Strategy Reports")
                                 if len(filtered_runs) < 2:
                                     st.info("At least 2 runs are required to compute a report difference.")
                                 else:
@@ -131,7 +131,7 @@ def render_monitoring_dashboard():
                                                 st.info(diff_data.get("summary") or "No changes detected.")
 
                                                 # Confidence deltas
-                                                st.markdown("#### ⚖️ Confidence score shifts")
+                                                st.markdown("####  Confidence score shifts")
                                                 conf_deltas = diff_data.get("confidence_deltas") or {}
                                                 if conf_deltas:
                                                     c_cols = st.columns(len(conf_deltas))
@@ -140,7 +140,7 @@ def render_monitoring_dashboard():
                                                             st.metric(label=f"{module} shift", value=f"{delta:+.2f}")
 
                                                 # Keyword score shifts
-                                                st.markdown("#### 🔑 Keyword Score Deltas")
+                                                st.markdown("####  Keyword Score Deltas")
                                                 kw_deltas = diff_data.get("keyword_score_deltas") or []
                                                 if kw_deltas:
                                                     df_kw = pd.DataFrame(kw_deltas)
@@ -182,7 +182,7 @@ def render_monitoring_dashboard():
                 try:
                     df_history = cached_fetch_past_results(limit=100)
                     if not df_history.empty:
-                        st.success(f"✅ Loaded {len(df_history)} records from database")
+                        st.success(f" Loaded {len(df_history)} records from database")
                         # Filters
                         col1, col2, col3 = st.columns(3)
                         with col1:
@@ -242,13 +242,13 @@ def render_monitoring_dashboard():
                     else:
                         st.warning("No keyword archives found. Run some research jobs first.")
                 except Exception as e:
-                    st.error(f"❌ Error loading keyword database: {str(e)}")
+                    st.error(f" Error loading keyword database: {str(e)}")
 
     # ---------------------------------------------------------
     # TAB 3: LLM Evaluation Analytics
     # ---------------------------------------------------------
     with tabs[2]:
-        st.header("🤖 LLM-As-Judge Quality Evaluations")
+        st.header(" LLM-As-Judge Quality Evaluations")
         st.markdown("Analytics and trends on plan quality, strategy report quality, and tool execution reliability.")
 
         try:
@@ -270,7 +270,7 @@ def render_monitoring_dashboard():
                             df_trends = pd.DataFrame(trends)
 
                             # Interactive line chart of evaluation scores
-                            st.subheader("📈 Quality Metric Trends (Last 10 Runs)")
+                            st.subheader(" Quality Metric Trends (Last 10 Runs)")
 
                             fig = px.line(
                                 df_trends,
@@ -284,7 +284,7 @@ def render_monitoring_dashboard():
                             st.plotly_chart(fig, use_container_width=True)
 
                             # Detailed eval reports
-                            st.subheader("📋 Evaluation Run Log Details")
+                            st.subheader(" Evaluation Run Log Details")
                             for run_eval in trends:
                                 with st.expander(f"Run ID: {run_eval['run_id'][:12]} — Date: {run_eval.get('evaluated_at', 'Unknown')}"):
                                     st.markdown(f"**Plan Score:** `{run_eval['plan_score']:.2f}`")

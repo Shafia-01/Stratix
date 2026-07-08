@@ -16,7 +16,7 @@ def _get_headers() -> dict:
     return headers
 
 def render_analytics():
-    st.title("📊 Unified Analytics & Observability Center")
+    st.title(" Unified Analytics & Observability Center")
     st.markdown("Monitor system-wide health, LLM-as-judge evaluation metrics, database statistics, and model tracing.")
 
     # 1. Fetch Health Detailed from API
@@ -32,7 +32,7 @@ def render_analytics():
 
     # 2. Display Overview Metrics
     if health_data:
-        st.markdown("### ⚙️ System Status")
+        st.markdown("###  System Status")
         comp_cols = st.columns(len(health_data.get("components", {})))
         for idx, (comp, status) in enumerate(health_data.get("components", {}).items()):
             with comp_cols[idx]:
@@ -57,7 +57,7 @@ def render_analytics():
             st.metric("Active Cron Tasks", mon_stats.get("active_jobs", 0))
 
         # Average Quality Scores
-        st.markdown("### 🤖 Average LLM-as-Judge Evaluator Scores")
+        st.markdown("###  Average LLM-as-Judge Evaluator Scores")
         eval_scores = health_data.get("eval_scores", {})
         if eval_scores and "error" not in eval_scores:
             ev_cols = st.columns(len(eval_scores) if eval_scores else 1)
@@ -80,10 +80,10 @@ def render_analytics():
         runs = []
 
     if runs:
-        st.markdown("### 🔍 Run Deep-Dive & Execution Traces")
+        st.markdown("###  Run Deep-Dive & Execution Traces")
 
         # Calculate Critic PASS/REVISE rate across recent 10 runs from checkpointer
-        st.markdown("#### 🛡️ Critic Verdict Rate (Last 10 Runs)")
+        st.markdown("####  Critic Verdict Rate (Last 10 Runs)")
         graph = get_compiled_graph()
         pass_count = 0
         revise_count = 0

@@ -3,8 +3,8 @@ from src.services.serp_service import cached_analyze_serp_opportunities
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
 def render_serp_analysis():
-    """📰 SERP Analysis: Show snippets & top-ranking pages"""
-    st.markdown("### 📰 SERP Analysis")
+    """ SERP Analysis: Show snippets & top-ranking pages"""
+    st.markdown("###  SERP Analysis")
     st.markdown("Analyze search engine results pages for optimization opportunities.")
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -14,7 +14,7 @@ def render_serp_analysis():
             key="serp_keyword_new"
         )
     with col2:
-        if st.button("📊 Analyze SERP", type="primary", use_container_width=True):
+        if st.button(" Analyze SERP", type="primary", use_container_width=True):
             if serp_keyword:
                 with st.spinner("Analyzing SERP opportunities..."):
                     try:
@@ -23,13 +23,13 @@ def render_serp_analysis():
                             st.session_state.serp_results = results
                             add_recent_search(serp_keyword)
                             increment_daily_requests()
-                            st.success("✅ SERP analysis complete!")
+                            st.success(" SERP analysis complete!")
                         else:
-                            st.warning("⚠️ Analysis completed but limited data available.")
+                            st.warning(" Analysis completed but limited data available.")
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        st.error(f" Error: {str(e)}")
             else:
-                st.warning("⚠️ Please enter a keyword first.")
+                st.warning(" Please enter a keyword first.")
     # Display results
     if "serp_results" in st.session_state and st.session_state.serp_results:
         results = st.session_state.serp_results
@@ -38,7 +38,7 @@ def render_serp_analysis():
             serp_data = results["serp_data"]
             organic_results = serp_data.get("organic_results", [])
             if organic_results:
-                st.markdown("#### 🔍 Top-Ranking Pages")
+                st.markdown("####  Top-Ranking Pages")
                 for i, result in enumerate(organic_results[:5]):
                     with st.expander(f"#{i+1} {result.get('title', 'No title')[:50]}..."):
                         st.markdown(f"**URL:** {result.get('link', 'No URL')}")
@@ -48,7 +48,7 @@ def render_serp_analysis():
                 st.info("No organic results returned for this query.")
         # Featured snippets
         if "featured_snippets" in results and results["featured_snippets"]:
-            st.markdown("#### ⭐ Featured Snippets")
+            st.markdown("####  Featured Snippets")
             for snippet in results["featured_snippets"][:3]:
                 st.markdown(f"""
                 **{snippet.get('title', 'Featured Snippet')}**

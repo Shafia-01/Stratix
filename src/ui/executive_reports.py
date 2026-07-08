@@ -6,7 +6,7 @@ from src.models import ResearchRunLog
 from src.graph.graph import get_compiled_graph
 
 def render_executive_reports():
-    st.title("📈 Executive Intelligence Workspace")
+    st.title(" Executive Intelligence Workspace")
     st.markdown("Access comprehensive market intelligence reports synthesized by the multi-agent research pipeline.")
 
     # 1. Fetch completed runs from ResearchRunLog
@@ -52,7 +52,7 @@ def render_executive_reports():
     st.info(report.get("executive_summary", "No executive summary generated."))
 
     # 3. Agent Confidence Breakdown
-    st.markdown("### 📊 Agent Confidence Breakdown")
+    st.markdown("###  Agent Confidence Breakdown")
     st.markdown("""
     > [!NOTE]
     > Confidence scores represent data quality, API coverage, and result density across research modules:
@@ -73,7 +73,7 @@ def render_executive_reports():
                     st.error("🔴 Low Confidence")
 
     # 4. Competitive Landscape
-    st.markdown("### 🧩 Competitive Landscape")
+    st.markdown("###  Competitive Landscape")
     comp_gap = findings.get("competitor_gap", {})
     if comp_gap and "opportunities" in comp_gap:
         opps_comp = comp_gap["opportunities"]
@@ -98,7 +98,7 @@ def render_executive_reports():
         st.write("No top opportunities mapped.")
 
     # 6. Risks & Data Limitations
-    st.markdown("### ⚠️ Risks & Data Limitations")
+    st.markdown("###  Risks & Data Limitations")
     limitations = findings.get("data_limitations", []) or []
     critic_gaps = critic.get("data_gaps", []) or []
     weak_claims = critic.get("weak_claims", []) or []
@@ -118,7 +118,7 @@ def render_executive_reports():
         st.success("No significant data risks or limitations flagged for this run.")
 
     # 7. Strategic Recommendations
-    st.markdown("### 💡 Strategic Recommendations")
+    st.markdown("###  Strategic Recommendations")
     recs = report.get("recommendations", [])
     if recs:
         for r in recs:
@@ -127,7 +127,7 @@ def render_executive_reports():
         st.write("No recommendation items listed.")
 
     # 8. Decision Timeline
-    st.markdown("### 🕒 Execution History & Decisions")
+    st.markdown("###  Execution History & Decisions")
     st.markdown("View the complete sequence of agent nodes, tool invocations, and human checkpoints for this execution run.")
     if st.button("👁️ View Agent Timeline", use_container_width=True, key="view_agent_timeline_btn"):
         st.session_state.timeline_run_id = selected_run_id
