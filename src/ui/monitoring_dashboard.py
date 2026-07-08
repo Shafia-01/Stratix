@@ -286,7 +286,7 @@ def render_monitoring_dashboard():
                             # Detailed eval reports
                             st.subheader(" Evaluation Run Log Details")
                             for run_eval in trends:
-                                with st.expander(f"Run ID: {run_eval['run_id'][:12]} — Date: {run_eval.get('evaluated_at', 'Unknown')}"):
+                                with st.expander(f"Run ID: {run_eval['run_id'][:12]} - Date: {run_eval.get('evaluated_at', 'Unknown')}"):
                                     st.markdown(f"**Plan Score:** `{run_eval['plan_score']:.2f}`")
                                     st.markdown(f"**Report Score:** `{run_eval['report_score']:.2f}`")
                                     st.markdown(f"**Tool Reliability Score:** `{run_eval['tool_score']:.2f}`")

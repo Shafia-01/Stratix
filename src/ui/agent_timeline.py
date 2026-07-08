@@ -137,7 +137,7 @@ def render_agent_timeline():
 
         if event_type == "hitl_interrupt":
             checkpoint = event.get("metadata", {}).get("checkpoint", "")
-            st.warning(f"⏸️ **HUMAN APPROVAL REQUIRED** — `{checkpoint}`")
+            st.warning(f"⏸️ **HUMAN APPROVAL REQUIRED** - `{checkpoint}`")
         elif event_type == "error":
             st.error(f" Error in pipeline: {event.get('metadata', {}).get('error_message', 'Unknown error')}")
         else:
@@ -179,4 +179,4 @@ def render_agent_timeline():
             count = meta.get("call_count", 1)
             success = meta.get("success", True)
             status_icon = "" if success else ""
-            st.markdown(f"{status_icon} `{tool_name}` — called {count} time(s)")
+            st.markdown(f"{status_icon} `{tool_name}` - called {count} time(s)")

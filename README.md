@@ -27,7 +27,7 @@ pinned: false
 
 ---
 
-Stratix is a production-grade agentic AI platform that autonomously executes multi-step market intelligence research workflows. The platform orchestrates complex research tasks—including planning, structured tool execution, data aggregation, quality gating, adversarial critique, strategy synthesis, and checkpointer persistence—through a stateful LangGraph pipeline. Designed for high reliability, it integrates human-in-the-loop (HITL) checkpoints to allow manual approval and state modification mid-execution. By combining robust database engineering with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into validated, high-impact strategic intelligence.
+Stratix is a production-grade agentic AI platform that autonomously executes multi-step market intelligence research workflows. The platform orchestrates complex research tasks - including planning, structured tool execution, data aggregation, quality gating, adversarial critique, strategy synthesis, and checkpointer persistence through a stateful LangGraph pipeline. Designed for high reliability, it integrates human-in-the-loop (HITL) checkpoints to allow manual approval and state modification mid-execution. By combining robust database engineering with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into validated, high-impact strategic intelligence.
 
 ---
 
@@ -267,9 +267,9 @@ Ensure you have Docker and Docker Compose installed.
 
 ## Documentation
 
-* [API Specification](docs/API.md) — Endpoint contracts, request parameters, and response schemas.
-* [Architecture Deep Dive](docs/ARCHITECTURE.md) — Detailed descriptions of nodes, states, and confidence metrics.
-* [Design Decisions Log](docs/DESIGN_DECISIONS.md) — Full analysis of engineering choices and tradeoffs.
+* [API Specification](docs/API.md) - Endpoint contracts, request parameters, and response schemas.
+* [Architecture Deep Dive](docs/ARCHITECTURE.md) - Detailed descriptions of nodes, states, and confidence metrics.
+* [Design Decisions Log](docs/DESIGN_DECISIONS.md) - Full analysis of engineering choices and tradeoffs.
 
 ---
 
