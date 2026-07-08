@@ -43,17 +43,16 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 def _get_llm() -> ChatGoogleGenerativeAI:
     base_llm = ChatGoogleGenerativeAI(
-        model="gemma-4-31b-it",
+        model="gemini-2.5-flash",
         google_api_key=os.getenv("GEMINI_API_KEY", ""),
         temperature=0.3,
         convert_system_message_to_human=True,
     )
     fallback_models = [
+        "gemini-3.5-flash",
         "gemini-3.1-flash-lite",
         "gemini-2.5-flash-lite",
-        "gemini-3.5-flash",
         "gemini-3-flash-preview",
-        "gemini-2.5-flash",
     ]
     fallbacks = [
         ChatGoogleGenerativeAI(

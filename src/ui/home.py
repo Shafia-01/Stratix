@@ -123,7 +123,7 @@ def render_home_overview():
     """, unsafe_allow_html=True)
 
     # Pipeline Status Section
-    st.markdown("#### Pipeline Status")
+    st.markdown('<h3 class="left-aligned-title">PIPELINE STATUS</h3>', unsafe_allow_html=True)
     status_data = {"active_runs": 0, "total_reports": 0, "active_jobs": 0}
     try:
         engine = connect_db()
@@ -176,8 +176,8 @@ def render_home_overview():
         )
 
     # Quick buttons
-    st.markdown("### Quick Actions")
-    col1, col2, col3 = st.columns(3)
+    st.markdown('<h3 class="left-aligned-title">QUICK ACTIONS</h3>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("Autonomous Research", use_container_width=True):
             st.session_state.current_page = "agent_mode"
@@ -189,4 +189,8 @@ def render_home_overview():
     with col3:
         if st.button("Unified Analytics", use_container_width=True):
             st.session_state.current_page = "analytics"
+            st.rerun()
+    with col4:
+        if st.button("Intelligence Monitor", use_container_width=True):
+            st.session_state.current_page = "monitoring_dashboard"
             st.rerun()

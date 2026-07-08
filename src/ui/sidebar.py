@@ -98,43 +98,30 @@ def render_sidebar():
                 del st.session_state.db_status
                 st.rerun()
 
-    st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Navigation</div>', unsafe_allow_html=True)
-
-    if st.sidebar.button("Autonomous Research", use_container_width=True):
-        st.session_state.current_page = "agent_mode"
+    if st.sidebar.button("Home Dashboard", type="primary", use_container_width=True):
+        st.session_state.current_page = "home"
         st.rerun()
 
-    if st.sidebar.button("Executive Reports", use_container_width=True):
-        st.session_state.current_page = "executive_reports"
-        st.rerun()
+    st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Single-Shot Tools</div>', unsafe_allow_html=True)
 
-    if st.sidebar.button("Unified Analytics", use_container_width=True):
-        st.session_state.current_page = "analytics"
+    if st.sidebar.button("Keyword Discovery", use_container_width=True):
+        st.session_state.current_page = "keyword_discovery"
         st.rerun()
-
-    if st.sidebar.button("Intelligence Monitor", use_container_width=True):
-        st.session_state.current_page = "monitoring_dashboard"
+    if st.sidebar.button("Competitor Gap", use_container_width=True):
+        st.session_state.current_page = "competitor_gap"
         st.rerun()
-
-    with st.sidebar.expander("Single-Shot Tools", expanded=False):
-        if st.button("Keyword Discovery", use_container_width=True):
-            st.session_state.current_page = "keyword_discovery"
-            st.rerun()
-        if st.button("Competitor Gap", use_container_width=True):
-            st.session_state.current_page = "competitor_gap"
-            st.rerun()
-        if st.button("SERP Analysis", use_container_width=True):
-            st.session_state.current_page = "serp_analysis"
-            st.rerun()
-        if st.button("Topic Clustering", use_container_width=True):
-            st.session_state.current_page = "topic_clustering"
-            st.rerun()
-        if st.button("Trend Forecasting", use_container_width=True):
-            st.session_state.current_page = "trend_forecasting"
-            st.rerun()
-        if st.button("Full Strategy Utility", use_container_width=True):
-            st.session_state.current_page = "full_strategy"
-            st.rerun()
+    if st.sidebar.button("SERP Analysis", use_container_width=True):
+        st.session_state.current_page = "serp_analysis"
+        st.rerun()
+    if st.sidebar.button("Topic Clustering", use_container_width=True):
+        st.session_state.current_page = "topic_clustering"
+        st.rerun()
+    if st.sidebar.button("Trend Forecasting", use_container_width=True):
+        st.session_state.current_page = "trend_forecasting"
+        st.rerun()
+    if st.sidebar.button("Full Strategy Utility", use_container_width=True):
+        st.session_state.current_page = "full_strategy"
+        st.rerun()
 
     st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Recent Searches</div>', unsafe_allow_html=True)
     if st.session_state.search_history:

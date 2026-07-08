@@ -6,12 +6,11 @@ from src.logger_config import get_logger
 logger = get_logger(__name__)
 
 GEMINI_MODELS = [
-    "gemma-4-31b-it",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash"
+    "gemini-3-flash-preview"
 ]
 
 def check_api_status():

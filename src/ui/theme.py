@@ -46,38 +46,101 @@ def get_optimized_css():
         background-color: {colors['bg_main']} !important;
     }}
 
-    /* Global typography system using Cambria as default */
-    body, p, div.stMarkdown, div.stText, label, input, textarea, select, option {{
+    /* Global typography system using Cambria as default & FORCE BOLD */
+    body, p, div:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]):not([class*="st-"]), span:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]):not([class*="st-"]), label, input, textarea, select, option, button, h1, h2, h3, h4, h5, h6, a, li, td, th {{
         font-family: 'Cambria', Georgia, serif !important;
-        font-weight: 400 !important;
+        font-weight: bold !important;
     }}
 
-    /* Apply Cambria to span except those that are material icons or icons */
-    span:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]):not([class*="st-"]):not([id*="icon"]):not([id*="Icon"]) {{
-        font-family: 'Cambria', Georgia, serif !important;
+    /* Global Center Alignment for all contents of all pages (main content section only) & Top Padding for Safety */
+    section:not([data-testid="stSidebar"]) .block-container {{
+        text-align: center !important;
+        padding-top: 4rem !important;
+        margin-top: 0px !important;
     }}
 
-    /* Headings and Titles */
-    h1, h2, h3, h4, h5, h6 {{
-        font-family: 'Cambria', Georgia, serif !important;
-        font-weight: 600 !important;
+    /* Align all texts to center on main pages, keeping layouts intact */
+    section:not([data-testid="stSidebar"]) p,
+    section:not([data-testid="stSidebar"]) span:not([class*="icon"]):not([class*="Icon"]):not([class*="material"]):not([class*="st-"]),
+    section:not([data-testid="stSidebar"]) label,
+    section:not([data-testid="stSidebar"]) div.stMarkdown,
+    section:not([data-testid="stSidebar"]) div.stText,
+    section:not([data-testid="stSidebar"]) h1,
+    section:not([data-testid="stSidebar"]) h2,
+    section:not([data-testid="stSidebar"]) h3,
+    section:not([data-testid="stSidebar"]) h4,
+    section:not([data-testid="stSidebar"]) h5,
+    section:not([data-testid="stSidebar"]) h6 {{
+        text-align: center !important;
+    }}
+
+    /* Center widgets/elements horizontally within their containers without breaking them */
+    section:not([data-testid="stSidebar"]) div[data-testid="element-container"] {{
+        display: flex !important;
+        justify-content: center !important;
+        width: 100% !important;
+    }}
+
+    /* Center rows of columns horizontally */
+    section:not([data-testid="stSidebar"]) div[data-testid="stHorizontalBlock"] {{
+        justify-content: center !important;
+        align-items: center !important;
+    }}
+
+    /* Prevent buttons from wrapping text to multiple lines */
+    .stButton button, button[data-testid^="stBaseButton"] {{
+        white-space: nowrap !important;
+    }}
+
+    /* Headings and Titles - Bigger in size & bold & centered (only on main page, not sidebar) */
+    section:not([data-testid="stSidebar"]) h1 {{
+        font-size: 3.5rem !important;
+        font-weight: bold !important;
         color: #051B4A !important;
+        text-align: center !important;
+        margin-bottom: 20px !important;
+    }}
+
+    section:not([data-testid="stSidebar"]) h2 {{
+        font-size: 2.8rem !important;
+        font-weight: bold !important;
+        color: #051B4A !important;
+        text-align: center !important;
+        margin-bottom: 15px !important;
+    }}
+
+    section:not([data-testid="stSidebar"]) h3 {{
+        font-size: 2.2rem !important;
+        font-weight: bold !important;
+        color: #051B4A !important;
+        text-align: center !important;
+    }}
+
+    section:not([data-testid="stSidebar"]) h4,
+    section:not([data-testid="stSidebar"]) h5,
+    section:not([data-testid="stSidebar"]) h6 {{
+        font-size: 1.6rem !important;
+        font-weight: bold !important;
+        color: #051B4A !important;
+        text-align: center !important;
     }}
 
     /* Cambria reserved strictly for main brand titles */
     .app-title, .brand-title, .landing-brand, h1.app-title, #stratix-wordmark {{
         font-family: 'Cambria', Georgia, serif !important;
-        font-weight: 700 !important;
+        font-weight: bold !important;
     }}
 
     /* Apply Cambria to all interactive elements */
     .stButton, .stButton > button, .stSelectbox, .stTextInput, .stTextArea {{
         font-family: 'Cambria', Georgia, serif !important;
+        font-weight: bold !important;
     }}
 
-    /* Do not override icon fonts */
+    /* Do not override icon fonts and reset their weight so they don't break */
     .material-icons, [class*="material-icons"], [class*="Icon-"], [data-testid="collapsedSidebarCodegen"] *, [data-testid="stSidebarCollapseButton"] * {{
         font-family: 'Material Icons', sans-serif !important;
+        font-weight: normal !important;
     }}
 
     /* Sidebar Styling and Typography */
@@ -177,19 +240,26 @@ def get_optimized_css():
         margin-right: 20%;
     }}
     /* Button Styling */
-    .stButton > button {{
-        background-color: {colors['primary']};
-        color: {colors['text_white']};
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-family: 'Cambria', serif;
-        font-weight: 500;
-        transition: all 0.3s ease;
+    .stButton button, button[data-testid^="stBaseButton"] {{
+        background-color: {colors['primary']} !important;
+        color: {colors['text_white']} !important;
+        border: 2px solid {colors['border_dark']} !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        font-family: 'Cambria', serif !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
     }}
-    .stButton > button:hover {{
-        background-color: {colors['primary_hover']};
-        box-shadow: 0 4px 8px {colors['primary']}30;
+    .stButton button *, button[data-testid^="stBaseButton"] * {{
+        color: {colors['text_white']} !important;
+    }}
+    .stButton button:hover, button[data-testid^="stBaseButton"]:hover {{
+        background-color: {colors['primary_hover']} !important;
+        color: {colors['primary']} !important;
+        box-shadow: 0 4px 8px {colors['primary']}30 !important;
+    }}
+    .stButton button:hover *, button[data-testid^="stBaseButton"]:hover * {{
+        color: {colors['primary']} !important;
     }}
     /* Chart Styling */
     .plotly-chart {{
@@ -542,7 +612,6 @@ def get_optimized_css():
     }}
 
     /* Custom CSS to replace sidebar collapse/expand buttons with << and >> */
-    button[class*="e1e4lema"] *,
     button[data-testid="stSidebarCollapseButton"] *,
     [data-testid="collapsedSidebarCodegen"] button * {{
         font-size: 0 !important;
@@ -550,8 +619,7 @@ def get_optimized_css():
         display: none !important;
     }}
 
-    .stSidebar button[class*="e1e4lema"]::after,
-    .stSidebar button[data-testid="stSidebarCollapseButton"]::after {{
+    button[data-testid="stSidebarCollapseButton"]::after {{
         content: "<<" !important;
         font-family: 'Cambria', Georgia, serif !important;
         font-size: 1.2rem !important;
@@ -560,14 +628,73 @@ def get_optimized_css():
         display: inline-block !important;
     }}
 
-    [data-testid="collapsedSidebarCodegen"] button::after,
-    div:not(.stSidebar) > button[class*="e1e4lema"]::after {{
+    [data-testid="collapsedSidebarCodegen"] button::after {{
         content: ">>" !important;
         font-family: 'Cambria', Georgia, serif !important;
         font-size: 1.2rem !important;
         color: #051B4A !important;
         visibility: visible !important;
         display: inline-block !important;
+    }}
+
+    section:not([data-testid="stSidebar"]) h3.left-aligned-title,
+    h3.left-aligned-title {{
+        text-align: left !important;
+        font-family: 'Cambria', Georgia, serif !important;
+        font-size: 1.6rem !important;
+        font-weight: bold !important;
+        color: #051B4A !important;
+        margin-top: 30px !important;
+        margin-bottom: 15px !important;
+        width: 100% !important;
+        display: block !important;
+    }}
+
+    section:not([data-testid="stSidebar"]) div[data-testid="element-container"]:has(.left-aligned-title) {{
+        display: flex !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+    }}
+
+    /* Explicitly Center the Welcome Logo and Brand Section */
+    .welcome-section, .app-logo, .welcome-section * {{
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        margin: 0 auto !important;
+    }}
+    .welcome-section {{
+        gap: 0px !important;
+    }}
+    .app-title {{
+        margin-top: 5px !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        line-height: 0.9 !important;
+    }}
+    .app-subtitle {{
+        margin-top: 0px !important;
+        margin-bottom: 10px !important;
+        padding-top: 0px !important;
+        line-height: 1.0 !important;
+    }}
+    .welcome-section img {{
+        display: block !important;
+        margin: 0 auto !important;
+    }}
+
+    /* Hide Streamlit's keyboard shortcut/tooltip overlays globally */
+    div[data-baseweb="tooltip"], 
+    div[role="tooltip"],
+    div[class*="tooltip"] {{
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0px !important;
+        width: 0px !important;
+        overflow: hidden !important;
     }}
     </style>
     """
