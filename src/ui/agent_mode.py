@@ -196,7 +196,7 @@ def run_and_display_stream(payload: dict) -> dict:
 
 def render_agent_mode():
     """ Agent Mode: Autonomous multi-agent SEO research pipeline"""
-    st.markdown("###  Agent Mode - Autonomous Research Pipeline")
+    st.markdown("###  Agent Mode: Autonomous Research Pipeline")
     st.markdown(
         "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 Specialized Intelligence Tools**. "
         "The agent autonomously plans, researches, critiques, and synthesises market intelligence "
