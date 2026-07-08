@@ -270,12 +270,13 @@ async def event_generator(request: StreamRequest):
                         "confidence_scores": values.get("confidence_scores"),
                         "warnings": values.get("errors", []),
                     }
-                yield f"data: {json.dumps({
+                checkpoint_msg = json.dumps({
                     'event': 'checkpoint',
                     'checkpoint': checkpoint_type,
                     'status': status,
                     'checkpoint_data': checkpoint_data
-                })}\n\n"
+                })
+                yield f"data: {checkpoint_msg}\n\n"
             else:
                 current_state = graph.get_state(config)
                 values = current_state.values if current_state else {}
