@@ -686,7 +686,7 @@ def get_optimized_css():
     }}
 
     /* Hide Streamlit's keyboard shortcut/tooltip overlays globally */
-    div[data-baseweb="tooltip"], 
+    div[data-baseweb="tooltip"],
     div[role="tooltip"],
     div[class*="tooltip"] {{
         display: none !important;
