@@ -3,6 +3,7 @@ import base64
 from sqlalchemy.orm import Session
 from src.db_client import connect_db
 from src.models import ResearchRunLog
+from src.ui.theme import get_color_theme
 
 def load_base64_image(path):
     try:
@@ -12,6 +13,7 @@ def load_base64_image(path):
         return ""
 
 def render_landing_page():
+    colors = get_color_theme()
     logo_base64 = load_base64_image("assets/keylytics_icon.png")
 
     _, center_col, _ = st.columns([1, 10, 1])
@@ -41,25 +43,67 @@ def render_landing_page():
 
         # Graph Topology Visualization
         st.markdown("<h3 style='text-align: center; font-family: Cambria, serif; font-size: 1.5rem; color: #051B4A;'>LangGraph Agent Pipeline Architecture</h3>", unsafe_allow_html=True)
-        st.markdown("""
-        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin: 20px 0; padding: 20px; background-color: #FFFFFF; border-radius: 12px; border: 1.5px solid #051B4A; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">1. Planner Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">Plan Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 1</span></div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">2. Research Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">3. Aggregator Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">4. Quality Gate Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">5. Critic Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #CADEFF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">6. Strategy Node</div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #FFC7CF; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">Report Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 2</span></div>
-            <div style="font-weight: bold; color: #051B4A; font-size: 1.1rem;">&rarr;</div>
-            <div style="padding: 8px 12px; background-color: #6EE7B7; border: 1.5px solid #051B4A; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: #051B4A; text-align: center;">7. Persist Node</div>
+        st.markdown(f"""
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin: 20px 0; padding: 20px; background-color: {colors['bg_card']}; border-radius: 12px; border: 1.5px solid {colors['border_dark']}; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                1. Planner Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_interrupt']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                Plan Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 1</span>
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                2. Research Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+                3. Aggregator Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                4. Quality Gate Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                5. Critic Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_agent']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+                6. Strategy Node
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_interrupt']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                Report Approval<br/><span style="font-size: 0.75rem; opacity: 0.85;">HITL 2</span>
+            </div>
+            <div style="font-weight: bold; color: {colors['primary']}; font-size: 1.1rem;">&rarr;</div>
+            <div style="padding: 8px 12px; background-color: {colors['node_terminal']}; border: 1.5px solid {colors['border_dark']}; border-radius: 8px; font-weight: 500; font-size: 0.85rem; color: {colors['primary']}; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                7. Persist Node
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; align-items: center; gap: 20px; font-size: 0.85rem; color: {colors['primary']}; margin-top: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: {colors['node_agent']}; border: 1px solid {colors['border_dark']};"></span>
+                <span>Agent Node</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: {colors['node_interrupt']}; border: 1px solid {colors['border_dark']};"></span>
+                <span>Human Approval Gate</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: {colors['node_terminal']}; border: 1px solid {colors['border_dark']};"></span>
+                <span>Persistence</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
