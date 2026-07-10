@@ -19,7 +19,10 @@ def get_color_theme():
         "success": "#4ADE80",
         "warning": "#FACC15",
         "error": "#F87171",
-        "info": "#60A5FA"
+        "info": "#60A5FA",
+        "node_agent": "#B5D1FF",
+        "node_interrupt": "#FEF3C7",
+        "node_terminal": "#D1FAE5"
     }
 
 def get_optimized_css():

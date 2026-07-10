@@ -14,7 +14,7 @@ def load_base64_image(path):
 
 def render_landing_page():
     colors = get_color_theme()
-    logo_base64 = load_base64_image("assets/keylytics_icon.png")
+    logo_base64 = load_base64_image("assets/stratix_icon.png")
 
     _, center_col, _ = st.columns([1, 10, 1])
     with center_col:
@@ -149,7 +149,7 @@ def render_landing_page():
             """, unsafe_allow_html=True)
 
 def render_home_overview():
-    logo_base64 = load_base64_image("assets/keylytics_icon.png")
+    logo_base64 = load_base64_image("assets/stratix_icon.png")
 
     # Welcome section
     st.markdown(f"""
