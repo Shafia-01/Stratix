@@ -688,7 +688,13 @@ def get_optimized_css():
     /* Hide Streamlit's keyboard shortcut/tooltip overlays globally */
     div[data-baseweb="tooltip"],
     div[role="tooltip"],
-    div[class*="tooltip"] {{
+    div[class*="tooltip"],
+    div[data-testid="stTooltipContent"],
+    div[data-testid="stTooltip"],
+    div[data-testid="stTooltipHoverTarget"],
+    div[data-testid="stHelp"],
+    [data-testid="stTooltip"],
+    [data-testid="stTooltipContent"] {{
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
