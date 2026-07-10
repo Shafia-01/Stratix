@@ -38,9 +38,10 @@ def test_api_quick():
                     )
                     if result.text:
                         results["gemini"] = True
+                        logger.info(f"Gemini model {model_name} succeeded.")
                         break
                 except Exception as e:
-                    logger.warning(f"Gemini model {model_name} failed: {e}")
+                    logger.warning(f"Gemini model {model_name} failed: {e}. Trying next fallback...")
                     continue
         except Exception:
             logger.exception("Gemini test failed")
