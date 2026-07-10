@@ -10,33 +10,42 @@ app_file: app.py
 pinned: false
 ---
 
+<p align="center">
+  <img src="assets/keylytics_icon.png" alt="Stratix Logo" width="200" />
+</p>
+
+<h1 align="center">Stratix</h1>
+<p align="center"><strong>Autonomous Multi-Agent Market Intelligence Platform</strong></p>
+
+<p align="center">
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square&logo=python" alt="Python Version"></a>
+  <a href="https://langchain-ai.github.io/langgraph/"><img src="https://img.shields.io/badge/Orchestrator-LangGraph_%E2%89%A50.2.0-purple?style=flat-square" alt="LangGraph"></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI_%E2%89%A50.137.1-green?style=flat-square&logo=fastapi" alt="FastAPI"></a>
+  <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/UI-Streamlit-FF4B4B?style=flat-square&logo=streamlit" alt="Streamlit"></a>
+  <a href="https://www.sqlite.org/"><img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite" alt="SQLite"></a>
+  <a href="https://www.sqlalchemy.org/"><img src="https://img.shields.io/badge/ORM-SQLAlchemy-red?style=flat-square&logo=sqlalchemy" alt="SQLAlchemy"></a>
+  <a href="https://ai.google.dev"><img src="https://img.shields.io/badge/LLM-Gemini_Fallback_Chain-orange?style=flat-square&logo=google" alt="Gemini"></a>
+  <a href="https://www.langchain.com/langsmith"><img src="https://img.shields.io/badge/Observability-LangSmith-blue?style=flat-square" alt="LangSmith"></a>
+  <a href="https://plotly.com/"><img src="https://img.shields.io/badge/Visualization-Plotly-3F4F75?style=flat-square&logo=plotly" alt="Plotly"></a>
+  <a href="https://www.docker.com"><img src="https://img.shields.io/badge/Container-Docker_Compose-blue?style=flat-square&logo=docker" alt="Docker"></a>
+  <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/Testing-pytest-0A9EDC?style=flat-square&logo=pytest" alt="pytest"></a>
+  <a href="https://huggingface.co/"><img src="https://img.shields.io/badge/Hugging%20Face-Spaces-FFD21E?style=flat-square&logo=huggingface" alt="Hugging Face"></a>
+</p>
+
 <div align="center">
-  <img src="assets/keylytics_icon.png" width="120" alt="Stratix Logo">
-  <h1><strong>Stratix</strong></h1>
-  <h3>Autonomous Multi-Agent Market Intelligence Platform</h3>
-  <p><em>Observe. Analyze. Strategize. Autonomously.</em></p>
+  
   <p>
-    <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python" alt="Python Version"></a>
-    <a href="https://langchain-ai.github.io/langgraph/"><img src="https://img.shields.io/badge/Orchestrator-LangGraph_%E2%89%A50.2.0-purple" alt="LangGraph"></a>
-    <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI_%E2%89%A50.137.1-green?logo=fastapi" alt="FastAPI"></a>
-    <a href="https://ai.google.dev"><img src="https://img.shields.io/badge/LLM-Gemini_Fallback_Chain-orange?logo=google" alt="Gemini"></a>
-    <a href="https://www.langchain.com/langsmith"><img src="https://img.shields.io/badge/Observability-LangSmith-blue" alt="LangSmith"></a>
-    <a href="https://www.docker.com"><img src="https://img.shields.io/badge/Container-Docker_Compose-blue?logo=docker" alt="Docker"></a>
+    <i>Stratix is a production-grade agentic AI platform that autonomously executes multi-step market intelligence research workflows. The platform orchestrates complex research tasks - including planning, structured tool execution, data aggregation, quality gating, adversarial critique, strategy synthesis, and checkpointer persistence through a stateful LangGraph pipeline. Designed for high reliability, it integrates human-in-the-loop (HITL) checkpoints to allow manual approval and state modification mid-execution. By combining robust database engineering with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into validated, high-impact strategic intelligence.</i>
   </p>
+
+  <h3>🔗 <a href="https://youtube.com/...">Stratix - Observe. Analyze. Strategize. Autonomously.</a></h3>
+  
+  <p>
+    The demo link above features a video walkthrough demonstrating Stratix running the autonomous agent pipeline, real-time node-by-node execution streaming, intermediate research data validation, and interactive human-in-the-loop approval gates.
+  </p>
+
+  <p><sub><strong>Note:</strong> While Stratix features a fully automated continuous-deployment pipeline that pushes updates to Hugging Face Spaces, the hosted instance is kept private to preserve API credit limits and quota budgets for upstream search and forecasting providers.</sub></p>
 </div>
-
----
-
-Stratix is a production-grade agentic AI platform that autonomously executes multi-step market intelligence research workflows. The platform orchestrates complex research tasks - including planning, structured tool execution, data aggregation, quality gating, adversarial critique, strategy synthesis, and checkpointer persistence through a stateful LangGraph pipeline. Designed for high reliability, it integrates human-in-the-loop (HITL) checkpoints to allow manual approval and state modification mid-execution. By combining robust database engineering with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into validated, high-impact strategic intelligence.
-
----
-
-## Live Demo
-
-A video walkthrough demonstrating Stratix running the autonomous agent pipeline, real-time node-by-node execution streaming, intermediate research data validation, and interactive human-in-the-loop approval gates is available here:
-[Stratix Walkthrough Video](https://youtube.com/...)
-
-*Note: While Stratix features a fully automated continuous-deployment pipeline that pushes updates to Hugging Face Spaces, the hosted instance is kept private to preserve API credit limits and quota budgets for upstream search and forecasting providers.*
 
 ---
 
