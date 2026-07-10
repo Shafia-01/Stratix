@@ -123,12 +123,40 @@ def render_sidebar():
         st.session_state.current_page = "full_strategy"
         st.rerun()
 
-    st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Recent Searches</div>', unsafe_allow_html=True)
+    # Inject CSS for history button styling
+    st.sidebar.markdown("""
+    <style>
+    div[data-testid="element-container"]:has(.history-btn-marker) + div[data-testid="element-container"] button {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 1.5px solid #051B4A !important;
+        font-weight: 500 !important;
+    }
+    div[data-testid="element-container"]:has(.history-btn-marker) + div[data-testid="element-container"] button:hover {
+        background-color: #CADEFF !important;
+        color: #051B4A !important;
+    }
+    div[data-testid="element-container"]:has(.history-btn-marker) + div[data-testid="element-container"] button * {
+        color: #000000 !important;
+    }
+    div[data-testid="element-container"]:has(.history-btn-marker) + div[data-testid="element-container"] button:hover * {
+        color: #051B4A !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     if st.session_state.search_history:
+        st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Recent Searches</div>', unsafe_allow_html=True)
         for i, search in enumerate(st.session_state.search_history[-3:]):
-            if st.sidebar.button(f"{search[:25]}...", key=f"history_{i}", use_container_width=True):
+            st.sidebar.markdown('<div class="history-btn-marker"></div>', unsafe_allow_html=True)
+            if st.sidebar.button(f"{search[:25]}...", key=f"history_{i}", use_container_width=True, icon=":material/history:"):
                 st.session_state.selected_keyword = search
                 st.session_state.current_page = "keyword_discovery"
                 st.rerun()
     else:
-        st.sidebar.info("No recent searches")
+        render_card(
+            title="Recent Searches",
+            desc="No recent searches",
+            icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+            sidebar=True
+        )
