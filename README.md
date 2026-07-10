@@ -11,7 +11,7 @@ pinned: false
 ---
 
 <p align="center">
-  <img src="assets/keylytics_icon.png" alt="Stratix Logo" width="200" />
+  <img src="assets/stratix_icon.png" alt="Stratix Logo" width="200" />
 </p>
 
 <h1 align="center">Stratix</h1>
