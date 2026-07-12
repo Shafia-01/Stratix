@@ -707,6 +707,35 @@ def persist_node(state: AgentState) -> AgentState:
 
     metadata = finalise_metadata(metadata)
 
+    # Save run completion/status to ResearchRunLog database table
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        from datetime import datetime, timezone
+        engine = connect_db()
+        with Session(engine) as session:
+            row = session.query(ResearchRunLog).filter(ResearchRunLog.run_id == run_id).first()
+            if not row:
+                row = ResearchRunLog(
+                    run_id=run_id,
+                    seed_keyword=state.get("seed_keyword") or (state.get("research_plan") or {}).get("seed_keyword") or "unknown",
+                    triggered_by="manual"
+                )
+                session.add(row)
+            row.status = "completed"
+            row.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            report = state.get("strategy_report")
+            if report:
+                row.strategy_report = json.dumps(report, default=str)
+            confidence = state.get("confidence_scores")
+            if confidence:
+                row.confidence_scores = json.dumps(confidence)
+            session.commit()
+            logger.info(f"persist_node: saved run completion for run_id={run_id} to ResearchRunLog")
+    except Exception as e:
+        logger.error(f"persist_node: failed to save run completion to ResearchRunLog: {e}", exc_info=True)
+
     # Task 4.4b: increment run completion metric
     final_status = "completed" if not errors else "completed"  # always completed if we reach here
     try:

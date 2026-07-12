@@ -107,14 +107,41 @@ def build_graph():
 
     # ── Compile with SqliteSaver checkpointer ─────────────────────────────
     import sqlite3
+    import asyncio
     from langgraph.checkpoint.sqlite import SqliteSaver
     import os
+
+    class MixedSqliteSaver(SqliteSaver):
+        """A SqliteSaver checkpointer that implements the asynchronous interface of BaseCheckpointSaver
+        by delegating to its synchronous methods running inside a thread pool. This resolves the async-methods
+        unsupported error under astream_events/astream while maintaining synchronous compatibility."""
+        
+        async def aget_tuple(self, config: dict):
+            return await asyncio.to_thread(self.get_tuple, config)
+
+        async def alist(self, config: dict, *, filter: dict = None, before: dict = None, limit: int = None):
+            def _get_list():
+                return list(self.list(config, filter=filter, before=before, limit=limit))
+            items = await asyncio.to_thread(_get_list)
+            for item in items:
+                yield item
+
+        async def aput(self, config: dict, checkpoint: dict, metadata: dict, new_versions: dict):
+            return await asyncio.to_thread(self.put, config, checkpoint, metadata, new_versions)
+
+        async def aput_writes(self, config: dict, writes: list, task_id: str, task_path: str = ''):
+            return await asyncio.to_thread(self.put_writes, config, writes, task_id, task_path)
+
+        async def adelete_thread(self, config: dict):
+            if hasattr(self, 'delete_thread'):
+                return await asyncio.to_thread(self.delete_thread, config)
+
     DB_PATH = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
+    checkpointer = MixedSqliteSaver(conn)
     checkpointer.setup()
     graph = builder.compile(checkpointer=checkpointer)
-    logger.info("Stratix research graph compiled successfully")
+    logger.info("Stratix research graph compiled successfully with MixedSqliteSaver")
     return graph
 
 

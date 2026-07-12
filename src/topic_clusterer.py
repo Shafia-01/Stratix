@@ -242,11 +242,11 @@ def calculate_cluster_metrics(keywords_data):
             "avg_score": 0,
             "total_volume": 0
         }
-    total_volume = sum(kw.get("volume", 0) for kw in keywords_data)
+    total_volume = sum((kw.get("volume") or 0) for kw in keywords_data)
     avg_volume = total_volume / len(keywords_data)
-    avg_competition = sum(kw.get("competition", 0) for kw in keywords_data) / len(keywords_data)
-    avg_cpc = sum(kw.get("cpc", 0) for kw in keywords_data) / len(keywords_data)
-    avg_score = sum(kw.get("score", 0) for kw in keywords_data) / len(keywords_data)
+    avg_competition = sum((kw.get("competition") or 0.0) for kw in keywords_data) / len(keywords_data)
+    avg_cpc = sum((kw.get("cpc") or 0.0) for kw in keywords_data) / len(keywords_data)
+    avg_score = sum((kw.get("score") or 0.0) for kw in keywords_data) / len(keywords_data)
     return {
         "avg_volume": round(avg_volume, 1),
         "avg_competition": round(avg_competition, 2),
@@ -257,12 +257,12 @@ def calculate_cluster_metrics(keywords_data):
 
 def get_top_keywords_by_score(keywords_data, limit=3):
     """Get top keywords by score within a cluster."""
-    sorted_keywords = sorted(keywords_data, key=lambda x: x.get("score", 0), reverse=True)
+    sorted_keywords = sorted(keywords_data, key=lambda x: (x.get("score") or 0.0), reverse=True)
     return [
         {
             "keyword": kw["keyword"],
-            "score": kw.get("score", 0),
-            "volume": kw.get("volume", 0)
+            "score": kw.get("score") or 0.0,
+            "volume": kw.get("volume") or 0
         }
         for kw in sorted_keywords[:limit]
     ]
@@ -274,9 +274,9 @@ def calculate_opportunity_score(keywords_data):
     # Factors: high volume, low competition, good scores
     scores = []
     for kw in keywords_data:
-        volume = kw.get("volume", 0)
-        competition = kw.get("competition", 1)
-        score = kw.get("score", 0)
+        volume = kw.get("volume") or 0
+        competition = kw.get("competition") if kw.get("competition") is not None else 1.0
+        score = kw.get("score") or 0.0
         # Opportunity formula: volume * (1 - competition) * score
         opportunity = volume * (1 - competition) * score
         scores.append(opportunity)

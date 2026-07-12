@@ -123,7 +123,21 @@ def render_sidebar():
         st.session_state.current_page = "full_strategy"
         st.rerun()
 
-    # Inject CSS for history button styling
+    st.sidebar.markdown('<div style="font-family: \'Cambria\', Georgia, serif; font-size: 0.95rem; font-weight: 600; color: #051B4A; margin: 20px 0 10px 0;">Advanced Features</div>', unsafe_allow_html=True)
+
+    if st.sidebar.button("🤖 Agent Mode", use_container_width=True):
+        st.session_state.current_page = "agent_mode"
+        st.rerun()
+    if st.sidebar.button("📊 Executive Reports", use_container_width=True):
+        st.session_state.current_page = "executive_reports"
+        st.rerun()
+    if st.sidebar.button("📈 Analytics", use_container_width=True):
+        st.session_state.current_page = "analytics"
+        st.rerun()
+    if st.sidebar.button("🔔 Monitoring Dashboard", use_container_width=True):
+        st.session_state.current_page = "monitoring_dashboard"
+        st.rerun()
+
     st.sidebar.markdown("""
     <style>
     div[data-testid="element-container"]:has(.history-btn-marker) + div[data-testid="element-container"] button {

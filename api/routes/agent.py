@@ -62,6 +62,25 @@ async def start_agent_run(request: RunRequest) -> RunResponse:
     Call /agent/resume with {"approved": true} to continue.
     """
     run_id = str(uuid.uuid4())
+    
+    # Log run start in database
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        engine = connect_db()
+        with Session(engine) as session:
+            db_run = ResearchRunLog(
+                run_id=run_id,
+                seed_keyword=request.seed_keyword,
+                triggered_by="manual",
+                status="pending"
+            )
+            session.add(db_run)
+            session.commit()
+    except Exception as db_err:
+        logger.error(f"Failed to log run start to database for run_id={run_id}: {db_err}", exc_info=True)
+
     graph = get_compiled_graph()
     config = get_run_config(request.seed_keyword, run_id)
 
@@ -200,6 +219,25 @@ async def event_generator(request: StreamRequest):
         initial_state = None
     else:
         run_id = str(uuid.uuid4())
+        
+        # Log run start in database
+        try:
+            from src.db_client import connect_db
+            from src.models import ResearchRunLog
+            from sqlalchemy.orm import Session
+            engine = connect_db()
+            with Session(engine) as session:
+                db_run = ResearchRunLog(
+                    run_id=run_id,
+                    seed_keyword=request.seed_keyword or "",
+                    triggered_by="manual",
+                    status="pending"
+                )
+                session.add(db_run)
+                session.commit()
+        except Exception as db_err:
+            logger.error(f"Failed to log run start in stream to database for run_id={run_id}: {db_err}", exc_info=True)
+
         config = get_run_config(request.seed_keyword or "", run_id)
         initial_state = {
             "seed_keyword": request.seed_keyword or "",

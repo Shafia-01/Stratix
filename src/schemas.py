@@ -160,9 +160,9 @@ class SerpRawData(BaseModel):
     """Typed container for raw SERP response data."""
     model_config = ConfigDict(from_attributes=True)
     organic_results: List[OrganicResult] = Field(default_factory=list)
-    people_also_ask: List[Dict[str, str]] = Field(default_factory=list)
-    related_searches: List[Dict[str, str]] = Field(default_factory=list)
-    featured_snippet: Dict[str, str] = Field(default_factory=dict)
+    people_also_ask: List[Dict[str, Any]] = Field(default_factory=list)
+    related_searches: List[Dict[str, Any]] = Field(default_factory=list)
+    featured_snippet: Dict[str, Any] = Field(default_factory=dict)
     search_information: Dict[str, Any] = Field(default_factory=dict)
 
 class SnippetOpportunity(BaseModel):
