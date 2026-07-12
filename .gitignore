@@ -13,3 +13,4 @@ cache/*.csv
 *.db-shm
 .coverage
 coverage.xml
+features_guide.md
