@@ -115,7 +115,7 @@ def build_graph():
         """A SqliteSaver checkpointer that implements the asynchronous interface of BaseCheckpointSaver
         by delegating to its synchronous methods running inside a thread pool. This resolves the async-methods
         unsupported error under astream_events/astream while maintaining synchronous compatibility."""
-        
+
         async def aget_tuple(self, config: dict):
             return await asyncio.to_thread(self.get_tuple, config)
 

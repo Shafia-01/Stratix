@@ -62,7 +62,7 @@ async def start_agent_run(request: RunRequest) -> RunResponse:
     Call /agent/resume with {"approved": true} to continue.
     """
     run_id = str(uuid.uuid4())
-    
+
     # Log run start in database
     try:
         from src.db_client import connect_db
@@ -219,7 +219,7 @@ async def event_generator(request: StreamRequest):
         initial_state = None
     else:
         run_id = str(uuid.uuid4())
-        
+
         # Log run start in database
         try:
             from src.db_client import connect_db
