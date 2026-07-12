@@ -36,10 +36,17 @@ def _get_eval_llm() -> ChatGoogleGenerativeAI:
         convert_system_message_to_human=True,
     )
     fallback_models = [
+        # Flash (fast, capable)
         "gemini-3.5-flash",
         "gemini-3.1-flash-lite",
-        "gemini-2.5-flash-lite",
         "gemini-3-flash-preview",
+        "gemini-2.5-flash-lite",
+        # Pro (highest quality, slower)
+        "gemini-2.5-pro",
+        "gemini-3.1-pro",
+        # Older Gemini 2.x (stable last-resort)
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
     ]
     fallbacks = [
         ChatGoogleGenerativeAI(
