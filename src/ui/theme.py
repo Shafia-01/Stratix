@@ -21,7 +21,7 @@ def get_color_theme():
         "error": "#F87171",
         "info": "#60A5FA",
         "node_agent": "#B5D1FF",
-        "node_interrupt": "#FEF3C7",
+        "node_interrupt": "#FFC7CF",
         "node_terminal": "#D1FAE5"
     }
 

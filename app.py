@@ -23,6 +23,81 @@ pd, json, px, go = lazy_imports()
 
 load_dotenv()
 
+def start_backend_server():
+    """Start the FastAPI backend server in the background if it's not already running."""
+    import socket
+    import subprocess
+    import sys
+    import time
+    import requests
+
+    # 1. Parse port from API_BASE_URL (default: 8000)
+    api_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+    if "localhost" not in api_url and "127.0.0.1" not in api_url:
+        logger.info(f"API_BASE_URL is external ({api_url}). Not starting local backend.")
+        return
+
+    # Extract port
+    port = 8000
+    try:
+        if ":" in api_url.replace("http://", "").replace("https://", ""):
+            port = int(api_url.split(":")[-1].split("/")[0])
+    except Exception:
+        pass
+
+    # 2. Check if port is already open
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.5)
+    result = sock.connect_ex(('127.0.0.1', port))
+    sock.close()
+
+    if result == 0:
+        logger.info(f"Backend API is already running on port {port}.")
+        return
+
+    # 3. Start uvicorn subprocess
+    logger.info(f"Backend API not detected on port {port}. Starting it in background...")
+    try:
+        # Run uvicorn as a subprocess using the current python executable
+        cmd = [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "api.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(port)
+        ]
+        
+        # Start uvicorn. We don't want it to block, so we use subprocess.Popen
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True if os.name != 'nt' else False
+        )
+        logger.info(f"FastAPI backend started (PID: {process.pid})")
+        
+        # Wait up to 10 seconds for the backend to become responsive
+        for _ in range(20):
+            time.sleep(0.5)
+            try:
+                resp = requests.get(f"{api_url.rstrip('/')}/health", timeout=1)
+                if resp.status_code == 200:
+                    logger.info("FastAPI backend is now online and responsive.")
+                    break
+            except Exception:
+                pass
+        else:
+            logger.warning("FastAPI backend started but did not respond to health check in time.")
+            
+    except Exception as e:
+        logger.error(f"Failed to start FastAPI backend: {e}", exc_info=True)
+
+# Run the backend server start hook
+start_backend_server()
+
 # Services
 from src.services.status_service import check_api_status, test_api_quick
 from src.services.metrics_service import initialize_metrics_from_history
