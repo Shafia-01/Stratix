@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from langgraph.errors import GraphInterrupt
 
 from src.graph.graph import get_compiled_graph
 from src.graph.tracing import build_initial_metadata, get_run_config
@@ -251,6 +252,11 @@ async def event_generator(request: StreamRequest):
 
     yield f"data: {json.dumps({'event': 'run_started', 'run_id': run_id})}\n\n"
 
+    # interrupt_value: populated if GraphInterrupt propagates (nested graph edge case).
+    # Normally, LangGraph suppresses GraphInterrupt internally and astream_events exits cleanly.
+    # In either case, we detect the checkpoint via get_state().next in the finally block.
+    interrupt_value: Optional[dict] = None
+
     try:
         async for event in graph.astream_events(initial_state, config, version="v2"):
             event_type = event.get("event")
@@ -284,44 +290,96 @@ async def event_generator(request: StreamRequest):
     except asyncio.CancelledError:
         logger.info(f"Stream connection cancelled for run_id={run_id}")
         raise
+    except GraphInterrupt as gi:
+        # Safety-net: catches GraphInterrupt if it propagates (e.g., in nested graph contexts).
+        # In the normal (non-nested) case, LangGraph suppresses this and astream_events exits cleanly.
+        try:
+            interrupts = gi.args[0] if gi.args else []
+            if interrupts:
+                first = interrupts[0]
+                interrupt_value = first.value if hasattr(first, "value") else (first if isinstance(first, dict) else {})
+            else:
+                interrupt_value = {}
+        except Exception as parse_err:
+            logger.warning(f"Could not parse GraphInterrupt value for run_id={run_id}: {parse_err}")
+            interrupt_value = {}
+        logger.info(f"Stream paused at HITL checkpoint (propagated) for run_id={run_id}")
     except Exception as e:
         logger.error(f"Stream execution failed for run_id={run_id}: {e}", exc_info=True)
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
     finally:
         try:
-            current_state = graph.get_state(config)
-            if current_state and current_state.next:
-                next_node = current_state.next[0]
-                values = current_state.values
-                status = values.get("status")
+            # Allow MixedSqliteSaver's asyncio.to_thread writes to flush before reading state.
+            # This is critical: aput/aput_writes delegate to threads; without this yield,
+            # get_state() may read stale checkpoint data before the interrupt is persisted.
+            await asyncio.sleep(0.15)
 
-                if next_node == "research_agent_node" or status == "awaiting_plan_approval":
+            current_state = graph.get_state(config)
+            values = current_state.values if current_state else {}
+
+            # ── Determine if graph paused at an interrupt or truly completed ──
+            # current_state.next is non-empty when the graph is waiting at a HITL checkpoint.
+            is_interrupted = bool(current_state and current_state.next)
+
+            if is_interrupted:
+                # Detect checkpoint type from:
+                #  1. interrupt_value dict (if GraphInterrupt propagated — nested edge case)
+                #  2. The next node pending execution (planner re-queued → plan_approval)
+                #  3. The status field in state values
+                next_node = current_state.next[0] if current_state.next else ""
+                status = values.get("status", "awaiting_approval")
+
+                if interrupt_value:
+                    # Fast path: interrupt data extracted directly from GraphInterrupt args
+                    checkpoint_type = interrupt_value.get("checkpoint", "plan_approval")
+                elif next_node == "research_agent_node" or status == "awaiting_plan_approval":
                     checkpoint_type = "plan_approval"
+                elif next_node == "persist_node" or status == "awaiting_report_approval":
+                    checkpoint_type = "report_approval"
+                else:
+                    # Default: infer from state.awaiting_human + which data is populated
+                    checkpoint_type = (
+                        "report_approval" if values.get("strategy_report") else "plan_approval"
+                    )
+
+                logger.info(
+                    f"Stream checkpoint detected for run_id={run_id}: "
+                    f"type={checkpoint_type}, next_node={next_node}, status={status}"
+                )
+
+                if checkpoint_type == "plan_approval":
                     checkpoint_data = {
-                        "research_plan": values.get("research_plan"),
+                        "research_plan": (
+                            interrupt_value.get("research_plan") if interrupt_value else None
+                        ) or values.get("research_plan"),
                     }
                 else:
-                    checkpoint_type = "report_approval"
                     checkpoint_data = {
                         "research_plan": values.get("research_plan"),
-                        "strategy_report": values.get("strategy_report"),
-                        "confidence_scores": values.get("confidence_scores"),
-                        "warnings": values.get("errors", []),
+                        "strategy_report": (
+                            interrupt_value.get("strategy_report") if interrupt_value else None
+                        ) or values.get("strategy_report"),
+                        "confidence_scores": (
+                            interrupt_value.get("confidence_scores") if interrupt_value else None
+                        ) or values.get("confidence_scores"),
+                        "warnings": (
+                            interrupt_value.get("warnings") if interrupt_value else None
+                        ) or values.get("errors", []),
                     }
+
                 checkpoint_msg = json.dumps({
                     'event': 'checkpoint',
                     'checkpoint': checkpoint_type,
                     'status': status,
-                    'checkpoint_data': checkpoint_data
+                    'checkpoint_data': checkpoint_data,
                 })
                 yield f"data: {checkpoint_msg}\n\n"
             else:
-                current_state = graph.get_state(config)
-                values = current_state.values if current_state else {}
+                # Graph ran to completion (or failed without a pending next node)
                 status = values.get("status", "completed")
                 yield f"data: {json.dumps({'event': 'completed', 'status': status})}\n\n"
         except Exception as e:
-            logger.error(f"Failed to fetch final state for run_id={run_id}: {e}")
+            logger.error(f"Failed to emit final state for run_id={run_id}: {e}")
 
 
 @router.post("/stream")
