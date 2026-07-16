@@ -319,7 +319,7 @@ async def event_generator(request: StreamRequest):
                         payload["critic_feedback"] = output["critic_feedback"]
                     if "errors" in output and output["errors"]:
                         payload["errors"] = output["errors"]
-                yield f"data: {json.dumps(payload)}\n\n"
+                yield f"data: {json.dumps(payload, default=str)}\n\n"
             elif event_type == "on_tool_start":
                 yield f"data: {json.dumps({'event': 'tool_start', 'tool': name})}\n\n"
             elif event_type == "on_tool_end":
@@ -329,7 +329,7 @@ async def event_generator(request: StreamRequest):
                 if isinstance(output, dict) and "error" in output:
                     success = False
                     error_msg = output["error"]
-                yield f"data: {json.dumps({'event': 'tool_complete', 'tool': name, 'success': success, 'error': error_msg})}\n\n"
+                yield f"data: {json.dumps({'event': 'tool_complete', 'tool': name, 'success': success, 'error': error_msg}, default=str)}\n\n"
     except asyncio.CancelledError:
         logger.info(f"Stream connection cancelled for run_id={run_id}")
         raise
@@ -419,7 +419,7 @@ async def event_generator(request: StreamRequest):
                     'checkpoint': checkpoint_type,
                     'status': status,
                     'checkpoint_data': checkpoint_data,
-                })
+                }, default=str)
                 yield f"data: {checkpoint_msg}\n\n"
             else:
                 # Graph ran to completion (or failed without a pending next node)

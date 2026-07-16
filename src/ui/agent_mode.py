@@ -50,7 +50,7 @@ def _get(endpoint: str) -> dict:
         return {"error": str(e)}
 
 
-def run_and_display_stream(payload: dict) -> dict:
+def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
     """Run the agent pipeline using SSE streaming and display live execution logs."""
     nodes = [
         "planner_node",
@@ -71,11 +71,14 @@ def run_and_display_stream(payload: dict) -> dict:
     checkpoint_data = None
     completed = False
 
-    status_placeholder = st.empty()
-    progress_placeholder = st.empty()
-    logs_placeholder = st.empty()
-    metrics_placeholder = st.empty()
-    critic_placeholder = st.empty()
+    if placeholders is None:
+        placeholders = {}
+
+    status_placeholder = placeholders.get("status") or st.empty()
+    progress_placeholder = placeholders.get("progress") or st.empty()
+    logs_placeholder = placeholders.get("logs") or st.empty()
+    metrics_placeholder = placeholders.get("metrics") or st.empty()
+    critic_placeholder = placeholders.get("critic") or st.empty()
 
     try:
         url = f"{API_BASE}/agent/stream"
@@ -231,21 +234,38 @@ def render_agent_mode():
         with col2:
             st.write("")  # spacing
             st.write("")
-            if st.button(" Start Agent", type="primary", use_container_width=True):
-                if keyword:
-                    result = run_and_display_stream({"seed_keyword": keyword})
-                    if result.get("checkpoint") == "plan_approval":
-                        st.session_state.agent_run_id = result["run_id"]
-                        st.session_state.agent_research_plan = result.get("checkpoint_data", {}).get("research_plan")
-                        st.session_state.agent_stage = "plan_review"
-                        st.rerun()
-                    elif result.get("completed"):
-                        st.session_state.agent_stage = "done"
-                        st.rerun()
-                    else:
-                        st.error(" Failed to complete agent run or reach checkpoint.")
+            start_clicked = st.button(" Start Agent", type="primary", use_container_width=True)
+
+        status_placeholder = st.empty()
+        progress_placeholder = st.empty()
+        logs_placeholder = st.empty()
+        metrics_placeholder = st.empty()
+        critic_placeholder = st.empty()
+
+        if start_clicked:
+            if keyword:
+                result = run_and_display_stream(
+                    {"seed_keyword": keyword},
+                    placeholders={
+                        "status": status_placeholder,
+                        "progress": progress_placeholder,
+                        "logs": logs_placeholder,
+                        "metrics": metrics_placeholder,
+                        "critic": critic_placeholder,
+                    }
+                )
+                if result.get("checkpoint") == "plan_approval":
+                    st.session_state.agent_run_id = result["run_id"]
+                    st.session_state.agent_research_plan = result.get("checkpoint_data", {}).get("research_plan")
+                    st.session_state.agent_stage = "plan_review"
+                    st.rerun()
+                elif result.get("completed"):
+                    st.session_state.agent_stage = "done"
+                    st.rerun()
                 else:
-                    st.warning(" Please enter a keyword first.")
+                    st.error(" Failed to complete agent run or reach checkpoint.")
+            else:
+                st.warning(" Please enter a keyword first.")
 
     # ── STAGE: Plan Review (HITL Checkpoint 1) ─────────────────────────────
     elif stage == "plan_review":
@@ -268,36 +288,64 @@ def render_agent_mode():
 
         col1, col2, col3 = st.columns(3)
 
+        approve_clicked = False
+        edit_clicked = False
+        cancel_clicked = False
+
         with col1:
             if st.button(" Approve Plan", type="primary", use_container_width=True):
-                result = run_and_display_stream({
-                    "run_id": run_id,
-                    "human_feedback": {"approved": True},
-                })
-                if result.get("checkpoint") == "report_approval":
-                    cp = result.get("checkpoint_data") or {}
-                    st.session_state.agent_strategy_report = cp.get("strategy_report")
-                    st.session_state.agent_confidence = cp.get("confidence_scores")
-                    st.session_state.agent_warnings = cp.get("warnings", [])
-                    st.session_state.agent_stage = "report_review"
-                    st.rerun()
-                elif result.get("completed"):
-                    st.session_state.agent_stage = "done"
-                    st.rerun()
-                else:
-                    st.error(" Failed to resume agent execution.")
+                approve_clicked = True
 
         with col2:
             if st.button(" Edit Plan", use_container_width=True):
-                st.session_state.agent_stage = "edit_plan"
-                st.rerun()
+                edit_clicked = True
 
         with col3:
             if st.button(" Cancel Plan", use_container_width=True):
-                st.session_state.agent_stage = "input"
-                st.session_state.agent_run_id = None
-                st.session_state.agent_research_plan = None
+                cancel_clicked = True
+
+        status_placeholder = st.empty()
+        progress_placeholder = st.empty()
+        logs_placeholder = st.empty()
+        metrics_placeholder = st.empty()
+        critic_placeholder = st.empty()
+
+        if approve_clicked:
+            result = run_and_display_stream(
+                {
+                    "run_id": run_id,
+                    "human_feedback": {"approved": True},
+                },
+                placeholders={
+                    "status": status_placeholder,
+                    "progress": progress_placeholder,
+                    "logs": logs_placeholder,
+                    "metrics": metrics_placeholder,
+                    "critic": critic_placeholder,
+                }
+            )
+            if result.get("checkpoint") == "report_approval":
+                cp = result.get("checkpoint_data") or {}
+                st.session_state.agent_strategy_report = cp.get("strategy_report")
+                st.session_state.agent_confidence = cp.get("confidence_scores")
+                st.session_state.agent_warnings = cp.get("warnings", [])
+                st.session_state.agent_stage = "report_review"
                 st.rerun()
+            elif result.get("completed"):
+                st.session_state.agent_stage = "done"
+                st.rerun()
+            else:
+                st.error(" Failed to resume agent execution.")
+
+        elif edit_clicked:
+            st.session_state.agent_stage = "edit_plan"
+            st.rerun()
+
+        elif cancel_clicked:
+            st.session_state.agent_stage = "input"
+            st.session_state.agent_run_id = None
+            st.session_state.agent_research_plan = None
+            st.rerun()
 
     # ── STAGE: Edit Plan ───────────────────────────────────────────────────
     elif stage == "edit_plan":
@@ -337,39 +385,64 @@ def render_agent_mode():
         )
 
         col1, col2 = st.columns(2)
+
+        save_clicked = False
+        back_clicked = False
+
         with col1:
             if st.button("💾 Save & Approve Plan", type="primary", use_container_width=True):
-                objectives_list = [line.strip() for line in objectives_input.split("\n") if line.strip()]
-                edited_plan = {
-                    "seed_keyword": plan.get("seed_keyword", ""),
-                    "objectives": objectives_list,
-                    "requested_modules": selected_modules,
-                    "max_keywords": max_keywords_input
-                }
-                result = run_and_display_stream({
+                save_clicked = True
+
+        with col2:
+            if st.button("🔙 Back", use_container_width=True):
+                back_clicked = True
+
+        status_placeholder = st.empty()
+        progress_placeholder = st.empty()
+        logs_placeholder = st.empty()
+        metrics_placeholder = st.empty()
+        critic_placeholder = st.empty()
+
+        if save_clicked:
+            objectives_list = [line.strip() for line in objectives_input.split("\n") if line.strip()]
+            edited_plan = {
+                "seed_keyword": plan.get("seed_keyword", ""),
+                "objectives": objectives_list,
+                "requested_modules": selected_modules,
+                "max_keywords": max_keywords_input
+            }
+            result = run_and_display_stream(
+                {
                     "run_id": run_id,
                     "human_feedback": {
                         "approved": True,
                         "edited_plan": edited_plan
                     }
-                })
-                if result.get("checkpoint") == "report_approval":
-                    cp = result.get("checkpoint_data") or {}
-                    st.session_state.agent_strategy_report = cp.get("strategy_report")
-                    st.session_state.agent_confidence = cp.get("confidence_scores")
-                    st.session_state.agent_warnings = cp.get("warnings", [])
-                    st.session_state.agent_stage = "report_review"
-                    st.rerun()
-                elif result.get("completed"):
-                    st.session_state.agent_stage = "done"
-                    st.rerun()
-                else:
-                    st.error(" Failed to resume agent execution.")
-
-        with col2:
-            if st.button("🔙 Back", use_container_width=True):
-                st.session_state.agent_stage = "plan_review"
+                },
+                placeholders={
+                    "status": status_placeholder,
+                    "progress": progress_placeholder,
+                    "logs": logs_placeholder,
+                    "metrics": metrics_placeholder,
+                    "critic": critic_placeholder,
+                }
+            )
+            if result.get("checkpoint") == "report_approval":
+                cp = result.get("checkpoint_data") or {}
+                st.session_state.agent_strategy_report = cp.get("strategy_report")
+                st.session_state.agent_confidence = cp.get("confidence_scores")
+                st.session_state.agent_warnings = cp.get("warnings", [])
+                st.session_state.agent_stage = "report_review"
                 st.rerun()
+            elif result.get("completed"):
+                st.session_state.agent_stage = "done"
+                st.rerun()
+            else:
+                st.error(" Failed to resume agent execution.")
+
+        elif back_clicked:
+            st.session_state.agent_stage = "plan_review"
+            st.rerun()
 
     # ── STAGE: Report Review (HITL Checkpoint 2) ───────────────────────────
     elif stage == "report_review":
@@ -422,48 +495,86 @@ def render_agent_mode():
         )
 
         col1, col2, col3 = st.columns(3)
+
+        approve_clicked = False
+        regenerate_clicked = False
+        reject_clicked = False
+
         with col1:
             if st.button(" Approve & Save", type="primary", use_container_width=True):
-                result = run_and_display_stream({
-                    "run_id": run_id,
-                    "human_feedback": {"approved": True}
-                })
-                if result.get("completed"):
-                    st.session_state.agent_stage = "done"
-                    st.rerun()
-                else:
-                    st.error(" Failed to complete agent run.")
+                approve_clicked = True
 
         with col2:
             if st.button("🔄 Request Regeneration", use_container_width=True):
-                result = run_and_display_stream({
+                regenerate_clicked = True
+
+        with col3:
+            if st.button(" Reject & Restart", use_container_width=True):
+                reject_clicked = True
+
+        status_placeholder = st.empty()
+        progress_placeholder = st.empty()
+        logs_placeholder = st.empty()
+        metrics_placeholder = st.empty()
+        critic_placeholder = st.empty()
+
+        if approve_clicked:
+            result = run_and_display_stream(
+                {
+                    "run_id": run_id,
+                    "human_feedback": {"approved": True}
+                },
+                placeholders={
+                    "status": status_placeholder,
+                    "progress": progress_placeholder,
+                    "logs": logs_placeholder,
+                    "metrics": metrics_placeholder,
+                    "critic": critic_placeholder,
+                }
+            )
+            if result.get("completed"):
+                st.session_state.agent_stage = "done"
+                st.rerun()
+            else:
+                st.error(" Failed to complete agent run.")
+
+        elif regenerate_clicked:
+            result = run_and_display_stream(
+                {
                     "run_id": run_id,
                     "human_feedback": {
                         "regenerate": True,
                         "notes": feedback_notes
                     }
-                })
-                if result.get("checkpoint") == "report_approval":
-                    cp = result.get("checkpoint_data") or {}
-                    st.session_state.agent_strategy_report = cp.get("strategy_report") or report
-                    st.session_state.agent_confidence = cp.get("confidence_scores") or confidence
-                    st.session_state.agent_warnings = cp.get("warnings", [])
-                    st.session_state.agent_stage = "report_review"
-                    st.rerun()
-                elif result.get("completed"):
-                    st.session_state.agent_stage = "done"
-                    st.rerun()
-                else:
-                    st.error(" Failed to resume agent execution.")
-
-        with col3:
-            if st.button(" Reject & Restart", use_container_width=True):
-                st.session_state.agent_stage = "input"
-                st.session_state.agent_run_id = None
-                st.session_state.agent_research_plan = None
-                st.session_state.agent_strategy_report = None
-                st.session_state.agent_confidence = None
+                },
+                placeholders={
+                    "status": status_placeholder,
+                    "progress": progress_placeholder,
+                    "logs": logs_placeholder,
+                    "metrics": metrics_placeholder,
+                    "critic": critic_placeholder,
+                }
+            )
+            if result.get("checkpoint") == "report_approval":
+                cp = result.get("checkpoint_data") or {}
+                st.session_state.agent_strategy_report = cp.get("strategy_report") or report
+                st.session_state.agent_confidence = cp.get("confidence_scores") or confidence
+                st.session_state.agent_warnings = cp.get("warnings", [])
+                st.session_state.agent_stage = "report_review"
                 st.rerun()
+            elif result.get("completed"):
+                st.session_state.agent_stage = "done"
+                st.rerun()
+            else:
+                st.error(" Failed to resume agent execution.")
+
+        elif reject_clicked:
+            st.session_state.agent_stage = "input"
+            st.session_state.agent_run_id = None
+            st.session_state.agent_research_plan = None
+            st.session_state.agent_strategy_report = None
+            st.session_state.agent_confidence = None
+            st.rerun()
 
     # ── STAGE: Done ────────────────────────────────────────────────────────
     elif stage == "done":
