@@ -108,6 +108,7 @@ def build_graph():
     # ── Compile with SqliteSaver checkpointer ─────────────────────────────
     import sqlite3
     import asyncio
+    import threading
     from langgraph.checkpoint.sqlite import SqliteSaver
     import os
 
@@ -116,12 +117,37 @@ def build_graph():
         by delegating to its synchronous methods running inside a thread pool. This resolves the async-methods
         unsupported error under astream_events/astream while maintaining synchronous compatibility."""
 
+        def __init__(self, conn, *args, **kwargs):
+            super().__init__(conn, *args, **kwargs)
+            self.lock = threading.Lock()
+
+        def get_tuple(self, config: dict):
+            with self.lock:
+                return super().get_tuple(config)
+
+        def list(self, config: dict, *, filter: dict = None, before: dict = None, limit: int = None):
+            with self.lock:
+                return list(super().list(config, filter=filter, before=before, limit=limit))
+
+        def put(self, config: dict, checkpoint: dict, metadata: dict, new_versions: dict):
+            with self.lock:
+                return super().put(config, checkpoint, metadata, new_versions)
+
+        def put_writes(self, config: dict, writes: list, task_id: str, task_path: str = ''):
+            with self.lock:
+                return super().put_writes(config, writes, task_id, task_path)
+
+        def delete_thread(self, config: dict):
+            with self.lock:
+                if hasattr(super(), 'delete_thread'):
+                    return super().delete_thread(config)
+
         async def aget_tuple(self, config: dict):
             return await asyncio.to_thread(self.get_tuple, config)
 
         async def alist(self, config: dict, *, filter: dict = None, before: dict = None, limit: int = None):
             def _get_list():
-                return list(self.list(config, filter=filter, before=before, limit=limit))
+                return self.list(config, filter=filter, before=before, limit=limit)
             items = await asyncio.to_thread(_get_list)
             for item in items:
                 yield item
