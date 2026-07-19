@@ -251,10 +251,14 @@ class KeylyticsScheduler:
 
             self._log_run_complete(run_id, final_status, strategy_report, confidence_scores)
             logger.info(f"Scheduler job completed: job_id={job_id}, status={final_status}")
+            if final_status == "failed":
+                self._handle_job_failure(job_id)
+            else:
+                self._mark_job_success(job_id)
 
         except Exception as e:
             logger.error(f"Scheduler job failed: job_id={job_id}, error={e}", exc_info=True)
-            self._mark_job_failed(job_id)
+            self._handle_job_failure(job_id)
             self._log_run_complete(run_id, "failed", None, None)
 
     def _compute_and_save_diff(
@@ -362,22 +366,47 @@ class KeylyticsScheduler:
         except Exception as e:
             logger.error(f"_update_job_last_run failed: {e}", exc_info=True)
 
-    def _mark_job_failed(self, job_id: str) -> None:
+    def _handle_job_failure(self, job_id: str) -> None:
         try:
             from src.db_client import connect_db
             from src.models import MonitoringJobModel
             from sqlalchemy.orm import Session
-
+ 
             engine = connect_db()
             with Session(engine) as session:
                 row = session.query(MonitoringJobModel).filter(
                     MonitoringJobModel.job_id == job_id
                 ).first()
                 if row:
-                    row.status = "failed"
+                    row.consecutive_failures += 1
+                    if row.consecutive_failures >= 3:
+                        row.status = "failed"
+                        if self._scheduler:
+                            try:
+                                self._scheduler.pause_job(job_id)
+                                logger.warning(f"Circuit breaker triggered: Job {job_id} paused due to 3 consecutive failures.")
+                            except Exception as sched_err:
+                                logger.error(f"Failed to pause job {job_id} in scheduler: {sched_err}")
                     session.commit()
         except Exception as e:
-            logger.error(f"_mark_job_failed failed: {e}", exc_info=True)
+            logger.error(f"_handle_job_failure failed: {e}", exc_info=True)
+
+    def _mark_job_success(self, job_id: str) -> None:
+        try:
+            from src.db_client import connect_db
+            from src.models import MonitoringJobModel
+            from sqlalchemy.orm import Session
+ 
+            engine = connect_db()
+            with Session(engine) as session:
+                row = session.query(MonitoringJobModel).filter(
+                    MonitoringJobModel.job_id == job_id
+                ).first()
+                if row:
+                    row.consecutive_failures = 0
+                    session.commit()
+        except Exception as e:
+            logger.error(f"_mark_job_success failed: {e}", exc_info=True)
 
     def _log_run_start(self, run_id: str, seed_keyword: str) -> None:
         try:

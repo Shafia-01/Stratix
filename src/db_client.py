@@ -55,6 +55,14 @@ def connect_db():
                     with _engine.connect() as conn:
                         conn.execute(text("DROP TABLE IF EXISTS keywords"))
                         conn.commit()
+            
+            if "monitoring_jobs" in inspector.get_table_names():
+                columns = [col["name"] for col in inspector.get_columns("monitoring_jobs")]
+                if "consecutive_failures" not in columns:
+                    logger.warning("Adding 'consecutive_failures' column to 'monitoring_jobs' table.")
+                    with _engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE monitoring_jobs ADD COLUMN consecutive_failures INTEGER DEFAULT 0 NOT NULL"))
+                        conn.commit()
         except Exception as e:
             logger.error(f"Failed to check unique constraint migration: {e}")
 

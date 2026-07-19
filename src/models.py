@@ -60,6 +60,7 @@ class MonitoringJobModel(Base):
     last_run = Column(DateTime, nullable=True)
     next_run = Column(DateTime, nullable=True)
     status = Column(String(50), nullable=False, default="active")  # active | paused | failed
+    consecutive_failures = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
