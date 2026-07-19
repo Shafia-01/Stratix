@@ -434,7 +434,7 @@ def aggregator_node(state: AgentState) -> AgentState:
                 1 for v in (forecasts.values() if isinstance(forecasts, dict) else [])
                 if isinstance(v, dict)
                 and v.get("forecast_scores")
-                and v.get("r_squared", 1.0) > 0.3
+                and (v.get("r_squared") is None or v.get("r_squared") > 0.3)
             )
             confidence_scores["trend_forecast"] = round(valid / total, 2)
 

@@ -175,7 +175,8 @@ def generate_trend_forecasts(trend_analysis):
             "forecast_scores": forecast_scores,
             "predicted_growth": growth_rate,
             "trend_direction": analysis["direction"],
-            "recommendation": generate_trend_recommendation(analysis)
+            "recommendation": generate_trend_recommendation(analysis),
+            "r_squared": analysis["metrics"]["r_squared"]
         }
     return forecasts, unavailable_keywords
 

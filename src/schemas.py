@@ -250,6 +250,7 @@ class ForecastEntry(BaseModel):
     predicted_growth: float = Field(..., description="Predicted growth rate as a percentage")
     trend_direction: str = Field(..., description="Direction label (e.g. 'strong_growth', 'stable')")
     recommendation: str = Field(..., description="Actionable recommendation based on forecast")
+    r_squared: Optional[float] = Field(None, description="R-squared value indicating forecast fit/strength")
 
 
 class SeasonalAnalysisEntry(BaseModel):

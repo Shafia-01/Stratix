@@ -48,6 +48,7 @@ def run(input: TrendForecastInput) -> TrendForecastResult:
                 predicted_growth=float(raw_fc.get("predicted_growth", 0.0)),
                 trend_direction=raw_fc.get("trend_direction", "stable"),
                 recommendation=raw_fc.get("recommendation", ""),
+                r_squared=float(raw_fc["r_squared"]) if raw_fc.get("r_squared") is not None else None,
             )
 
         # --- Build typed SeasonalAnalysisEntry models ---

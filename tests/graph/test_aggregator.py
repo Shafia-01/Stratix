@@ -115,3 +115,25 @@ def test_aggregator_empty_collected_data():
     assert result["intelligence_findings"]["keyword_findings"] == []
     assert result["confidence_scores"].get("keyword_research", 1.0) == 0.0
     assert len(result["errors"]) > 0
+
+
+def test_aggregator_trend_forecast_confidence():
+    state = _base_state()
+    state["research_plan"]["requested_modules"].append("trend_forecasting")
+    
+    state["collected_data"]["trend_forecast"] = {
+        "forecasts": {
+            "kw1": {
+                "forecast_scores": [{"month": 1, "score": 50.0, "confidence": 80.0}],
+                "r_squared": 0.8
+            },
+            "kw2": {
+                "forecast_scores": [{"month": 1, "score": 40.0, "confidence": 50.0}],
+                "r_squared": 0.2
+            }
+        }
+    }
+    
+    result = aggregator_node(state)
+    scores = result["confidence_scores"]
+    assert scores["trend_forecast"] == 0.5
