@@ -12,19 +12,19 @@ from sqlalchemy import event
 @pytest.mark.integration
 def test_sqlite_concurrency_no_locks(tmp_db_path):
     # Initialize the three connection types
-    
+
     # 1. DB Client (SQLAlchemy)
     db_engine = connect_db()
-    
+
     # 2. Scheduler Jobstore (SQLAlchemy)
     jobstore = SQLAlchemyJobStore(url=f"sqlite:///{tmp_db_path}")
     event.listen(jobstore.engine, "connect", _configure_sqlite_pragmas)
-    
+
     # Create the tables
     with jobstore.engine.connect() as conn:
         conn.execute(text("CREATE TABLE IF NOT EXISTS test_scheduler_jobs (id VARCHAR(256) PRIMARY KEY, data BLOB)"))
         conn.commit()
-    
+
     # 3. Raw sqlite3 connection (like graph checkpointer)
     raw_conn = sqlite3.connect(tmp_db_path, check_same_thread=False)
     apply_sqlite_pragmas(raw_conn)

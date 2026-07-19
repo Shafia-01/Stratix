@@ -1,4 +1,3 @@
-import sqlite3
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 

@@ -159,7 +159,7 @@ class TestSaveAndFetchRoundTrip:
             save_to_db(findings)
             df = fetch_past_results(limit=10)
             assert len(df) == 2
-            
+
             # Verify they exist with different seeds
             seeds = set(df["seed"].tolist())
             assert "coffee" in seeds

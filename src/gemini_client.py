@@ -1,4 +1,3 @@
-from google import genai
 import time
 import random
 from dotenv import load_dotenv

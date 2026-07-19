@@ -32,7 +32,7 @@ def connect_db():
         # Register the PRAGMA listener BEFORE creating tables so every
         # connection (including the schema-creation one) uses WAL mode.
         event.listen(_engine, "connect", _configure_sqlite_pragmas)
-        
+
         # Check for database migration
         try:
             inspector = inspect(_engine)
@@ -49,13 +49,13 @@ def connect_db():
                     if uc.get("column_names") == ["keyword"]:
                         has_old_constraint = True
                         break
-                
+
                 if has_old_constraint:
                     logger.warning("Old unique constraint on 'keyword' detected. Dropping 'keywords' table to apply the composite unique constraint (seed, keyword).")
                     with _engine.connect() as conn:
                         conn.execute(text("DROP TABLE IF EXISTS keywords"))
                         conn.commit()
-            
+
             if "monitoring_jobs" in inspector.get_table_names():
                 columns = [col["name"] for col in inspector.get_columns("monitoring_jobs")]
                 if "consecutive_failures" not in columns:

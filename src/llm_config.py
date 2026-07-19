@@ -25,7 +25,7 @@ class ChatGoogleGenerativeAIWithEmptyCheck(ChatGoogleGenerativeAI):
         else:
             raise ValueError(f"No generations returned from {self.model}")
         return result
-        
+
     async def _agenerate(self, *args, **kwargs):
         result = await super()._agenerate(*args, **kwargs)
         if result and result.generations:
@@ -52,7 +52,7 @@ def get_chat_llm(temperature: float = 0.3) -> ChatGoogleGenerativeAI:
             request_timeout=45.0,
         )
         llms.append(llm)
-    
+
     return llms[0].with_fallbacks(llms[1:])
 
 _genai_client = None

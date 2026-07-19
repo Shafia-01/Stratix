@@ -371,7 +371,7 @@ class KeylyticsScheduler:
             from src.db_client import connect_db
             from src.models import MonitoringJobModel
             from sqlalchemy.orm import Session
- 
+
             engine = connect_db()
             with Session(engine) as session:
                 row = session.query(MonitoringJobModel).filter(
@@ -396,7 +396,7 @@ class KeylyticsScheduler:
             from src.db_client import connect_db
             from src.models import MonitoringJobModel
             from sqlalchemy.orm import Session
- 
+
             engine = connect_db()
             with Session(engine) as session:
                 row = session.query(MonitoringJobModel).filter(

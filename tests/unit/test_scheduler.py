@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from src.scheduler import KeylyticsScheduler
 from src.db_client import connect_db
 from src.models import MonitoringJobModel
@@ -11,7 +11,7 @@ def test_scheduler_circuit_breaker(tmp_db_path, monkeypatch):
         raise Exception("Agent execution failure")
 
     scheduler = KeylyticsScheduler(graph_fn=mock_graph_fn)
-    
+
     mock_apsched = MagicMock()
     scheduler._scheduler = mock_apsched
     scheduler._started = True

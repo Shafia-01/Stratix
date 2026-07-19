@@ -120,7 +120,7 @@ def test_aggregator_empty_collected_data():
 def test_aggregator_trend_forecast_confidence():
     state = _base_state()
     state["research_plan"]["requested_modules"].append("trend_forecasting")
-    
+
     state["collected_data"]["trend_forecast"] = {
         "forecasts": {
             "kw1": {
@@ -133,7 +133,7 @@ def test_aggregator_trend_forecast_confidence():
             }
         }
     }
-    
+
     result = aggregator_node(state)
     scores = result["confidence_scores"]
     assert scores["trend_forecast"] == 0.5
