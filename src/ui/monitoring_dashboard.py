@@ -132,7 +132,7 @@ def render_monitoring_dashboard():
 
                                                 # Confidence deltas
                                                 st.markdown("####  Confidence score shifts")
-                                                conf_deltas = diff_data.get("confidence_deltas") or {}
+                                                conf_deltas = diff_data.get("confidence_delta") or {}
                                                 if conf_deltas:
                                                     c_cols = st.columns(len(conf_deltas))
                                                     for idx, (module, delta) in enumerate(conf_deltas.items()):
@@ -141,7 +141,7 @@ def render_monitoring_dashboard():
 
                                                 # Keyword score shifts
                                                 st.markdown("####  Keyword Score Deltas")
-                                                kw_deltas = diff_data.get("keyword_score_deltas") or []
+                                                kw_deltas = diff_data.get("keyword_deltas") or []
                                                 if kw_deltas:
                                                     df_kw = pd.DataFrame(kw_deltas)
                                                     st.dataframe(df_kw, use_container_width=True)
@@ -152,7 +152,7 @@ def render_monitoring_dashboard():
                                                 col_add, col_drop = st.columns(2)
                                                 with col_add:
                                                     st.markdown("#### ➕ Added Recommendations")
-                                                    added_recs = diff_data.get("added_recommendations") or []
+                                                    added_recs = diff_data.get("new_recommendations") or []
                                                     if added_recs:
                                                         for r in added_recs:
                                                             st.markdown(f"- {r}")
