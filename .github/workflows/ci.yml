@@ -37,7 +37,7 @@ jobs:
           echo "KEYLYTICS_DB_PATH=test_keylytics.db" >> .env
       
       - name: Run tests
-        run: python -m pytest tests/ -q --tb=short --ignore=tests/integration
+        run: python -m pytest tests/ -q --tb=short
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'test_key' }}
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY || 'test_key' }}
