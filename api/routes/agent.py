@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from langgraph.errors import GraphInterrupt
 
@@ -123,7 +124,7 @@ async def start_agent_run(request: RunRequest) -> RunResponse:
 
     try:
         try:
-            result = graph.invoke(initial_state, config)
+            result = await run_in_threadpool(graph.invoke, initial_state, config)
             current_state = graph.get_state(config)
             state_values = current_state.values if current_state else result
             interrupt_val = _extract_interrupt_value(current_state=current_state)
@@ -170,7 +171,7 @@ async def resume_agent_run(request: ResumeRequest) -> RunResponse:
 
         # Resume execution
         try:
-            result = graph.invoke(None, config)
+            result = await run_in_threadpool(graph.invoke, None, config)
             current_state = graph.get_state(config)
             state_values = current_state.values if current_state else result
             interrupt_val = _extract_interrupt_value(current_state=current_state)
