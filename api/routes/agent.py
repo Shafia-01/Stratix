@@ -22,6 +22,7 @@ from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
+LAST_YIELDED_CHECKPOINTS: Dict[str, str] = {}
 
 
 # ── Request / Response models ──────────────────────────────────────────────
@@ -366,67 +367,78 @@ async def event_generator(request: StreamRequest):
             is_interrupted = bool(current_state and current_state.next)
 
             if is_interrupted:
-                if not interrupt_value:
-                    interrupt_value = _extract_interrupt_value(current_state=current_state)
-
-                # Detect checkpoint type from:
-                #  1. interrupt_value dict (if GraphInterrupt propagated — nested edge case)
-                #  2. The next node pending execution (planner re-queued → plan_approval)
-                #  3. The status field in state values
-                next_node = current_state.next[0] if current_state.next else ""
-                status = values.get("status", "awaiting_approval")
-
-
-                if interrupt_value:
-                    # Fast path: interrupt data extracted directly from GraphInterrupt args
-                    checkpoint_type = interrupt_value.get("checkpoint", "plan_approval")
-                elif next_node == "research_agent_node" or status == "awaiting_plan_approval":
-                    checkpoint_type = "plan_approval"
-                elif next_node == "persist_node" or status == "awaiting_report_approval":
-                    checkpoint_type = "report_approval"
+                checkpoint_id = current_state.config.get("configurable", {}).get("checkpoint_id") if current_state else None
+                if checkpoint_id and LAST_YIELDED_CHECKPOINTS.get(run_id) == checkpoint_id:
+                    logger.info(f"Checkpoint {checkpoint_id} already yielded for run_id={run_id}, skipping.")
                 else:
-                    # Default: infer from state.awaiting_human + which data is populated
-                    checkpoint_type = (
-                        "report_approval" if values.get("strategy_report") else "plan_approval"
+                    if checkpoint_id:
+                        LAST_YIELDED_CHECKPOINTS[run_id] = checkpoint_id
+
+                    if not interrupt_value:
+                        interrupt_value = _extract_interrupt_value(current_state=current_state)
+
+                    # Detect checkpoint type from:
+                    #  1. interrupt_value dict (if GraphInterrupt propagated — nested edge case)
+                    #  2. The next node pending execution (planner re-queued → plan_approval)
+                    #  3. The status field in state values
+                    next_node = current_state.next[0] if current_state.next else ""
+                    status = values.get("status", "awaiting_approval")
+
+                    if interrupt_value:
+                        # Fast path: interrupt data extracted directly from GraphInterrupt args
+                        checkpoint_type = interrupt_value.get("checkpoint", "plan_approval")
+                    elif next_node == "research_agent_node" or status == "awaiting_plan_approval":
+                        checkpoint_type = "plan_approval"
+                    elif next_node == "persist_node" or status == "awaiting_report_approval":
+                        checkpoint_type = "report_approval"
+                    else:
+                        # Default: infer from state.awaiting_human + which data is populated
+                        checkpoint_type = (
+                            "report_approval" if values.get("strategy_report") else "plan_approval"
+                        )
+
+                    logger.info(
+                        f"Stream checkpoint detected for run_id={run_id}: "
+                        f"type={checkpoint_type}, next_node={next_node}, status={status}"
                     )
 
-                logger.info(
-                    f"Stream checkpoint detected for run_id={run_id}: "
-                    f"type={checkpoint_type}, next_node={next_node}, status={status}"
-                )
+                    if checkpoint_type == "plan_approval":
+                        checkpoint_data = {
+                            "research_plan": (
+                                interrupt_value.get("research_plan") if interrupt_value else None
+                            ) or values.get("research_plan"),
+                        }
+                    else:
+                        checkpoint_data = {
+                            "research_plan": values.get("research_plan"),
+                            "strategy_report": (
+                                interrupt_value.get("strategy_report") if interrupt_value else None
+                            ) or values.get("strategy_report"),
+                            "confidence_scores": (
+                                interrupt_value.get("confidence_scores") if interrupt_value else None
+                            ) or values.get("confidence_scores"),
+                            "warnings": (
+                                interrupt_value.get("warnings") if interrupt_value else None
+                            ) or values.get("errors", []),
+                        }
 
-                if checkpoint_type == "plan_approval":
-                    checkpoint_data = {
-                        "research_plan": (
-                            interrupt_value.get("research_plan") if interrupt_value else None
-                        ) or values.get("research_plan"),
-                    }
-                else:
-                    checkpoint_data = {
-                        "research_plan": values.get("research_plan"),
-                        "strategy_report": (
-                            interrupt_value.get("strategy_report") if interrupt_value else None
-                        ) or values.get("strategy_report"),
-                        "confidence_scores": (
-                            interrupt_value.get("confidence_scores") if interrupt_value else None
-                        ) or values.get("confidence_scores"),
-                        "warnings": (
-                            interrupt_value.get("warnings") if interrupt_value else None
-                        ) or values.get("errors", []),
-                    }
-
-                checkpoint_msg = json.dumps({
-                    'event': 'checkpoint',
-                    'checkpoint': checkpoint_type,
-                    'status': status,
-                    'checkpoint_data': checkpoint_data,
-                }, default=str)
-                yield f"data: {checkpoint_msg}\n\n"
+                    checkpoint_msg = json.dumps({
+                        'event': 'checkpoint',
+                        'checkpoint': checkpoint_type,
+                        'status': status,
+                        'checkpoint_data': checkpoint_data,
+                    }, default=str)
+                    yield f"data: {checkpoint_msg}\n\n"
             else:
                 # Graph ran to completion (or failed without a pending next node)
-                status = values.get("status", "completed")
-                metadata = values.get("execution_metadata", {})
-                yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
+                checkpoint_id = current_state.config.get("configurable", {}).get("checkpoint_id") if current_state else "completed"
+                if LAST_YIELDED_CHECKPOINTS.get(run_id) == checkpoint_id:
+                    logger.info(f"Completion event already yielded for run_id={run_id}, skipping.")
+                else:
+                    LAST_YIELDED_CHECKPOINTS[run_id] = checkpoint_id
+                    status = values.get("status", "completed")
+                    metadata = values.get("execution_metadata", {})
+                    yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
         except Exception as e:
             logger.error(f"Failed to emit final state for run_id={run_id}: {e}")
 
