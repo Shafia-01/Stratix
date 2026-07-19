@@ -60,9 +60,13 @@ class KeylyticsScheduler:
         import os
         db_path = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
 
+        from src.db_client import _configure_sqlite_pragmas
+        from sqlalchemy import event
+
         jobstores = {
             "default": SQLAlchemyJobStore(url=f"sqlite:///{db_path}"),
         }
+        event.listen(jobstores["default"].engine, "connect", _configure_sqlite_pragmas)
         executors = {
             "default": ThreadPoolExecutor(max_workers=3),
         }

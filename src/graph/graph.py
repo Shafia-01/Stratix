@@ -163,7 +163,9 @@ def build_graph():
                 return await asyncio.to_thread(self.delete_thread, config)
 
     DB_PATH = os.getenv("STRATIX_DB_PATH") or os.getenv("KEYLYTICS_DB_PATH", "keylytics.db")
+    from src.db_utils import apply_sqlite_pragmas
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    apply_sqlite_pragmas(conn)
     checkpointer = MixedSqliteSaver(conn)
     checkpointer.setup()
     graph = builder.compile(checkpointer=checkpointer)
