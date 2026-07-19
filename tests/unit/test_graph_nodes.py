@@ -332,6 +332,38 @@ def test_persist_node_saves_and_completes(base_state, mocker):
     assert result["human_feedback"] is None
 
 
+def test_persist_node_handles_db_error(base_state, mocker):
+    """
+    If save_to_db raises an exception, persist_node should capture it with prefix
+    [persist:db] and execution_metadata.persist_had_errors should be True.
+    """
+    state = dict(base_state)
+    state["intelligence_findings"] = {
+        "seed_keyword": "content marketing",
+        "keyword_findings": [{"keyword": "content marketing strategy"}],
+    }
+
+    # Patch save_to_db to raise Exception
+    mocker.patch("src.db_client.save_to_db", side_effect=Exception("Connection refused"))
+
+    # Patch evaluator to avoid LLM calls
+    mock_eval = mocker.MagicMock()
+    mock_eval.evaluate_plan.return_value = MagicMock(score=0.8)
+    mock_eval.evaluate_report.return_value = MagicMock(score=0.75)
+    mock_eval.evaluate_tool_reliability.return_value = MagicMock(score=0.9)
+    mocker.patch("src.evals.evaluator.KeylyticsEvaluator", return_value=mock_eval)
+
+    result = persist_node(state)
+
+    assert result["status"] == "completed"
+    assert result["execution_metadata"]["persist_had_errors"] is True
+    # Verify error message prefixed with [persist:db]
+    db_err = [e for e in result["errors"] if e.startswith("[persist:db]")]
+    assert len(db_err) == 1
+    assert "Connection refused" in db_err[0]
+
+
+
 # ---------------------------------------------------------------------------
 # Test 7: route_after_plan routing logic
 # ---------------------------------------------------------------------------

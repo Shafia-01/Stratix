@@ -424,7 +424,8 @@ async def event_generator(request: StreamRequest):
             else:
                 # Graph ran to completion (or failed without a pending next node)
                 status = values.get("status", "completed")
-                yield f"data: {json.dumps({'event': 'completed', 'status': status})}\n\n"
+                metadata = values.get("execution_metadata", {})
+                yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
         except Exception as e:
             logger.error(f"Failed to emit final state for run_id={run_id}: {e}")
 

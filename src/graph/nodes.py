@@ -711,7 +711,7 @@ def persist_node(state: AgentState) -> AgentState:
             logger.info(f"persist_node: saved {len(keyword_findings)} keywords")
         except Exception as e:
             logger.error(f"persist_node: db save failed — {e}", exc_info=True)
-            errors.append(f"persist_node db error: {str(e)}")
+            errors.append(f"[persist:db] db error: {str(e)}")
 
     metadata = finalise_metadata(metadata)
 
@@ -745,7 +745,7 @@ def persist_node(state: AgentState) -> AgentState:
         logger.error(f"persist_node: failed to save run completion to ResearchRunLog: {e}", exc_info=True)
 
     # Task 4.4b: increment run completion metric
-    final_status = "completed" if not errors else "completed"  # always completed if we reach here
+    final_status = "completed_with_errors" if errors else "completed"
     try:
         from src.metrics import get_metrics
         m = get_metrics()
@@ -787,7 +787,9 @@ def persist_node(state: AgentState) -> AgentState:
         )
     except Exception as e:
         logger.warning(f"persist_node: evaluation failed (non-fatal) — {e}")
-        eval_errors.append(f"evaluation error: {str(e)}")
+        eval_errors.append(f"[persist:eval] evaluation error: {str(e)}")
+
+    metadata["persist_had_errors"] = bool(errors)
 
     return {
         **state,

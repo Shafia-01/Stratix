@@ -70,6 +70,7 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
     checkpoint_reached = None
     checkpoint_data = None
     completed = False
+    execution_metadata = None
 
     if placeholders is None:
         placeholders = {}
@@ -131,6 +132,7 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                 checkpoint_data = data.get("checkpoint_data")
             elif event == "completed":
                 completed = True
+                execution_metadata = data.get("execution_metadata")
             elif event == "error":
                 st.error(f" Pipeline error: {data.get('message')}")
 
@@ -193,7 +195,8 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
         "completed": completed,
         "confidence_scores": confidence_scores,
         "critic_feedback": critic_feedback,
-        "errors": errors
+        "errors": errors,
+        "execution_metadata": execution_metadata
     }
 
 
@@ -219,6 +222,8 @@ def render_agent_mode():
         st.session_state.agent_confidence = None
     if "agent_warnings" not in st.session_state:
         st.session_state.agent_warnings = []
+    if "agent_execution_metadata" not in st.session_state:
+        st.session_state.agent_execution_metadata = None
 
     stage = st.session_state.agent_stage
 
@@ -261,6 +266,7 @@ def render_agent_mode():
                     st.rerun()
                 elif result.get("completed"):
                     st.session_state.agent_stage = "done"
+                    st.session_state.agent_execution_metadata = result.get("execution_metadata")
                     st.rerun()
                 else:
                     st.error(" Failed to complete agent run or reach checkpoint.")
@@ -333,6 +339,7 @@ def render_agent_mode():
                 st.rerun()
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
+                st.session_state.agent_execution_metadata = result.get("execution_metadata")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -436,6 +443,7 @@ def render_agent_mode():
                 st.rerun()
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
+                st.session_state.agent_execution_metadata = result.get("execution_metadata")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -534,6 +542,7 @@ def render_agent_mode():
             )
             if result.get("completed"):
                 st.session_state.agent_stage = "done"
+                st.session_state.agent_execution_metadata = result.get("execution_metadata")
                 st.rerun()
             else:
                 st.error(" Failed to complete agent run.")
@@ -564,6 +573,7 @@ def render_agent_mode():
                 st.rerun()
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
+                st.session_state.agent_execution_metadata = result.get("execution_metadata")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -580,7 +590,12 @@ def render_agent_mode():
     elif stage == "done":
         report = st.session_state.agent_strategy_report or {}
         st.balloons()
-        st.success(" Intelligence report successfully generated and persisted to the database.")
+
+        metadata = st.session_state.get("agent_execution_metadata") or {}
+        if metadata.get("persist_had_errors"):
+            st.warning("⚠️ Warning: Intelligence report generated, but database persistence failed. Check system logs.")
+        else:
+            st.success(" Intelligence report successfully generated and persisted to the database.")
 
         st.markdown("##### 📝 Final Strategy Report Overview")
         st.markdown(report.get("executive_summary", ""))
@@ -596,4 +611,5 @@ def render_agent_mode():
             st.session_state.agent_research_plan = None
             st.session_state.agent_strategy_report = None
             st.session_state.agent_confidence = None
+            st.session_state.agent_execution_metadata = None
             st.rerun()
