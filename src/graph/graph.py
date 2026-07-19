@@ -119,7 +119,7 @@ def build_graph():
 
         def __init__(self, conn, *args, **kwargs):
             super().__init__(conn, *args, **kwargs)
-            self.lock = threading.Lock()
+            self.lock = threading.RLock()
 
         def get_tuple(self, config: dict):
             with self.lock:

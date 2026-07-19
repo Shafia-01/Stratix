@@ -46,6 +46,23 @@ def _get_llm() -> ChatGoogleGenerativeAI:
     return get_chat_llm(temperature=0.3)
 
 
+def _get_string_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                parts.append(part["text"])
+            elif hasattr(part, "text"):
+                parts.append(getattr(part, "text"))
+        return "".join(parts)
+    return str(content)
+
+
+
 # ---------------------------------------------------------------------------
 # PLANNER NODE
 # ---------------------------------------------------------------------------
@@ -118,7 +135,7 @@ def planner_node(state: AgentState) -> AgentState:
     response: Optional[Any] = None
     try:
         response = llm.invoke(messages)
-        raw = response.content.strip()
+        raw = _get_string_content(response.content).strip()
         # Strip markdown fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -559,7 +576,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
 
     try:
         response = llm.invoke(messages)
-        raw = response.content.strip()
+        raw = _get_string_content(response.content).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -880,7 +897,7 @@ def critic_node(state: AgentState) -> AgentState:
     critic_feedback: Dict[str, Any] = {}
     try:
         response = llm.invoke(messages)
-        raw = response.content.strip()
+        raw = _get_string_content(response.content).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
