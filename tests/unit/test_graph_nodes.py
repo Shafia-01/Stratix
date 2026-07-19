@@ -577,21 +577,21 @@ def test_quality_gate_fails_on_few_keywords(base_state):
 
 
 def test_route_after_quality_gate_retries_once():
-    """If gate fails, route back to research if gate_retries == 0, else route to critic."""
-    # Retry budget remains
+    """If gate fails, route back to research if gate_retries <= 1, else route to critic."""
+    # Retry budget remains (after 1st failure, retries is 1)
     state: AgentState = {
         "execution_metadata": {
             "data_quality_summary": {"gate_passed": False},
-            "gate_retries": 0
+            "gate_retries": 1
         }
     }
     assert route_after_quality_gate(state) == "research_agent_node"
 
-    # Retry budget exhausted
+    # Retry budget exhausted (after 2nd failure, retries is 2)
     state = {
         "execution_metadata": {
             "data_quality_summary": {"gate_passed": False},
-            "gate_retries": 1
+            "gate_retries": 2
         }
     }
     assert route_after_quality_gate(state) == "critic_node"
@@ -600,8 +600,49 @@ def test_route_after_quality_gate_retries_once():
     state = {
         "execution_metadata": {
             "data_quality_summary": {"gate_passed": True},
-            "gate_retries": 0
+            "gate_retries": 1
         }
     }
     assert route_after_quality_gate(state) == "critic_node"
+
+
+def test_quality_gate_node_sequential_execution(base_state):
+    """Running quality_gate_node twice on failure increments gate_retries and routes correctly."""
+    state = dict(base_state)
+    state["confidence_scores"] = {"keyword_research": 0.1} # Fails gate
+    state["intelligence_findings"] = {"keyword_findings": []}
+    state["execution_metadata"] = {"gate_retries": 0}
+
+    # Pass 1
+    res1 = quality_gate_node(state)
+    assert res1["execution_metadata"]["gate_retries"] == 1
+    assert route_after_quality_gate(res1) == "research_agent_node"
+
+    # Pass 2 (simulate feed back in)
+    res2 = quality_gate_node(res1)
+    assert res2["execution_metadata"]["gate_retries"] == 2
+    assert route_after_quality_gate(res2) == "critic_node"
+
+
+def test_quality_gate_regression_routing(base_state):
+    """Simulates: gate fails -> routes to research -> gate fails again -> routes to critic_node."""
+    state = dict(base_state)
+    state["confidence_scores"] = {"keyword_research": 0.1} # Fails gate
+    state["intelligence_findings"] = {"keyword_findings": []}
+    state["execution_metadata"] = {"gate_retries": 0}
+
+    # Gate fails
+    res1 = quality_gate_node(state)
+    assert res1["execution_metadata"]["gate_retries"] == 1
+    next_node = route_after_quality_gate(res1)
+    assert next_node == "research_agent_node"
+
+    # Simulating route to research_agent_node returning state with gate_retries preserved
+    research_state = dict(res1)
+    # Gate fails again
+    res2 = quality_gate_node(research_state)
+    assert res2["execution_metadata"]["gate_retries"] == 2
+    next_node2 = route_after_quality_gate(res2)
+    assert next_node2 == "critic_node"
+
 

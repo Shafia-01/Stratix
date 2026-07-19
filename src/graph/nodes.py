@@ -1010,11 +1010,16 @@ def quality_gate_node(state: AgentState) -> AgentState:
         f"keyword_confidence={keyword_confidence:.2f}, keyword_count={keyword_count}"
     )
 
+    gate_retries = metadata.get("gate_retries", 0)
+    if not gate_passed:
+        gate_retries += 1
+
     return {
         **state,
         "execution_metadata": {
             **metadata,
             "data_quality_summary": data_quality_summary,
+            "gate_retries": gate_retries,
         },
         "errors": errors + (data_limitations if not gate_passed else []),
         "human_feedback": None,
@@ -1030,11 +1035,10 @@ def route_after_quality_gate(state: AgentState) -> str:
     # Count how many times we've been through the gate
     gate_retries = metadata.get("gate_retries", 0)
 
-    if not gate_passed and gate_retries < 1:
+    if not gate_passed and gate_retries <= 1:
         logger.info("quality_gate_node: gate failed — routing back to research_agent_node")
-        # Increment retry counter
-        metadata["gate_retries"] = gate_retries + 1
         return "research_agent_node"
 
     return "critic_node"
+
 
