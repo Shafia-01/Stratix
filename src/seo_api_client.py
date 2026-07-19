@@ -18,20 +18,20 @@ from src.retry import with_retries, with_rate_limit_delay
 @with_retries()
 # SerpAPI rate limit: no strict per-request limit but 0.5s gap prevents burst 429s.
 @with_rate_limit_delay(pre_delay=0.5)
-def get_keyword_metrics(keyword):
+def get_keyword_metrics(keyword, seed="Unknown"):
     """
     Fetch SEO metrics (volume, CPC, competition) from cache or SerpApi.
     - Uses cached data if updated < 7 days ago
     - Otherwise refreshes via SerpApi and updates DB
     """
-    cached = check_cache(keyword)
+    cached = check_cache(keyword, seed=seed)
     if cached is not None:
         last_updated = cached.get("last_updated")
         if last_updated and (datetime.now() - pd.to_datetime(last_updated)) < timedelta(days=7):
-            logger.info(f"Using cached data for '{keyword}' (updated {last_updated})")
+            logger.info(f"Using cached data for '{keyword}' (seed: '{seed}') (updated {last_updated})")
             return cached
         else:
-            logger.info(f"Cache expired for '{keyword}', refreshing...")
+            logger.info(f"Cache expired for '{keyword}' (seed: '{seed}'), refreshing...")
 
     logger.info(f"Fetching fresh data from SerpApi for '{keyword}'...")
     url = "https://serpapi.com/search.json"
@@ -50,16 +50,16 @@ def get_keyword_metrics(keyword):
         "cpc": cpc,
         "data_source": DataSource.ESTIMATED.value
     }
-    save_to_cache(keyword, metrics)
+    save_to_cache(keyword, metrics, seed=seed)
     return metrics
 
-def check_cache(keyword):
-    """Check if keyword already exists in DB and return metrics + timestamp."""
+def check_cache(keyword, seed="Unknown"):
+    """Check if keyword already exists in DB with the given seed and return metrics + timestamp."""
     try:
         engine = connect_db()
         with Session(engine) as session:
             row = (session.query(Keyword)
-                   .filter(Keyword.keyword == keyword)
+                   .filter(Keyword.keyword == keyword, Keyword.seed == seed)
                    .order_by(Keyword.last_updated.desc())
                    .first())
             if row and row.volume is not None:
@@ -73,29 +73,30 @@ def check_cache(keyword):
                 }
         return None
     except Exception as e:
-        logger.error(f"Cache check failed for '{keyword}': {e}", exc_info=True)
+        logger.error(f"Cache check failed for '{keyword}' (seed: '{seed}'): {e}", exc_info=True)
         return None
 
-def save_to_cache(keyword, metrics):
+def save_to_cache(keyword, metrics, seed="Unknown"):
     """Insert or update metrics + refresh timestamp without overwriting complete data."""
     try:
         engine = connect_db()
         with Session(engine) as session:
-            row = session.query(Keyword).filter(Keyword.keyword == keyword).first()
+            row = session.query(Keyword).filter(Keyword.keyword == keyword, Keyword.seed == seed).first()
             if not row:
                 row = Keyword(
                     keyword=keyword,
+                    seed=seed,
                     volume=metrics["volume"],
                     competition=metrics.get("competition"),
                     cpc=metrics.get("cpc")
                 )
                 session.add(row)
             else:
-                if not row.seed or row.seed == 'Unknown':
-                    row.volume = metrics["volume"]
-                    row.competition = metrics.get("competition")
-                    row.cpc = metrics.get("cpc")
+                row.volume = metrics["volume"]
+                row.competition = metrics.get("competition")
+                row.cpc = metrics.get("cpc")
             session.commit()
-        logger.info(f"Metrics cached for '{keyword}' (preserving complete data)")
+        logger.info(f"Metrics cached for '{keyword}' (seed: '{seed}') (preserving complete data)")
     except Exception as e:
-        logger.error(f"Cache save failed for '{keyword}': {e}", exc_info=True)
+        logger.error(f"Cache save failed for '{keyword}' (seed: '{seed}'): {e}", exc_info=True)
+

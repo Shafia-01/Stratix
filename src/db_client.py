@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import json
-from sqlalchemy import create_engine, event, inspect
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session
 from src.models import Base, Keyword, IntentCache
 from src.logger_config import get_logger
@@ -32,6 +32,32 @@ def connect_db():
         # Register the PRAGMA listener BEFORE creating tables so every
         # connection (including the schema-creation one) uses WAL mode.
         event.listen(_engine, "connect", _configure_sqlite_pragmas)
+        
+        # Check for database migration
+        try:
+            inspector = inspect(_engine)
+            if "keywords" in inspector.get_table_names():
+                indexes = inspector.get_indexes("keywords")
+                has_old_constraint = False
+                for idx in indexes:
+                    if idx.get("column_names") == ["keyword"] and idx.get("unique"):
+                        has_old_constraint = True
+                        break
+                # SQLite creates autoindex for UNIQUE constraint
+                unique_constraints = inspector.get_unique_constraints("keywords")
+                for uc in unique_constraints:
+                    if uc.get("column_names") == ["keyword"]:
+                        has_old_constraint = True
+                        break
+                
+                if has_old_constraint:
+                    logger.warning("Old unique constraint on 'keyword' detected. Dropping 'keywords' table to apply the composite unique constraint (seed, keyword).")
+                    with _engine.connect() as conn:
+                        conn.execute(text("DROP TABLE IF EXISTS keywords"))
+                        conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to check unique constraint migration: {e}")
+
         Base.metadata.create_all(_engine)
     return _engine
 
@@ -62,13 +88,13 @@ def save_to_db(data):
                 if not kw:
                     continue
 
-                # Fetch existing by unique keyword or merge
-                db_row = session.query(Keyword).filter(Keyword.keyword == kw).first()
+                seed = row.get("seed") or "Unknown"
+                # Fetch existing by unique (seed, keyword) or merge
+                db_row = session.query(Keyword).filter(Keyword.keyword == kw, Keyword.seed == seed).first()
                 if not db_row:
-                    db_row = Keyword(keyword=kw)
+                    db_row = Keyword(keyword=kw, seed=seed)
                     session.add(db_row)
 
-                db_row.seed = row.get("seed") or "Unknown"
                 db_row.volume = float(row.get("volume")) if pd.notnull(row.get("volume")) else 0.0
                 db_row.competition = float(row.get("competition")) if pd.notnull(row.get("competition")) else None
                 db_row.cpc = float(row.get("cpc")) if pd.notnull(row.get("cpc")) else None

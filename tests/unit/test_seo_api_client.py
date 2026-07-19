@@ -26,7 +26,7 @@ def test_seo_cache_hit_within_7_days(tmp_db_path, monkeypatch, mocker):
     # Mock requests.get and ensure it's not called
     mock_get = mocker.patch("requests.get")
 
-    metrics = get_keyword_metrics("fresh coffee")
+    metrics = get_keyword_metrics("fresh coffee", seed="coffee")
     assert metrics["volume"] == 5000
     assert metrics["data_source"] == DataSource.CACHED.value
     mock_get.assert_not_called()
@@ -57,7 +57,7 @@ def test_seo_cache_expired_triggers_refresh(tmp_db_path, monkeypatch, mocker):
 
     mock_get = mocker.patch("requests.get", return_value=MockResponse())
 
-    metrics = get_keyword_metrics("old coffee")
+    metrics = get_keyword_metrics("old coffee", seed="coffee")
     assert metrics["volume"] == 10000
     assert metrics["data_source"] == DataSource.ESTIMATED.value
     mock_get.assert_called_once()
@@ -95,3 +95,32 @@ def test_save_to_cache_preserves_complete_row(tmp_db_path):
         row = session.query(Keyword).filter(Keyword.keyword == "complete coffee").first()
         assert row.volume == 5000
         assert row.seed == "coffee"
+
+
+@pytest.mark.unit
+def test_seo_cache_same_keyword_different_seeds(tmp_db_path, mocker):
+    # Mock requests.get to return a valid search result
+    class MockResponse:
+        def json(self):
+            return {"search_information": {"total_results": 5000000}} # volume = 5000
+        def raise_for_status(self):
+            pass
+
+    mocker.patch("requests.get", return_value=MockResponse())
+
+    # Get metrics under seed "seedA"
+    metricsA = get_keyword_metrics("isolated coffee", seed="seedA")
+    # Get metrics under seed "seedB"
+    metricsB = get_keyword_metrics("isolated coffee", seed="seedB")
+
+    assert metricsA["volume"] == 5000
+    assert metricsB["volume"] == 5000
+
+    # Verify they exist as separate rows in the database
+    engine = connect_db()
+    with Session(engine) as session:
+        rows = session.query(Keyword).filter(Keyword.keyword == "isolated coffee").all()
+        assert len(rows) == 2
+        seeds = {r.seed for r in rows}
+        assert seeds == {"seedA", "seedB"}
+

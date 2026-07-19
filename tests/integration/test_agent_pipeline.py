@@ -14,7 +14,7 @@ def mock_agent_dependencies(monkeypatch, mock_gemini, mock_http):
     monkeypatch.setattr("src.agent.get_competitor_data", lambda kw: [{"domain": "competitor.com", "rank": 1}])
     # Mock intent classifier
     monkeypatch.setattr("src.agent.classify_intent", lambda kw: "Informational")
-    monkeypatch.setattr("src.lightweight_agent.get_keyword_metrics", lambda kw: {
+    monkeypatch.setattr("src.lightweight_agent.get_keyword_metrics", lambda kw, **kwargs: {
         "volume": 2000, "competition": 0.4, "cpc": 1.2, "data_source": "live"
     })
 

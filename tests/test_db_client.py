@@ -113,6 +113,61 @@ class TestSaveAndFetchRoundTrip:
         finally:
             db_client_module._engine = orig_engine
 
+    def test_save_same_keyword_different_seeds(self, tmp_path):
+        """Same keyword text under two different seeds must persist independently and be retrievable independently."""
+        db_path = str(tmp_path / "test_seeds.db")
+        import src.db_client as db_client_module
+        orig_engine = db_client_module._engine
+        try:
+            test_engine = create_engine(f"sqlite:///{db_path}")
+            Base.metadata.create_all(test_engine)
+            db_client_module._engine = test_engine
+
+            from src.schemas import KeywordFinding
+            from src.db_client import save_to_db, fetch_past_results
+
+            findings = [
+                KeywordFinding(
+                    seed="coffee",
+                    keyword="grinder",
+                    volume=500.0,
+                    competition=0.3,
+                    cpc=1.2,
+                    trend=None,
+                    score=0.72,
+                    difficulty="Easy",
+                    intent="commercial",
+                    competitors=[],
+                    data_source=DataSource.ESTIMATED,
+                    trend_data_source=DataSource.UNAVAILABLE,
+                ),
+                KeywordFinding(
+                    seed="tea",
+                    keyword="grinder",
+                    volume=100.0,
+                    competition=0.1,
+                    cpc=0.5,
+                    trend=None,
+                    score=0.9,
+                    difficulty="Easy",
+                    intent="commercial",
+                    competitors=[],
+                    data_source=DataSource.ESTIMATED,
+                    trend_data_source=DataSource.UNAVAILABLE,
+                ),
+            ]
+            save_to_db(findings)
+            df = fetch_past_results(limit=10)
+            assert len(df) == 2
+            
+            # Verify they exist with different seeds
+            seeds = set(df["seed"].tolist())
+            assert "coffee" in seeds
+            assert "tea" in seeds
+        finally:
+            db_client_module._engine = orig_engine
+
+
     def test_verify_database_schema_passes_after_connect(self):
         """verify_database_schema should return True after tables are created."""
         import src.db_client as db_client_module

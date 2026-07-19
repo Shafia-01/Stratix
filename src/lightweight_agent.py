@@ -30,7 +30,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
         for i, kw in enumerate(keywords[:max_keywords]):
             try:
                 # Get basic metrics
-                metrics = get_keyword_metrics(kw)
+                metrics = get_keyword_metrics(kw, seed=seed_keyword)
                 if not metrics:
                     continue
 

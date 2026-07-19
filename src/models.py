@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime,
-    Text,
+    Text, UniqueConstraint,
 )
 
 Base = declarative_base()
@@ -25,7 +25,7 @@ class Keyword(Base):
     __tablename__ = "keywords"
     id = Column(Integer, primary_key=True, autoincrement=True)
     seed = Column(String(255), nullable=True)
-    keyword = Column(String(255), nullable=False, unique=True, index=True)
+    keyword = Column(String(255), nullable=False, index=True)
     volume = Column(Float, nullable=True)
     competition = Column(Float, nullable=True)
     cpc = Column(Float, nullable=True)
@@ -35,6 +35,11 @@ class Keyword(Base):
     intent = Column(String(50), nullable=True)
     competitors = Column(Text, nullable=True)  # JSON string
     last_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    __table_args__ = (
+        UniqueConstraint("seed", "keyword", name="_seed_keyword_uc"),
+    )
+
 
 
 class IntentCache(Base):
