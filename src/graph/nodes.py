@@ -41,37 +41,10 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Shared LLM instance
 # ---------------------------------------------------------------------------
+from src.llm_config import get_chat_llm
+
 def _get_llm() -> ChatGoogleGenerativeAI:
-    base_llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=os.getenv("GEMINI_API_KEY", ""),
-        temperature=0.3,
-        convert_system_message_to_human=True,
-    )
-    fallback_models = [
-        # Flash (fast, capable – tool calling supported)
-        "gemini-3.5-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-3-flash-preview",
-        "gemini-2.5-flash-lite",
-        # Pro (highest quality, slower – tool calling supported)
-        "gemini-2.5-pro",
-        "gemini-3.1-pro",
-        # Older Gemini 2.x (stable last-resort – tool calling supported)
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        # NOTE: Gemma 4 models excluded – no tool/function calling support
-    ]
-    fallbacks = [
-        ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=os.getenv("GEMINI_API_KEY", ""),
-            temperature=0.3,
-            convert_system_message_to_human=True,
-        )
-        for model_name in fallback_models
-    ]
-    return base_llm.with_fallbacks(fallbacks)
+    return get_chat_llm(temperature=0.3)
 
 
 # ---------------------------------------------------------------------------

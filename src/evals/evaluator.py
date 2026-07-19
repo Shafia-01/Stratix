@@ -27,37 +27,11 @@ from src.schemas import EvalResult
 logger = get_logger(__name__)
 
 
+from src.llm_config import get_chat_llm
+
 def _get_eval_llm() -> ChatGoogleGenerativeAI:
     """Low-temperature LLM instance for deterministic evaluation."""
-    base_llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=os.getenv("GEMINI_API_KEY", ""),
-        temperature=0.0,
-        convert_system_message_to_human=True,
-    )
-    fallback_models = [
-        # Flash (fast, capable)
-        "gemini-3.5-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-3-flash-preview",
-        "gemini-2.5-flash-lite",
-        # Pro (highest quality, slower)
-        "gemini-2.5-pro",
-        "gemini-3.1-pro",
-        # Older Gemini 2.x (stable last-resort)
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-    ]
-    fallbacks = [
-        ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=os.getenv("GEMINI_API_KEY", ""),
-            temperature=0.0,
-            convert_system_message_to_human=True,
-        )
-        for model_name in fallback_models
-    ]
-    return base_llm.with_fallbacks(fallbacks)
+    return get_chat_llm(temperature=0.0)
 
 
 def _parse_eval_response(raw: str) -> Dict[str, Any]:

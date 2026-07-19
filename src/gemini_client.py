@@ -7,34 +7,12 @@ from src.logger_config import get_logger
 logger = get_logger(__name__)
 
 load_dotenv()
-client = genai.Client()
-
-# All models suitable for this project's text-generation tasks.
-# Ordered: newest Flash first (fast + capable), then Pro (high quality),
-# then older Gemini 2.x, then Gemma (text-only, no tool calling).
-# NOT included: TTS, image-gen, video-gen, audio, live-API, embeddings,
-#               robotics, Antigravity/Deep Research agent models.
-GEMINI_MODELS = [
-    # ── Gemini Flash (primary workhorses – low latency, strong reasoning) ──
-    "gemini-2.5-flash",       # Gemini 2.5 Flash       | text-out
-    "gemini-3.5-flash",       # Gemini 3.5 Flash       | text-out
-    "gemini-3.1-flash-lite",  # Gemini 3.1 Flash Lite  | text-out
-    "gemini-3-flash-preview", # Gemini 3 Flash         | text-out
-    "gemini-2.5-flash-lite",  # Gemini 2.5 Flash Lite  | text-out
-    # ── Gemini Pro (highest quality – slower, use when Flash fails) ──
-    "gemini-2.5-pro",         # Gemini 2.5 Pro         | text-out
-    "gemini-3.1-pro",         # Gemini 3.1 Pro         | text-out
-    # ── Gemini 2.x (older generation – stable last-resort) ──
-    "gemini-2.0-flash",       # Gemini 2 Flash         | text-out
-    "gemini-2.0-flash-lite",  # Gemini 2 Flash Lite    | text-out
-    # ── Gemma 4 (text-only – no tool/function calling) ──
-    "gemma-4-31b-it",         # Gemma 4 31B            | other
-    "gemma-4-26b-it",         # Gemma 4 26B            | other
-]
+from src.llm_config import get_generation_llm, GEMINI_MODEL_CHAIN
 
 def safe_gemini_call(prompt, temperature=0.7):
     """Try multiple Gemini models until one succeeds."""
-    for model_name in GEMINI_MODELS:
+    client = get_generation_llm()
+    for model_name in GEMINI_MODEL_CHAIN:
         try:
             response = client.models.generate_content(
                 model=model_name,
