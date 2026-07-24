@@ -354,18 +354,28 @@ async def event_generator(request: StreamRequest):
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
     finally:
         try:
-            # Allow MixedSqliteSaver's asyncio.to_thread writes to flush before reading state.
-            # This is critical: aput/aput_writes delegate to threads; without this yield,
-            # get_state() may read stale checkpoint data before the interrupt is persisted.
-            await asyncio.sleep(0.15)
+            # Bounded retry loop with increasing backoff to allow MixedSqliteSaver's asyncio.to_thread writes to flush
+            backoffs = [0.05, 0.1, 0.2, 0.3, 0.3]
+            current_state = None
+            values = {}
+            is_interrupted = False
+            resolved = False
 
-            current_state = graph.get_state(config)
-            values = current_state.values if current_state else {}
+            for sleep_time in backoffs:
+                await asyncio.sleep(sleep_time)
+                current_state = graph.get_state(config)
+                values = current_state.values if current_state else {}
+                is_interrupted = bool(current_state and current_state.next)
+                has_completed = not is_interrupted and values.get("status") in ("completed", "failed")
+
+                if is_interrupted or has_completed:
+                    resolved = True
+                    break
+
+            if not resolved:
+                logger.warning(f"Retry budget exhausted without state resolution for run_id={run_id}")
 
             # ── Determine if graph paused at an interrupt or truly completed ──
-            # current_state.next is non-empty when the graph is waiting at a HITL checkpoint.
-            is_interrupted = bool(current_state and current_state.next)
-
             if is_interrupted:
                 checkpoint_id = current_state.config.get("configurable", {}).get("checkpoint_id") if current_state else None
                 if checkpoint_id and LAST_YIELDED_CHECKPOINTS.get(run_id) == checkpoint_id:
@@ -428,7 +438,10 @@ async def event_generator(request: StreamRequest):
                         'status': status,
                         'checkpoint_data': checkpoint_data,
                     }, default=str)
-                    yield f"data: {checkpoint_msg}\n\n"
+                    try:
+                        yield f"data: {checkpoint_msg}\n\n"
+                    except (GeneratorExit, RuntimeError):
+                        return
             else:
                 # Graph ran to completion (or failed without a pending next node)
                 checkpoint_id = current_state.config.get("configurable", {}).get("checkpoint_id") if current_state else "completed"
@@ -438,7 +451,10 @@ async def event_generator(request: StreamRequest):
                     LAST_YIELDED_CHECKPOINTS[run_id] = checkpoint_id
                     status = values.get("status", "completed")
                     metadata = values.get("execution_metadata", {})
-                    yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
+                    try:
+                        yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
+                    except (GeneratorExit, RuntimeError):
+                        return
         except Exception as e:
             logger.error(f"Failed to emit final state for run_id={run_id}: {e}")
 
