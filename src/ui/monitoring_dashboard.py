@@ -65,7 +65,7 @@ def render_monitoring_dashboard():
                             col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 1, 1.2])
                             with col1:
                                 if is_paused:
-                                    st.markdown(f"**Seed:** `{job['seed_keyword']}` <span style='color: {colors[\"warning\"]}; font-weight: bold;'>[PAUSED - FAILURES]</span>", unsafe_allow_html=True)
+                                    st.markdown(f"**Seed:** `{job['seed_keyword']}` <span style='color: {colors['warning']}; font-weight: bold;'>[PAUSED - FAILURES]</span>", unsafe_allow_html=True)
                                 else:
                                     st.markdown(f"**Seed:** `{job['seed_keyword']}`")
                             with col2:
