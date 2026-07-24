@@ -29,7 +29,7 @@ def render_monitoring_dashboard():
         st.header(" Active Monitoring Jobs")
 
         # Form to add a new job
-        with st.expander("➕ Create New Monitoring Job", expanded=False):
+        with st.expander("Create New Monitoring Job", expanded=False):
             with st.form("create_job_form"):
                 seed_keyword = st.text_input("Seed Keyword", placeholder="e.g. organic coffee")
                 interval_hours = st.number_input("Interval (Hours)", min_value=1, value=24, step=1)
@@ -71,7 +71,7 @@ def render_monitoring_dashboard():
                             with col2:
                                 st.markdown(f"**Interval:** {job.get('interval_hours', job.get('interval_minutes', 'N/A'))} hrs")
                             with col3:
-                                st.markdown(f"**Next Run:** {job.get('next_run_time') or 'N/A'}")
+                                st.markdown(f"**Next Run:** {job.get('next_run') or 'N/A'}")
                             with col4:
                                 if st.button("", key=f"del_job_{job['job_id']}", help="Delete monitoring job"):
                                     del_resp = requests.delete(f"{API_BASE_URL}/monitor/{job['job_id']}", headers=_get_headers())
@@ -142,7 +142,7 @@ def render_monitoring_dashboard():
                                                 diff_data = diff_resp.json()
 
                                                 st.success("Diff generated successfully!")
-                                                st.markdown("### 📝 Diff Summary: Latest vs Previous Run")
+                                                st.markdown("### Diff Summary: Latest vs Previous Run")
                                                 st.info(diff_data.get("summary") or "No changes detected.")
 
                                                 # Confidence deltas
@@ -166,7 +166,7 @@ def render_monitoring_dashboard():
                                                 # Added/Dropped Recommendations
                                                 col_add, col_drop = st.columns(2)
                                                 with col_add:
-                                                    st.markdown("#### ➕ Added Recommendations")
+                                                    st.markdown("#### Added Recommendations")
                                                     added_recs = diff_data.get("new_recommendations") or []
                                                     if added_recs:
                                                         for r in added_recs:
@@ -175,7 +175,7 @@ def render_monitoring_dashboard():
                                                         st.write("*None*")
 
                                                 with col_drop:
-                                                    st.markdown("#### ➖ Dropped Recommendations")
+                                                    st.markdown("#### Dropped Recommendations")
                                                     dropped_recs = diff_data.get("dropped_recommendations") or []
                                                     if dropped_recs:
                                                         for r in dropped_recs:
@@ -192,7 +192,7 @@ def render_monitoring_dashboard():
                 st.error(f"Backend API connection failed: {e}")
 
         with sub_tabs[1]:
-            st.subheader("📂 Keyword Database Archives")
+            st.subheader("Keyword Database Archives")
             with st.spinner("Loading keyword archives..."):
                 try:
                     df_history = cached_fetch_past_results(limit=100)
@@ -246,7 +246,7 @@ def render_monitoring_dashboard():
                             # Download button
                             csv = filtered_df.to_csv(index=False)
                             st.download_button(
-                                label="📥 Download Filtered Results",
+                                label="Download Filtered Results",
                                 data=csv,
                                 file_name=f"keyword_archives_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                                 mime="text/csv",
