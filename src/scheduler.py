@@ -156,7 +156,7 @@ class KeylyticsScheduler:
 
         try:
             self._scheduler.resume_job(job_id)
-            
+
             # Reset DB state
             from src.db_client import connect_db
             from src.models import MonitoringJobModel

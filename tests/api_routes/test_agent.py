@@ -104,7 +104,7 @@ class MockState:
 
 def test_event_generator_retry_success(mock_compiled_graph):
     import asyncio
-    
+
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
@@ -113,19 +113,19 @@ def test_event_generator_retry_success(mock_compiled_graph):
 
     state_unresolved = MockState(values={"status": "in_progress"}, next_nodes=[])
     state_resolved = MockState(values={"status": "completed"}, next_nodes=[])
-    
+
     mock_compiled_graph.get_state.side_effect = [state_unresolved, state_unresolved, state_resolved]
 
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
-    
+
     async def run():
         events = []
         async for event in event_generator(request):
             events.append(event)
         return events
-            
+
     events = asyncio.run(run())
     assert len(events) >= 2
     assert '"event": "completed"' in events[-1]
@@ -135,7 +135,7 @@ def test_event_generator_retry_success(mock_compiled_graph):
 
 def test_event_generator_retry_exhausted(mock_compiled_graph):
     import asyncio
-    
+
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
@@ -148,16 +148,16 @@ def test_event_generator_retry_exhausted(mock_compiled_graph):
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
-    
+
     async def run():
         events = []
         async for event in event_generator(request):
             events.append(event)
         return events
-            
+
     with patch("api.routes.agent.logger") as mock_logger:
         events = asyncio.run(run())
-            
+
     assert len(events) >= 2
     assert '"status": "in_progress"' in events[-1]
     mock_logger.warning.assert_called()
@@ -166,7 +166,7 @@ def test_event_generator_retry_exhausted(mock_compiled_graph):
 
 def test_event_generator_disconnect_in_finally(mock_compiled_graph):
     import asyncio
-    
+
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
@@ -179,7 +179,7 @@ def test_event_generator_disconnect_in_finally(mock_compiled_graph):
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
-    
+
     async def run():
         gen = event_generator(request)
         first_event = await gen.__anext__()
