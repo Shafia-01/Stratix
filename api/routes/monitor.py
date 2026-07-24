@@ -94,6 +94,18 @@ async def remove_monitoring_job(job_id: str, request: Request) -> Dict[str, Any]
     return {"removed": True, "job_id": job_id}
 
 
+@router.post("/{job_id}/resume")
+async def resume_monitoring_job(job_id: str, request: Request) -> Dict[str, Any]:
+    """Resume a paused monitoring job by its job_id."""
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if scheduler is None:
+        raise HTTPException(status_code=503, detail="Scheduler not running.")
+    resumed = scheduler.resume_monitoring_job(job_id)
+    if not resumed:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found or could not be resumed.")
+    return {"resumed": True, "job_id": job_id}
+
+
 @router.get("/jobs", response_model=List[MonitoringJob])
 async def list_monitoring_jobs(request: Request) -> List[MonitoringJob]:
     """List all active monitoring jobs with their status and schedule."""

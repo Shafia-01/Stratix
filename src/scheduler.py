@@ -146,6 +146,40 @@ class KeylyticsScheduler:
             logger.warning(f"Could not remove job {job_id}: {e}")
             return False
 
+    def resume_monitoring_job(self, job_id: str) -> bool:
+        """
+        Resume a paused monitoring job by ID.
+        Resets consecutive_failures to 0 and restores status to 'active'.
+        """
+        if not self._started or not self._scheduler:
+            return False
+
+        try:
+            self._scheduler.resume_job(job_id)
+            
+            # Reset DB state
+            from src.db_client import connect_db
+            from src.models import MonitoringJobModel
+            from sqlalchemy.orm import Session
+
+            engine = connect_db()
+            with Session(engine) as session:
+                row = session.query(MonitoringJobModel).filter(
+                    MonitoringJobModel.job_id == job_id
+                ).first()
+                if row:
+                    row.consecutive_failures = 0
+                    row.status = "active"
+                    session.commit()
+                    logger.info(f"Monitoring job resumed and failure counter reset: id={job_id}")
+                    return True
+                else:
+                    logger.warning(f"Monitoring job DB record not found: id={job_id}")
+                    return False
+        except Exception as e:
+            logger.error(f"Could not resume job {job_id}: {e}", exc_info=True)
+            return False
+
     def list_jobs(self) -> List[MonitoringJob]:
         """Return all persisted monitoring jobs from the DB."""
         try:
@@ -380,7 +414,7 @@ class KeylyticsScheduler:
                 if row:
                     row.consecutive_failures += 1
                     if row.consecutive_failures >= 3:
-                        row.status = "failed"
+                        row.status = "paused_due_to_failures"
                         if self._scheduler:
                             try:
                                 self._scheduler.pause_job(job_id)

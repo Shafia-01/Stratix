@@ -354,7 +354,7 @@ class MonitoringJob(BaseModel):
     interval_hours: int = Field(..., description="Run interval in hours")
     last_run: Optional[datetime] = Field(None, description="Timestamp of last execution")
     next_run: Optional[datetime] = Field(None, description="Scheduled next execution timestamp")
-    status: Literal["active", "paused", "failed"] = Field(..., description="Current job status")
+    status: Literal["active", "paused", "failed", "paused_due_to_failures"] = Field(..., description="Current job status")
 
 
 class KeywordDelta(BaseModel):

@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 from src.services.keyword_service import cached_fetch_past_results
+from src.ui.theme import get_color_theme
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
@@ -57,11 +58,16 @@ def render_monitoring_dashboard():
             if resp.status_code == 200:
                 jobs = resp.json()
                 if jobs:
+                    colors = get_color_theme()
                     for job in jobs:
+                        is_paused = job.get("status") == "paused_due_to_failures"
                         with st.container():
-                            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                            col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 1, 1.2])
                             with col1:
-                                st.markdown(f"**Seed:** `{job['seed_keyword']}`")
+                                if is_paused:
+                                    st.markdown(f"**Seed:** `{job['seed_keyword']}` <span style='color: {colors[\"warning\"]}; font-weight: bold;'>[PAUSED - FAILURES]</span>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"**Seed:** `{job['seed_keyword']}`")
                             with col2:
                                 st.markdown(f"**Interval:** {job.get('interval_hours', job.get('interval_minutes', 'N/A'))} hrs")
                             with col3:
@@ -74,6 +80,15 @@ def render_monitoring_dashboard():
                                         st.rerun()
                                     else:
                                         st.error("Failed to delete job")
+                            with col5:
+                                if is_paused:
+                                    if st.button("Resume Job", key=f"res_job_{job['job_id']}", help="Resume monitoring job"):
+                                        res_resp = requests.post(f"{API_BASE_URL}/monitor/{job['job_id']}/resume", headers=_get_headers())
+                                        if res_resp.status_code == 200:
+                                            st.success("Resumed job")
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to resume job")
                             st.markdown("---")
                 else:
                     st.info("No active monitoring jobs scheduled.")
