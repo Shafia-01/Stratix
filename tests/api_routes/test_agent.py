@@ -95,65 +95,68 @@ def test_get_run_status_success(mock_compiled_graph):
     assert data["awaiting_human"] is False
 
 
-@pytest.mark.asyncio
-async def test_event_generator_retry_success():
-    mock_graph = MagicMock()
+class MockState:
+    def __init__(self, values, next_nodes, checkpoint_id="completed"):
+        self.values = values
+        self.next = next_nodes
+        self.config = {"configurable": {"checkpoint_id": checkpoint_id}}
+
+
+def test_event_generator_retry_success(mock_compiled_graph):
+    import asyncio
     
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
 
-    mock_graph.astream_events = mock_astream_events
+    mock_compiled_graph.astream_events = mock_astream_events
 
-    state_unresolved = MagicMock()
-    state_unresolved.values = {"status": "in_progress"}
-    state_unresolved.next = []
+    state_unresolved = MockState(values={"status": "in_progress"}, next_nodes=[])
+    state_resolved = MockState(values={"status": "completed"}, next_nodes=[])
     
-    state_resolved = MagicMock()
-    state_resolved.values = {"status": "completed"}
-    state_resolved.next = []
-    
-    mock_graph.get_state.side_effect = [state_unresolved, state_unresolved, state_resolved]
+    mock_compiled_graph.get_state.side_effect = [state_unresolved, state_unresolved, state_resolved]
 
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
     
-    with patch("api.routes.agent.get_compiled_graph", return_value=mock_graph):
+    async def run():
         events = []
         async for event in event_generator(request):
             events.append(event)
+        return events
             
+    events = asyncio.run(run())
     assert len(events) >= 2
     assert '"event": "completed"' in events[-1]
     assert '"status": "completed"' in events[-1]
-    assert mock_graph.get_state.call_count == 3
+    assert mock_compiled_graph.get_state.call_count == 3
 
 
-@pytest.mark.asyncio
-async def test_event_generator_retry_exhausted():
-    mock_graph = MagicMock()
+def test_event_generator_retry_exhausted(mock_compiled_graph):
+    import asyncio
     
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
 
-    mock_graph.astream_events = mock_astream_events
+    mock_compiled_graph.astream_events = mock_astream_events
 
-    state_unresolved = MagicMock()
-    state_unresolved.values = {"status": "in_progress"}
-    state_unresolved.next = []
-    
-    mock_graph.get_state.return_value = state_unresolved
+    state_unresolved = MockState(values={"status": "in_progress"}, next_nodes=[])
+    mock_compiled_graph.get_state.return_value = state_unresolved
 
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
     
-    with patch("api.routes.agent.get_compiled_graph", return_value=mock_graph), patch("api.routes.agent.logger") as mock_logger:
+    async def run():
         events = []
         async for event in event_generator(request):
             events.append(event)
+        return events
+            
+    with patch("api.routes.agent.logger") as mock_logger:
+        events = asyncio.run(run())
             
     assert len(events) >= 2
     assert '"status": "in_progress"' in events[-1]
@@ -161,27 +164,26 @@ async def test_event_generator_retry_exhausted():
     assert any("Retry budget exhausted" in arg[0] for arg, _ in mock_logger.warning.call_args_list)
 
 
-@pytest.mark.asyncio
-async def test_event_generator_disconnect_in_finally():
-    mock_graph = MagicMock()
+def test_event_generator_disconnect_in_finally(mock_compiled_graph):
+    import asyncio
     
     async def mock_astream_events(*args, **kwargs):
         if False:
             yield None
 
-    mock_graph.astream_events = mock_astream_events
+    mock_compiled_graph.astream_events = mock_astream_events
 
-    state_resolved = MagicMock()
-    state_resolved.values = {"status": "completed"}
-    state_resolved.next = []
-    mock_graph.get_state.return_value = state_resolved
+    state_resolved = MockState(values={"status": "completed"}, next_nodes=[])
+    mock_compiled_graph.get_state.return_value = state_resolved
 
     from api.routes.agent import event_generator, StreamRequest
 
     request = StreamRequest(seed_keyword="coffee")
     
-    with patch("api.routes.agent.get_compiled_graph", return_value=mock_graph):
+    async def run():
         gen = event_generator(request)
         first_event = await gen.__anext__()
         assert "run_started" in first_event
         await gen.aclose()
+
+    asyncio.run(run())
