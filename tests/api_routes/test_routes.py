@@ -5,7 +5,7 @@ Covers: health, keywords (research + history), and all 5 intelligence endpoints.
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 
@@ -183,3 +183,33 @@ class TestIntelligenceIntentRoute:
         data = resp.json()
         assert data["intent"] == "informational"
         assert data["source"] == "gemini"
+
+
+class TestMonitorRoutes:
+    def test_resume_monitoring_job_success(self, client):
+        mock_scheduler = MagicMock()
+        mock_scheduler.resume_monitoring_job.return_value = True
+
+        with patch("api.main.app.state.scheduler", mock_scheduler, create=True):
+            resp = client.post("/monitor/monitor_test_id/resume")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"resumed": True, "job_id": "monitor_test_id"}
+        mock_scheduler.resume_monitoring_job.assert_called_once_with("monitor_test_id")
+
+    def test_resume_monitoring_job_not_found(self, client):
+        mock_scheduler = MagicMock()
+        mock_scheduler.resume_monitoring_job.return_value = False
+
+        with patch("api.main.app.state.scheduler", mock_scheduler, create=True):
+            resp = client.post("/monitor/nonexistent_id/resume")
+
+        assert resp.status_code == 404
+        assert "not found or could not be resumed" in resp.json()["detail"]
+
+    def test_resume_monitoring_job_no_scheduler(self, client):
+        with patch("api.main.app.state.scheduler", None, create=True):
+            resp = client.post("/monitor/monitor_test_id/resume")
+
+        assert resp.status_code == 503
+        assert "Scheduler not running" in resp.json()["detail"]

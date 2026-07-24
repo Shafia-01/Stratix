@@ -40,5 +40,33 @@ def test_scheduler_circuit_breaker(tmp_db_path, monkeypatch):
     with Session(engine) as session:
         job = session.query(MonitoringJobModel).filter(MonitoringJobModel.job_id == job_id).first()
         assert job.consecutive_failures == 3
-        assert job.status == "failed"
+        assert job.status == "paused_due_to_failures"
         mock_apsched.pause_job.assert_called_once_with(job_id)
+
+
+@pytest.mark.unit
+def test_resume_monitoring_job(tmp_db_path):
+    scheduler = KeylyticsScheduler(graph_fn=MagicMock())
+    mock_apsched = MagicMock()
+    scheduler._scheduler = mock_apsched
+    scheduler._started = True
+
+    job_id = "monitor_test_resume"
+    # Create job in DB with consecutive_failures=3 and status="paused_due_to_failures"
+    scheduler._upsert_job_record(job_id, "coffee", 24, "paused_due_to_failures")
+    engine = connect_db()
+    with Session(engine) as session:
+        job = session.query(MonitoringJobModel).filter(MonitoringJobModel.job_id == job_id).first()
+        job.consecutive_failures = 3
+        session.commit()
+
+    # Resume the job
+    resumed = scheduler.resume_monitoring_job(job_id)
+    assert resumed is True
+    mock_apsched.resume_job.assert_called_once_with(job_id)
+
+    # Verify status and consecutive_failures are reset
+    with Session(engine) as session:
+        job = session.query(MonitoringJobModel).filter(MonitoringJobModel.job_id == job_id).first()
+        assert job.consecutive_failures == 0
+        assert job.status == "active"
