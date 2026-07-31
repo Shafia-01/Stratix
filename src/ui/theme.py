@@ -141,34 +141,43 @@ def get_optimized_css():
     }}
 
     /* Dropdown popover/selectbox options visibility fix */
-    div[data-baseweb="select"] {{
+    div[data-testid="stSelectbox"],
+    div[data-testid="stSelectbox"] *,
+    .stSelectbox,
+    .stSelectbox * {{
         color: #051B4A !important;
     }}
+    
+    div[data-baseweb="select"],
+    div[data-baseweb="select"] * {{
+        color: #051B4A !important;
+    }}
+    
     div[data-baseweb="popover"],
-    div[role="listbox"] {{
+    div[role="listbox"],
+    div[role="listbox"] *,
+    ul[role="listbox"],
+    ul[role="listbox"] *,
+    div[data-baseweb="popover"] *,
+    div[role="option"],
+    div[role="option"] *,
+    li[role="option"],
+    li[role="option"] * {{
         background-color: #FFFFFF !important;
         color: #051B4A !important;
-        border: 1px solid #051B4A !important;
     }}
-    div[data-baseweb="popover"] li,
-    div[role="option"] {{
-        background-color: #FFFFFF !important;
-        color: #051B4A !important;
-    }}
-    div[data-baseweb="popover"] li *,
-    div[role="option"] * {{
-        background-color: transparent !important;
-        color: #051B4A !important;
-    }}
+    
+    /* Option hover effect */
+    div[role="option"]:hover,
+    div[role="option"]:hover *,
+    li[role="option"]:hover,
+    li[role="option"]:hover *,
     div[data-baseweb="popover"] li:hover,
-    div[role="option"]:hover {{
+    div[data-baseweb="popover"] li:hover * {{
         background-color: #CADEFF !important;
-    }}
-    div[data-baseweb="popover"] li:hover *,
-    div[role="option"]:hover * {{
-        background-color: transparent !important;
         color: #051B4A !important;
     }}
+
 
 
     /* Do not override icon fonts and reset their weight so they don't break */
