@@ -212,11 +212,11 @@ def enrich_keyword_data(data_item):
     """Enrich keyword dict with metrics from database if missing."""
     if not isinstance(data_item, dict):
         return data_item
-    
+
     keyword = data_item.get("keyword")
     if not keyword:
         return data_item
-        
+
     # Check if we already have valid metrics
     has_metrics = (
         data_item.get("volume") is not None and data_item.get("volume") > 0 and
@@ -224,13 +224,13 @@ def enrich_keyword_data(data_item):
     )
     if has_metrics:
         return data_item
-        
+
     try:
         from src.db_client import connect_db
         from src.models import Keyword
         from sqlalchemy.orm import Session
         from src.scoring import compute_score
-        
+
         engine = connect_db()
         with Session(engine) as session:
             # Query the database for this keyword, matching case-insensitively
@@ -248,7 +248,7 @@ def enrich_keyword_data(data_item):
                     enriched["cpc"] = float(row.cpc) if row.cpc is not None else None
                 if enriched.get("score") is None or enriched.get("score") == 0.0:
                     enriched["score"] = float(row.score) if row.score is not None else 0.0
-                    
+
                 # Recompute score if it's missing or 0
                 if enriched.get("score") is None or enriched.get("score") == 0.0:
                     metrics = {
