@@ -77,6 +77,13 @@ def get_optimized_css():
         text-align: center !important;
     }}
 
+    /* Align list elements left on main pages to keep bullets aligned with their text */
+    section:not([data-testid="stSidebar"]) ul,
+    section:not([data-testid="stSidebar"]) ol,
+    section:not([data-testid="stSidebar"]) li {{
+        text-align: left !important;
+    }}
+
     /* Center widgets/elements horizontally within their containers without breaking them */
     section:not([data-testid="stSidebar"]) div[data-testid="element-container"] {{
         display: flex !important;

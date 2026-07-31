@@ -208,18 +208,78 @@ def rule_based_clustering(keywords):
             })
     return result_clusters
 
+def enrich_keyword_data(data_item):
+    """Enrich keyword dict with metrics from database if missing."""
+    if not isinstance(data_item, dict):
+        return data_item
+    
+    keyword = data_item.get("keyword")
+    if not keyword:
+        return data_item
+        
+    # Check if we already have valid metrics
+    has_metrics = (
+        data_item.get("volume") is not None and data_item.get("volume") > 0 and
+        data_item.get("score") is not None and data_item.get("score") > 0
+    )
+    if has_metrics:
+        return data_item
+        
+    try:
+        from src.db_client import connect_db
+        from src.models import Keyword
+        from sqlalchemy.orm import Session
+        from src.scoring import compute_score
+        
+        engine = connect_db()
+        with Session(engine) as session:
+            # Query the database for this keyword, matching case-insensitively
+            row = (session.query(Keyword)
+                   .filter(Keyword.keyword.ilike(keyword))
+                   .order_by(Keyword.last_updated.desc())
+                   .first())
+            if row:
+                enriched = data_item.copy()
+                if enriched.get("volume") is None or enriched.get("volume") == 0:
+                    enriched["volume"] = float(row.volume) if row.volume is not None else 0.0
+                if enriched.get("competition") is None:
+                    enriched["competition"] = float(row.competition) if row.competition is not None else None
+                if enriched.get("cpc") is None:
+                    enriched["cpc"] = float(row.cpc) if row.cpc is not None else None
+                if enriched.get("score") is None or enriched.get("score") == 0.0:
+                    enriched["score"] = float(row.score) if row.score is not None else 0.0
+                    
+                # Recompute score if it's missing or 0
+                if enriched.get("score") is None or enriched.get("score") == 0.0:
+                    metrics = {
+                        "volume": enriched.get("volume") or 0.0,
+                        "competition": enriched.get("competition"),
+                        "cpc": enriched.get("cpc")
+                    }
+                    try:
+                        opportunity = compute_score(metrics, mode="standard")
+                        enriched["score"] = opportunity.score
+                    except Exception:
+                        pass
+                return enriched
+    except Exception as e:
+        logger.error(f"Error enriching keyword '{keyword}' from database: {e}")
+    return data_item
+
 def enhance_clusters_with_metrics(clusters, keywords_data):
     """Enhance clusters with keyword metrics and insights."""
+    enriched_keywords_data = [enrich_keyword_data(item) for item in keywords_data]
     enhanced_clusters = []
     for cluster in clusters:
         cluster_keywords = cluster["keywords"]
         # Find matching keywords in the original data
         matching_keywords = []
         for keyword in cluster_keywords:
-            for data_item in keywords_data:
-                if isinstance(data_item, dict) and data_item.get("keyword") == keyword:
-                    matching_keywords.append(data_item)
-                    break
+            for data_item in enriched_keywords_data:
+                if isinstance(data_item, dict) and data_item.get("keyword"):
+                    if data_item.get("keyword").strip().lower() == keyword.strip().lower():
+                        matching_keywords.append(data_item)
+                        break
         # Calculate cluster metrics
         metrics = calculate_cluster_metrics(matching_keywords)
         enhanced_cluster = {
@@ -231,6 +291,7 @@ def enhance_clusters_with_metrics(clusters, keywords_data):
         }
         enhanced_clusters.append(enhanced_cluster)
     return enhanced_clusters
+
 
 def calculate_cluster_metrics(keywords_data):
     """Calculate aggregated metrics for a cluster."""
