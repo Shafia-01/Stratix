@@ -8,7 +8,7 @@ from src.trends_client import get_trend_score, _last_trend_source
 from src.competitor_client import get_competitor_data
 from src.db_client import save_to_db
 from src.data_quality import DataSource
-from src.scoring import compute_score, classify_difficulty
+from src.scoring import compute_score
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)

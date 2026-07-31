@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from src.gemini_client import safe_gemini_call
 from src.seo_api_client import get_keyword_metrics
 from src.data_quality import DataSource
-from src.scoring import compute_score, classify_difficulty
+from src.scoring import compute_score
 from src.intent_classifier import classify_intent
 from src.trends_client import get_trend_score, _last_trend_source
 from src.logger_config import get_logger
@@ -41,7 +41,7 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 score = opportunity.score
                 difficulty = opportunity.difficulty  # Already computed properly in compute_score!
                 intent = classify_intent(kw)
-                
+
                 try:
                     trend_score = get_trend_score(kw)
                     trend_source = _last_trend_source.get(kw, DataSource.LIVE.value)
