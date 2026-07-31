@@ -147,7 +147,7 @@ def get_optimized_css():
     div[data-baseweb="popover"] ul {{
         background-color: #FFFFFF !important;
     }}
-    div[data-baseweb="popover"] li, 
+    div[data-baseweb="popover"] li,
     div[data-baseweb="popover"] li div,
     div[data-baseweb="popover"] li span,
     div[role="option"],
