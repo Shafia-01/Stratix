@@ -33,18 +33,18 @@ pinned: false
 </p>
 
 <div align="center">
-  
   <p>
     <i>Stratix is a production-grade agentic AI platform that autonomously executes multi-step market intelligence research workflows. The platform orchestrates complex research tasks - including planning, structured tool execution, data aggregation, quality gating, adversarial critique, strategy synthesis, and checkpointer persistence through a stateful LangGraph pipeline. Designed for high reliability, it integrates human-in-the-loop (HITL) checkpoints to allow manual approval and state modification mid-execution. By combining robust database engineering with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into validated, high-impact strategic intelligence.</i>
   </p>
 
-  <h3>🔗 <a href="https://youtube.com/...">Stratix - Observe. Analyze. Strategize. Autonomously.</a></h3>
+  <h3><a href="https://youtu.be/..."><img src="https://img.shields.io/badge/YouTube-Demo%20Video-red?style=flat-square&logo=youtube&logoColor=white" alt="YouTube Demo Video"></a></h3>
+
   
   <p>
     The demo link above features a video walkthrough demonstrating Stratix running the autonomous agent pipeline, real-time node-by-node execution streaming, intermediate research data validation, and interactive human-in-the-loop approval gates.
   </p>
 
-  <p><sub><strong>Note:</strong> While Stratix features a fully automated continuous-deployment pipeline that pushes updates to Hugging Face Spaces, the hosted instance is kept private to preserve API credit limits and quota budgets for upstream search and forecasting providers.</sub></p>
+  <p><strong>Note:</strong> While Stratix features a fully automated continuous-deployment pipeline that pushes updates to Hugging Face Spaces, the hosted instance is kept private to preserve API credit limits and quota budgets for upstream search and forecasting providers.</p>
 </div>
 
 ---
@@ -352,7 +352,7 @@ Ensure you have Docker and Docker Compose installed.
 
 ---
 
-## Roadmap
+## Future Roadmap
 
 * **Distributed State Savers**: Implement Redis-backed graph checkpoints to scale concurrent execution threads.
 * **Role-Based Access Control**: Secure individual workspaces and custom API configurations.
