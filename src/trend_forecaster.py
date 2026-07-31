@@ -160,7 +160,6 @@ def generate_trend_forecasts(trend_analysis):
             current_trend = hist_scores[-1]["score"] if hist_scores else 50
 
         slope = analysis["metrics"]["slope"]
-        growth_rate = analysis["growth_rate"]
         # Generate 6-month forecast (deterministic)
         forecast_scores = []
         for month in range(1, 7):
@@ -171,11 +170,20 @@ def generate_trend_forecasts(trend_analysis):
                 "score": round(forecast_score, 1),
                 "confidence": calculate_forecast_confidence(analysis, month)
             })
+
+        # Calculate predicted growth: percentage change from current_trend to Month 6 forecast
+        last_forecast_score = forecast_scores[-1]["score"]
+        if current_trend > 0:
+            predicted_growth = ((last_forecast_score - current_trend) / current_trend) * 100
+        else:
+            predicted_growth = 0.0
+        predicted_growth = round(predicted_growth, 1)
+
         forecasts[keyword] = {
             "forecast_scores": forecast_scores,
-            "predicted_growth": growth_rate,
+            "predicted_growth": predicted_growth,
             "trend_direction": analysis["direction"],
-            "recommendation": generate_trend_recommendation(analysis),
+            "recommendation": generate_trend_recommendation(analysis, predicted_growth),
             "r_squared": analysis["metrics"]["r_squared"]
         }
     return forecasts, unavailable_keywords
@@ -192,19 +200,18 @@ def calculate_forecast_confidence(analysis, month):
     confidence = max(10, base_confidence - volatility_penalty - time_decay)
     return round(confidence, 1)
 
-def generate_trend_recommendation(analysis):
+def generate_trend_recommendation(analysis, predicted_growth):
     """Generate recommendation based on trend analysis."""
     direction = analysis["direction"]
-    growth_rate = analysis["growth_rate"]
     if direction == "strong_growth":
         return "High priority - strong upward trend indicates growing market interest"
     elif direction == "strong_decline":
         return "Low priority - declining trend suggests decreasing market interest"
     elif direction == "moderate_growth":
         return "Medium priority - steady growth indicates stable opportunity"
-    elif growth_rate > 20:
+    elif predicted_growth > 20:
         return "High priority - significant growth rate indicates emerging opportunity"
-    elif growth_rate < -20:
+    elif predicted_growth < -20:
         return "Low priority - declining growth rate suggests market saturation"
     else:
         return "Monitor - stable trend with moderate growth potential"

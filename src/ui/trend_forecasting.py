@@ -71,12 +71,12 @@ def render_trend_forecasting():
             for keyword, analysis in list(results["seasonal_analysis"].items())[:3]:
                 growth_rate = analysis.get('growth_rate')
                 growth_text = f"{growth_rate}%" if growth_rate is not None else "N/A"
-                st.markdown(f"""
-                **{keyword}**
-                - Peak Season: Month {analysis['peak_season']}
-                - Low Season: Month {analysis['low_season']}
-                - Growth %: {growth_text}
-                - Recommendation: {analysis['recommendation']}
-                """)
+                st.markdown(
+                    f"**{keyword}**\n"
+                    f"- Peak Season: Month {analysis['peak_season']}\n"
+                    f"- Low Season: Month {analysis['low_season']}\n"
+                    f"- Growth %: {growth_text}\n"
+                    f"- Recommendation: {analysis['recommendation']}"
+                )
                 st.divider()
 
