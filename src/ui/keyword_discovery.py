@@ -99,7 +99,13 @@ def render_keyword_discovery():
                 hover_data=['keyword', 'difficulty'],
                 title="Volume vs Score Analysis",
                 color='score',
-                color_continuous_scale='Blues'
+                color_continuous_scale='Viridis'
+            )
+            fig.update_traces(
+                marker=dict(
+                    size=12,
+                    line=dict(width=1.5, color='#051B4A')
+                )
             )
             fig.update_layout(
                 plot_bgcolor='white',

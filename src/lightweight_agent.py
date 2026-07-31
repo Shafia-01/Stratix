@@ -4,6 +4,8 @@ from src.gemini_client import safe_gemini_call
 from src.seo_api_client import get_keyword_metrics
 from src.data_quality import DataSource
 from src.scoring import compute_score, classify_difficulty
+from src.intent_classifier import classify_intent
+from src.trends_client import get_trend_score, _last_trend_source
 from src.logger_config import get_logger
 
 load_dotenv()
@@ -37,7 +39,15 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                 # Calculate simple score using unified scoring module
                 opportunity = compute_score(metrics, mode="lightweight")
                 score = opportunity.score
-                difficulty = classify_difficulty(opportunity, mode="lightweight")
+                difficulty = opportunity.difficulty  # Already computed properly in compute_score!
+                intent = classify_intent(kw)
+                
+                try:
+                    trend_score = get_trend_score(kw)
+                    trend_source = _last_trend_source.get(kw, DataSource.LIVE.value)
+                except Exception:
+                    trend_score, trend_source = None, DataSource.UNAVAILABLE.value
+
                 try:
                     result = KeywordFinding(
                         seed=seed_keyword,
@@ -45,13 +55,13 @@ def run_lightweight_agent(seed_keyword, max_keywords=5):
                         volume=float(metrics.get("volume", 0)),
                         competition=metrics.get("competition"),
                         cpc=metrics.get("cpc"),
-                        trend=None,
+                        trend=trend_score,
                         score=score,
                         difficulty=difficulty,
-                        intent="informational",  # Default intent
+                        intent=intent,
                         competitors=[],  # Empty for lightweight version
                         data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
-                        trend_data_source=DataSource.UNAVAILABLE.value
+                        trend_data_source=trend_source
                     )
                     results.append(result)
                 except ValidationError as ve:

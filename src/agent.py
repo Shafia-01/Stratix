@@ -4,7 +4,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.keyword_api_client import get_enhanced_keywords, get_keyword_metrics_enhanced
 from src.intent_classifier import classify_intent
-from src.trends_client import get_trend_score
+from src.trends_client import get_trend_score, _last_trend_source
 from src.competitor_client import get_competitor_data
 from src.db_client import save_to_db
 from src.data_quality import DataSource
@@ -102,14 +102,15 @@ def process_keyword(kw_item, seed_keyword):
                 return None
         opportunity = compute_score(metrics)
         score = opportunity.score
-        difficulty = classify_difficulty(opportunity)
+        difficulty = opportunity.difficulty
         intent = classify_intent(kw)
 
         # Trend data
         try:
             trend_score = get_trend_score(kw)
+            trend_source = _last_trend_source.get(kw, DataSource.LIVE.value)
         except Exception:
-            trend_score = None
+            trend_score, trend_source = None, DataSource.UNAVAILABLE.value
 
         competitors_raw = get_competitor_data(kw)
         competitors = [
@@ -136,7 +137,7 @@ def process_keyword(kw_item, seed_keyword):
             intent=intent,
             competitors=competitors,
             data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
-            trend_data_source=DataSource.LIVE.value if trend_score is not None else DataSource.UNAVAILABLE.value
+            trend_data_source=trend_source
         )
     except ValidationError as ve:
         logger.warning(f"Validation failed for keyword '{kw}': {ve}")
@@ -163,8 +164,15 @@ def process_keyword_quick(kw_item, seed_keyword):
                 return None
         opportunity = compute_score(metrics)
         score = opportunity.score
-        difficulty = classify_difficulty(opportunity)
+        difficulty = opportunity.difficulty
         intent = classify_intent(kw)
+
+        # Trend data
+        try:
+            trend_score = get_trend_score(kw)
+            trend_source = _last_trend_source.get(kw, DataSource.LIVE.value)
+        except Exception:
+            trend_score, trend_source = None, DataSource.UNAVAILABLE.value
 
         return KeywordFinding(
             seed=seed_keyword,
@@ -172,13 +180,13 @@ def process_keyword_quick(kw_item, seed_keyword):
             volume=float(metrics.get("volume", 0)),
             competition=metrics.get("competition"),
             cpc=metrics.get("cpc"),
-            trend=None,
+            trend=trend_score,
             score=score,
             difficulty=difficulty,
             intent=intent,
             competitors=[],
             data_source=metrics.get("data_source", DataSource.UNAVAILABLE.value),
-            trend_data_source=DataSource.UNAVAILABLE.value
+            trend_data_source=trend_source
         )
     except ValidationError as ve:
         logger.warning(f"Validation failed (quick) for keyword '{kw}': {ve}")

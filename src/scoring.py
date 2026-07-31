@@ -54,7 +54,16 @@ def compute_score(metrics: dict, mode: str = "standard") -> OpportunityScore:
         competition = 0.5
         score = 0.0
 
-    difficulty = classify_difficulty(score, mode)
+    # Calculate difficulty based on competition if available, otherwise fallback to score
+    if competition is not None:
+        if competition >= 0.7:
+            difficulty = "Hard"
+        elif competition >= 0.3:
+            difficulty = "Medium"
+        else:
+            difficulty = "Easy"
+    else:
+        difficulty = classify_difficulty(score, mode)
 
     return OpportunityScore(
         score=score,
