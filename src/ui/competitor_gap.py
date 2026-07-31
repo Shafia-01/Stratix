@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 @st.cache_data(ttl=1800)
-def cached_analyze_competitor_gap(keyword):
+def cached_analyze_competitor_gap(keyword, competitor_keyword_or_domains=None):
     from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
-    return analyze_competitor_keyword_gap(keyword)
+    return analyze_competitor_keyword_gap(keyword, competitor_keyword_or_domains)
 
 from src.services.metrics_service import increment_daily_requests, add_recent_search
 
@@ -29,7 +29,7 @@ def render_competitor_gap():
         if your_keyword and competitor_keyword:
             with st.spinner("Analyzing competitor gaps..."):
                 try:
-                    results = cached_analyze_competitor_gap(your_keyword)
+                    results = cached_analyze_competitor_gap(your_keyword, competitor_keyword)
                     if results and "error" not in results:
                         st.session_state.competitor_results = results
                         add_recent_search(your_keyword)

@@ -6,22 +6,22 @@ Output: CompetitorGapResult — fully typed with List[CompetitorOpportunity],
         no Dict[str, Any] in the opportunities field.
 """
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from src.competitor_gap_analyzer import analyze_competitor_keyword_gap
 from src.schemas import CompetitorGapResult, CompetitorEntry, CompetitorOpportunity
 from src.exceptions import KeylyticsAPIError
 
-
 class CompetitorGapInput(BaseModel):
     seed_keyword: str = Field(..., description="Seed keyword to analyze competitor gap for")
     top_competitors: int = Field(3, description="Number of top competitors to analyze")
+    competitor_keyword_or_domains: Optional[str] = Field(None, description="Optional competitor keyword or domains to compare against")
 
 
 def run(input: CompetitorGapInput) -> CompetitorGapResult:
     """Execute competitor keyword gap tool and return typed CompetitorGapResult."""
     try:
-        res = analyze_competitor_keyword_gap(input.seed_keyword, input.top_competitors)
+        res = analyze_competitor_keyword_gap(input.seed_keyword, input.competitor_keyword_or_domains, input.top_competitors)
         if isinstance(res, dict) and "error" in res:
             raise KeylyticsAPIError(res["error"])
 

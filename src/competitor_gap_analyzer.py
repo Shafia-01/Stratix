@@ -10,19 +10,39 @@ logger = get_logger(__name__)
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-def analyze_competitor_keyword_gap(seed_keyword, top_competitors=3):
+def analyze_competitor_keyword_gap(seed_keyword, competitor_keyword_or_domains=None, top_competitors=3):
     """
     Analyze competitor keyword gaps and opportunities.
     Expected Output: Missing keywords, traffic potential, competitor rank
     """
-    logger.info(f"Analyzing keyword gaps for: {seed_keyword}")
+    logger.info(f"Analyzing keyword gaps for: {seed_keyword} against competitor info: {competitor_keyword_or_domains}")
 
-    # Step 1: Get competitor domains for the seed keyword
-    competitors_data = get_competitor_data(seed_keyword, num_results=top_competitors)
-    if not competitors_data:
-        return {"error": "No competitor data found"}
-    competitor_domains = [comp["domain"] for comp in competitors_data]
-    logger.info(f"Found competitors: {competitor_domains}")
+    # Step 1: Get competitor domains
+    if competitor_keyword_or_domains:
+        import re
+        # Check if the input looks like a domain list (contains dots)
+        is_domain_list = any(re.search(r'\.[a-z]{2,}', item) for item in re.split(r'[,\s]+', competitor_keyword_or_domains))
+        
+        if is_domain_list:
+            domains = [d.strip().lower() for d in re.split(r'[,\s]+', competitor_keyword_or_domains) if d.strip()]
+            competitor_domains = domains
+            # Build competitor data matching the format expected by the frontend
+            competitors_data = [{"domain": dom, "rank": 0, "title": dom, "link": f"https://{dom}"} for dom in domains]
+            logger.info(f"Using provided competitor domains: {competitor_domains}")
+        else:
+            # It's a keyword: get competitor domains ranking for it
+            competitors_data = get_competitor_data(competitor_keyword_or_domains, num_results=top_competitors)
+            if not competitors_data:
+                return {"error": f"No competitor data found for '{competitor_keyword_or_domains}'"}
+            competitor_domains = [comp["domain"] for comp in competitors_data]
+            logger.info(f"Found competitors for competitor keyword '{competitor_keyword_or_domains}': {competitor_domains}")
+    else:
+        # Get competitor domains for the seed keyword
+        competitors_data = get_competitor_data(seed_keyword, num_results=top_competitors)
+        if not competitors_data:
+            return {"error": "No competitor data found"}
+        competitor_domains = [comp["domain"] for comp in competitors_data]
+        logger.info(f"Found competitors: {competitor_domains}")
 
     # Step 2: Generate related keywords for gap analysis
     related_keywords = generate_related_keywords_for_gap(seed_keyword)
