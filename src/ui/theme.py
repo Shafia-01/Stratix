@@ -140,6 +140,29 @@ def get_optimized_css():
         font-weight: bold !important;
     }}
 
+    /* Dropdown popover/selectbox options visibility fix */
+    div[data-baseweb="select"] {{
+        color: #051B4A !important;
+    }}
+    div[data-baseweb="popover"] ul {{
+        background-color: #FFFFFF !important;
+    }}
+    div[data-baseweb="popover"] li, 
+    div[data-baseweb="popover"] li div,
+    div[data-baseweb="popover"] li span,
+    div[role="option"],
+    div[role="option"] * {{
+        color: #051B4A !important;
+        background-color: #FFFFFF !important;
+    }}
+    div[data-baseweb="popover"] li:hover,
+    div[data-baseweb="popover"] li:hover *,
+    div[role="option"]:hover,
+    div[role="option"]:hover * {{
+        background-color: #CADEFF !important;
+        color: #051B4A !important;
+    }}
+
     /* Do not override icon fonts and reset their weight so they don't break */
     .material-icons, [class*="material-icons"], [class*="Icon-"], [data-testid="collapsedSidebarCodegen"] *, [data-testid="stSidebarCollapseButton"] * {{
         font-family: 'Material Icons', sans-serif !important;
