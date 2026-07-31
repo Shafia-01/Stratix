@@ -22,7 +22,7 @@ def analyze_competitor_keyword_gap(seed_keyword, competitor_keyword_or_domains=N
         import re
         # Check if the input looks like a domain list (contains dots)
         is_domain_list = any(re.search(r'\.[a-z]{2,}', item) for item in re.split(r'[,\s]+', competitor_keyword_or_domains))
-        
+
         if is_domain_list:
             domains = [d.strip().lower() for d in re.split(r'[,\s]+', competitor_keyword_or_domains) if d.strip()]
             competitor_domains = domains

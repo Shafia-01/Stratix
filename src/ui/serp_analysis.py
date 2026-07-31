@@ -41,9 +41,12 @@ def render_serp_analysis():
                 st.markdown("####  Top-Ranking Pages")
                 for i, result in enumerate(organic_results[:5]):
                     with st.expander(f"#{i+1} {result.get('title', 'No title')[:50]}..."):
-                        st.markdown(f"**URL:** {result.get('link', 'No URL')}")
+                        link = result.get('link', '')
+                        st.markdown(f"**URL:** {link if link else 'No URL'}")
                         st.markdown(f"**Snippet:** {result.get('snippet', 'No snippet')[:200]}...")
-                        st.markdown(f"**Domain:** {result.get('displayed_link', result.get('domain', 'Unknown'))}")
+                        from src.serp_analyzer import extract_domain_from_url
+                        domain = extract_domain_from_url(link) if link else result.get('domain', 'Unknown')
+                        st.markdown(f"**Domain:** {domain}")
             else:
                 st.info("No organic results returned for this query.")
         # Featured snippets
