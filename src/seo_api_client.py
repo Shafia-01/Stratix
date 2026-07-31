@@ -41,18 +41,18 @@ def get_keyword_metrics(keyword, seed="Unknown"):
     res_json = res.json()
     info = res_json.get("search_information", {})
     total_results = info.get("total_results", 0)
-    
+
     import hashlib
     h = int(hashlib.md5(keyword.encode('utf-8')).hexdigest(), 16)
-    
+
     volume = min(int(total_results / 1000), 10000) or 0
     if not volume:
         volumes = [110, 260, 480, 720, 880, 1300, 1900, 2400, 3600, 5400, 8100, 12000, 15000, 18000, 22000, 27000]
         volume = volumes[h % len(volumes)]
-        
+
     competition = round(0.15 + (h % 80) / 100.0, 2)
     cpc = round(0.30 + (h % 820) / 100.0, 2)
-    
+
     metrics = {
         "volume": volume,
         "competition": competition,
@@ -75,7 +75,7 @@ def check_cache(keyword, seed="Unknown"):
                 volume = int(row.volume)
                 competition = row.competition
                 cpc = row.cpc
-                
+
                 # Apply deterministic fallback for zero/None values
                 import hashlib
                 h = int(hashlib.md5(keyword.encode('utf-8')).hexdigest(), 16)
@@ -86,7 +86,7 @@ def check_cache(keyword, seed="Unknown"):
                     competition = round(0.15 + (h % 80) / 100.0, 2)
                 if cpc is None or cpc == 0:
                     cpc = round(0.30 + (h % 820) / 100.0, 2)
-                
+
                 return {
                     "volume": volume,
                     "competition": competition,

@@ -147,12 +147,12 @@ def get_optimized_css():
     .stSelectbox * {{
         color: #051B4A !important;
     }}
-    
+
     div[data-baseweb="select"],
     div[data-baseweb="select"] * {{
         color: #051B4A !important;
     }}
-    
+
     div[data-baseweb="popover"],
     div[role="listbox"],
     div[role="listbox"] *,
@@ -166,7 +166,7 @@ def get_optimized_css():
         background-color: #FFFFFF !important;
         color: #051B4A !important;
     }}
-    
+
     /* Option hover effect */
     div[role="option"]:hover,
     div[role="option"]:hover *,

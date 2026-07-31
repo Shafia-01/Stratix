@@ -730,11 +730,11 @@ class KeywordAPIClient:
                 volume = volumes[h % len(volumes)]
                 competition = round(0.15 + (h % 80) / 100.0, 2)
                 cpc = round(0.30 + (h % 820) / 100.0, 2)
-                
+
                 # Compute opportunity score using standard mode
                 metrics = {"volume": volume, "competition": competition, "cpc": cpc}
                 opp = compute_score(metrics, mode="standard")
-                
+
                 formatted.append({
                     "rank": i,
                     "keyword": kw,
@@ -781,13 +781,13 @@ class KeywordAPIClient:
 
         import hashlib
         h = int(hashlib.md5(keyword.encode('utf-8')).hexdigest(), 16)
-        
+
         if metrics_data and len(metrics_data) > 0:
             metric = metrics_data[0]
             volume = metric.get("search_volume", 0)
             competition = metric.get("competition")
             cpc = metric.get("cpc")
-            
+
             if not volume:
                 volumes = [110, 260, 480, 720, 880, 1300, 1900, 2400, 3600, 5400, 8100, 12000, 15000, 18000, 22000, 27000]
                 volume = volumes[h % len(volumes)]
@@ -795,7 +795,7 @@ class KeywordAPIClient:
                 competition = round(0.15 + (h % 80) / 100.0, 2)
             if cpc is None or cpc == 0:
                 cpc = round(0.30 + (h % 820) / 100.0, 2)
-                
+
             return {
                 "volume": volume,
                 "competition": competition,
