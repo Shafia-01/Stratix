@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from langgraph.errors import GraphInterrupt
+from langgraph.types import Command
 
 from src.graph.graph import get_compiled_graph
 from src.graph.tracing import build_initial_metadata, get_run_config
@@ -258,11 +259,16 @@ async def event_generator(request: StreamRequest):
     if request.run_id:
         run_id = request.run_id
         config = {"configurable": {"thread_id": run_id}}
-        update_data = {"awaiting_human": False}
-        if request.human_feedback:
-            update_data["human_feedback"] = request.human_feedback
-        graph.update_state(config, update_data)
-        initial_state = None
+        # Mark the run as no longer awaiting human input in persisted state.
+        # This keeps state consistent even if Command(resume=...) is the
+        # primary mechanism LangGraph uses to resume from the interrupt.
+        graph.update_state(config, {"awaiting_human": False})
+        # In LangGraph 1.x the correct way to resume from an interrupt() call
+        # is to pass Command(resume=<value>) as the input.  Passing None causes
+        # astream_events to exit immediately without running any node, so no
+        # 'checkpoint' or 'completed' SSE event is ever emitted.
+        resume_value = request.human_feedback if request.human_feedback else {}
+        initial_state = Command(resume=resume_value)
     else:
         run_id = str(uuid.uuid4())
 

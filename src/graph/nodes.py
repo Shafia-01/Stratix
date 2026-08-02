@@ -176,8 +176,11 @@ def planner_node(state: AgentState) -> AgentState:
     return {
         **state,
         "research_plan": plan.model_dump(),
-        "status": "awaiting_approval",
-        "awaiting_human": True,
+        # After the interrupt resumes, human_input carries the feedback.
+        # Store it in state so route_after_plan can read it.
+        "human_feedback": human_input if human_input else state.get("human_feedback"),
+        "status": "in_progress",
+        "awaiting_human": False,
         "execution_metadata": metadata,
         # Use response if it is not None, else fall back to SystemMessage
         "messages": [
@@ -546,12 +549,17 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     strategy_retries = metadata.get("strategy_retries", 0)
     if strategy_retries >= 1:
         logger.warning("strategy_agent_node: max retries reached; using existing report")
-        interrupt({
+        max_retry_human_input = interrupt({
             "checkpoint": "report_approval",
             "note": "Maximum regeneration attempts reached. Approving current report.",
             "strategy_report": state.get("strategy_report"),
         })
-        return {**state, "status": "awaiting_approval", "awaiting_human": True}
+        return {
+            **state,
+            "human_feedback": max_retry_human_input if max_retry_human_input else state.get("human_feedback"),
+            "status": "in_progress",
+            "awaiting_human": False,
+        }
 
     llm = _get_llm()
 
@@ -661,8 +669,11 @@ def strategy_agent_node(state: AgentState) -> AgentState:
     return {
         **state,
         "strategy_report": report_dict,
-        "status": "awaiting_approval",
-        "awaiting_human": True,
+        # After the interrupt resumes, human_input carries the feedback.
+        # Store it in state so route_after_strategy can read it.
+        "human_feedback": human_input if human_input else state.get("human_feedback"),
+        "status": "in_progress",
+        "awaiting_human": False,
         "execution_metadata": metadata,
         "errors": errors,
         "messages": [

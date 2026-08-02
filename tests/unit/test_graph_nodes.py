@@ -2,7 +2,7 @@
 Unit tests for Keylytics LangGraph node functions.
 
 Tests:
-  1. planner_node: valid LLM JSON → research_plan populated, status="awaiting_approval"
+  1. planner_node: valid LLM JSON → research_plan populated, status="in_progress"
   2. planner_node: malformed JSON → fallback plan used
   3. aggregator_node: keyword items present → keyword_findings populated, confidence_scores correct
   4. aggregator_node: keyword_research missing → confidence_scores["keyword_research"]==0.0
@@ -10,6 +10,12 @@ Tests:
   6. persist_node: mock save_to_db → status="completed", end_ts set in execution_metadata
   7. route_after_plan: approved=True → "research_agent_node"; approved=False → "__end__"
   8. route_after_research: no keyword_research in collected_data → "__end__"
+
+Note on status after interrupt():
+  In real LangGraph execution, interrupt() suspends the graph before the return statement is
+  reached on the first call. On resume (via Command(resume=value)), interrupt() returns the
+  human feedback and the return statement IS reached — so status="in_progress", awaiting_human=False.
+  Unit tests mock interrupt() to return None and see this post-resume return path.
 
 All tests use pytest-mock (mocker fixture). No real API calls are made.
 """
@@ -100,8 +106,11 @@ def test_planner_node_valid_llm_response(base_state, mock_llm):
     assert result["research_plan"]["seed_keyword"] == "content marketing"
     assert result["research_plan"]["max_keywords"] == 10
     assert "keyword_discovery" in result["research_plan"]["requested_modules"]
-    assert result["status"] == "awaiting_approval"
-    assert result["awaiting_human"] is True
+    # After interrupt() resumes, the node returns "in_progress" (not "awaiting_approval").
+    # In real LangGraph execution, interrupt() suspends before reaching the return; the
+    # return is only hit post-resume, so "in_progress" / awaiting_human=False is correct.
+    assert result["status"] == "in_progress"
+    assert result["awaiting_human"] is False
     assert result["execution_metadata"]["planner_retries"] == 1
 
 
@@ -125,7 +134,8 @@ def test_planner_node_malformed_json_uses_fallback(base_state, mock_llm):
     assert plan["seed_keyword"] == "content marketing"
     assert "keyword_discovery" in plan["requested_modules"]
     assert plan["max_keywords"] == 10
-    assert result["status"] == "awaiting_approval"
+    # After interrupt() resumes, the node returns "in_progress".
+    assert result["status"] == "in_progress"
     # response should be None → messages should include the fallback SystemMessage
     messages = result["messages"]
     # Last message should be a SystemMessage (fallback)
@@ -277,8 +287,9 @@ def test_strategy_agent_node_valid_response(base_state, mock_llm):
 
     assert result["strategy_report"]["seed_keyword"] == "content marketing"
     assert len(result["strategy_report"]["recommendations"]) == 5
-    assert result["status"] == "awaiting_approval"
-    assert result["awaiting_human"] is True
+    # After interrupt() resumes, the node returns "in_progress" (not "awaiting_approval").
+    assert result["status"] == "in_progress"
+    assert result["awaiting_human"] is False
     assert result["execution_metadata"]["strategy_retries"] == 1
 
 

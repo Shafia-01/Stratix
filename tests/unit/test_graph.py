@@ -76,8 +76,9 @@ def test_planner_node_llm_flow(base_state, mock_llm):
         res = planner_node(state)
         assert res["research_plan"]["max_keywords"] == 12
         assert "keyword_discovery" in res["research_plan"]["requested_modules"]
-        assert res["status"] == "awaiting_approval"
-        assert res["awaiting_human"] is True
+        # After interrupt() resumes, the node returns "in_progress".
+        assert res["status"] == "in_progress"
+        assert res["awaiting_human"] is False
         mock_interrupt.assert_called_once()
 
 def test_aggregator_node_success(base_state):
