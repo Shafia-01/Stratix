@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 def _make_tool_func(tool_name: str):
     def tool_wrapper(**kwargs) -> dict:
-        return invoke_tool(tool_name, **kwargs)
+        return invoke_tool(tool_name, kwargs)
     tool_wrapper.__name__ = f"run_{tool_name}"
     return tool_wrapper
 
