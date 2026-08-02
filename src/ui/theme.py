@@ -183,6 +183,22 @@ def get_optimized_css():
         color: #051B4A !important;
     }}
 
+    /* Extra selectbox option selectors for modern Streamlit versions */
+    [data-testid="stVirtualizedSelectboxOption"],
+    [data-testid="stVirtualizedSelectboxOption"] *,
+    [data-testid="stSelectboxVirtualList"] div,
+    [data-testid="stSelectboxVirtualList"] span,
+    [data-testid="stSelectboxVirtualList"] p,
+    [data-testid="stSelectboxVirtualList"] li,
+    div[role="option"],
+    div[role="option"] span,
+    div[role="option"] div,
+    li[role="option"],
+    li[role="option"] span,
+    li[role="option"] div {{
+        color: #051B4A !important;
+    }}
+
     /* Option hover/focus/selected states */
     div[role="option"]:hover,
     div[role="option"][aria-selected="true"],
@@ -193,7 +209,9 @@ def get_optimized_css():
     div[data-baseweb="popover"] div[role="option"]:hover,
     div[data-baseweb="popover"] div[role="option"][aria-selected="true"],
     div[data-testid="stSelectboxVirtualList"] div[role="option"]:hover,
-    div[data-testid="stSelectboxVirtualList"] div[role="option"][aria-selected="true"] {{
+    div[data-testid="stSelectboxVirtualList"] div[role="option"][aria-selected="true"],
+    [data-testid="stVirtualizedSelectboxOption"]:hover,
+    [data-testid="stVirtualizedSelectboxOption"][aria-selected="true"] {{
         background-color: #CADEFF !important;
         color: #051B4A !important;
     }}
@@ -202,7 +220,9 @@ def get_optimized_css():
     div[role="option"]:hover *,
     div[role="option"][aria-selected="true"] *,
     li[role="option"]:hover *,
-    li[role="option"][aria-selected="true"] * {{
+    li[role="option"][aria-selected="true"] *,
+    [data-testid="stVirtualizedSelectboxOption"]:hover *,
+    [data-testid="stVirtualizedSelectboxOption"][aria-selected="true"] * {{
         color: #051B4A !important;
     }}
 
@@ -756,7 +776,8 @@ def get_optimized_css():
         margin: 0 auto !important;
     }}
 
-    /* Hide Streamlit's keyboard shortcut/tooltip overlays globally - avoiding generic baseweb tooltips that break dropdowns */
+    /* Temporarily commented out tooltip hiding rule to prevent conflict with selectbox dropdown elements */
+    /*
     div[data-testid="stTooltipContent"],
     div[data-testid="stTooltip"],
     div[data-testid="stTooltipHoverTarget"],
@@ -770,6 +791,7 @@ def get_optimized_css():
         width: 0px !important;
         overflow: hidden !important;
     }}
+    */
     </style>
     """
 
