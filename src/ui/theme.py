@@ -149,7 +149,6 @@ def get_optimized_css():
 
     /* Dropdown popover/selectbox options visibility fix */
     div[data-testid="stSelectbox"],
-    div[data-testid="stSelectbox"] p,
     div[data-testid="stSelectbox"] span,
     div[data-testid="stSelectbox"] div,
     .stSelectbox,
@@ -163,36 +162,48 @@ def get_optimized_css():
         color: #051B4A !important;
     }}
 
+    div[data-testid="stSelectboxVirtualList"],
     div[data-baseweb="popover"],
     div[role="listbox"],
     ul[role="listbox"] {{
         background-color: #FFFFFF !important;
+        color: #051B4A !important;
+        border: 1px solid #051B4A !important;
     }}
 
-    div[role="option"],
+    /* All elements inside selectbox virtual list / popover must have dark text color */
+    div[data-testid="stSelectboxVirtualList"] *,
+    div[data-baseweb="popover"] *,
+    ul[role="listbox"] *,
+    div[role="listbox"] *,
     li[role="option"],
-    div[data-baseweb="popover"] li,
-    div[data-baseweb="popover"] div[role="option"] {{
-        background-color: #FFFFFF !important;
-        color: #051B4A !important;
-    }}
-
-    /* Ensure all text nodes inside option items are colored correctly */
-    div[role="option"] *,
     li[role="option"] *,
-    div[data-baseweb="popover"] li *,
-    div[data-baseweb="popover"] div[role="option"] * {{
+    div[role="option"],
+    div[role="option"] * {{
         color: #051B4A !important;
     }}
 
-    /* Option hover effect */
+    /* Option hover/focus/selected states */
     div[role="option"]:hover,
+    div[role="option"][aria-selected="true"],
     li[role="option"]:hover,
+    li[role="option"][aria-selected="true"],
     div[data-baseweb="popover"] li:hover,
     div[data-baseweb="popover"] li[aria-selected="true"],
     div[data-baseweb="popover"] div[role="option"]:hover,
-    div[data-baseweb="popover"] div[role="option"][aria-selected="true"] {{
+    div[data-baseweb="popover"] div[role="option"][aria-selected="true"],
+    div[data-testid="stSelectboxVirtualList"] div[role="option"]:hover,
+    div[data-testid="stSelectboxVirtualList"] div[role="option"][aria-selected="true"] {{
         background-color: #CADEFF !important;
+        color: #051B4A !important;
+    }}
+
+    /* Force text color again specifically for hovered/selected elements and their children */
+    div[role="option"]:hover *,
+    div[role="option"][aria-selected="true"] *,
+    li[role="option"]:hover *,
+    li[role="option"][aria-selected="true"] * {{
+        color: #051B4A !important;
     }}
 
 
@@ -745,10 +756,7 @@ def get_optimized_css():
         margin: 0 auto !important;
     }}
 
-    /* Hide Streamlit's keyboard shortcut/tooltip overlays globally */
-    div[data-baseweb="tooltip"],
-    div[role="tooltip"],
-    div[class*="tooltip"],
+    /* Hide Streamlit's keyboard shortcut/tooltip overlays globally - avoiding generic baseweb tooltips that break dropdowns */
     div[data-testid="stTooltipContent"],
     div[data-testid="stTooltip"],
     div[data-testid="stTooltipHoverTarget"],
