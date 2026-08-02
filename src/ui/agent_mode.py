@@ -134,7 +134,8 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                 completed = True
                 execution_metadata = data.get("execution_metadata")
             elif event == "error":
-                st.error(f" Pipeline error: {data.get('message')}")
+                raw_msg = str(data.get('message', 'Unknown error')).strip('\'"')
+                st.error(f" Pipeline error: {raw_msg}")
 
             # Update UI
             with progress_placeholder.container():
