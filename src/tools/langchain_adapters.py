@@ -12,19 +12,20 @@ All tools are backed by invoke_tool(), which guarantees:
 Usage
 -----
     from src.tools.langchain_adapters import get_langchain_tools
-    tools = get_langchain_tools()          # List[StructuredTool], one per registry entry
-    result = tools[0].invoke({"seed_keyword": "coffee", "max_keywords": 10})
 """
-
-from functools import partial
 from typing import List
-
 from langchain_core.tools import StructuredTool
-
 from src.tools.registry import TOOL_REGISTRY, invoke_tool
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _make_tool_func(tool_name: str):
+    def tool_wrapper(**kwargs) -> dict:
+        return invoke_tool(tool_name, **kwargs)
+    tool_wrapper.__name__ = f"run_{tool_name}"
+    return tool_wrapper
 
 
 def get_langchain_tools() -> List[StructuredTool]:
@@ -39,12 +40,10 @@ def get_langchain_tools() -> List[StructuredTool]:
     tools: List[StructuredTool] = []
     for spec in TOOL_REGISTRY.values():
         tool = StructuredTool.from_function(
-            # partial binds the tool name so invoke_tool knows which tool to call
-            func=partial(invoke_tool, spec.name),
+            func=_make_tool_func(spec.name),
             name=spec.name,
             description=spec.description,
             args_schema=spec.input_model,
-            # return_direct=False lets the agent loop process the result
             return_direct=False,
         )
         tools.append(tool)
