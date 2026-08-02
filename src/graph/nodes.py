@@ -116,7 +116,7 @@ def planner_node(state: AgentState) -> AgentState:
             metadata["planner_retries"] = retries + 1
             return {
                 **state,
-                "research_plan": plan.model_dump(),
+                "research_plan": plan.model_dump(mode="json"),
                 "status": "awaiting_approval",
                 "awaiting_human": True,
                 "execution_metadata": metadata,
@@ -161,7 +161,7 @@ def planner_node(state: AgentState) -> AgentState:
     # Capture the interrupt return value (equals what update_state injects)
     human_input = interrupt({
         "checkpoint": "plan_approval",
-        "research_plan": plan.model_dump(),
+        "research_plan": plan.model_dump(mode="json"),
         "instructions": (
             "Review the research plan. "
             "Set human_feedback to: "
@@ -175,7 +175,7 @@ def planner_node(state: AgentState) -> AgentState:
 
     return {
         **state,
-        "research_plan": plan.model_dump(),
+        "research_plan": plan.model_dump(mode="json"),
         # After the interrupt resumes, human_input carries the feedback.
         # Store it in state so route_after_plan can read it.
         "human_feedback": human_input if human_input else state.get("human_feedback"),
