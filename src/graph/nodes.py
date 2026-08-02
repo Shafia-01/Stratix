@@ -208,7 +208,7 @@ You have access to these tools:
 Rules:
 1. Always call keyword_research first — other tools depend on its output.
 2. Extract the keyword list from keyword_research before calling trend_forecast or topic_cluster.
-3. If a tool returns {"error": ...}, log it in your reasoning and continue — do not stop.
+3. If a tool returns {{"error": ...}}, log it in your reasoning and continue — do not stop.
 4. After all requested tools have been called, stop and summarise what you collected.
 5. Be efficient — call each tool exactly once unless a retry is clearly needed.
 
