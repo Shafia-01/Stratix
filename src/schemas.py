@@ -116,9 +116,11 @@ class ResearchPlan(BaseModel):
     @field_validator("max_keywords")
     @classmethod
     def validate_max_keywords_range(cls, v: int) -> int:
-        if not (1 <= v <= 50):
-            raise ValueError("max_keywords must be between 1 and 50")
-        return v
+        if v < 1:
+            raise ValueError("max_keywords must be at least 1")
+        # Cap at 5 — the platform focuses on quality over quantity.
+        # Silently clamp rather than raise so LLM fallbacks don't crash.
+        return min(v, 5)
 
 
 class MarketState(BaseModel):

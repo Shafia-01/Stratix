@@ -94,7 +94,7 @@ def test_planner_node_valid_llm_response(base_state, mock_llm):
         "seed_keyword": "content marketing",
         "objectives": ["Identify high-volume keywords", "Analyse competitor gaps"],
         "requested_modules": ["keyword_discovery", "serp_analysis", "competitor_gap"],
-        "max_keywords": 10,
+        "max_keywords": 5,
     }
     mock_response = MagicMock()
     mock_response.content = json.dumps(valid_plan)
@@ -104,7 +104,7 @@ def test_planner_node_valid_llm_response(base_state, mock_llm):
         result = planner_node(base_state)
 
     assert result["research_plan"]["seed_keyword"] == "content marketing"
-    assert result["research_plan"]["max_keywords"] == 10
+    assert result["research_plan"]["max_keywords"] == 5
     assert "keyword_discovery" in result["research_plan"]["requested_modules"]
     # After interrupt() resumes, the node returns "in_progress" (not "awaiting_approval").
     # In real LangGraph execution, interrupt() suspends before reaching the return; the
@@ -133,7 +133,7 @@ def test_planner_node_malformed_json_uses_fallback(base_state, mock_llm):
     plan = result["research_plan"]
     assert plan["seed_keyword"] == "content marketing"
     assert "keyword_discovery" in plan["requested_modules"]
-    assert plan["max_keywords"] == 10
+    assert plan["max_keywords"] == 5  # fallback now uses 5
     # After interrupt() resumes, the node returns "in_progress".
     assert result["status"] == "in_progress"
     # response should be None → messages should include the fallback SystemMessage

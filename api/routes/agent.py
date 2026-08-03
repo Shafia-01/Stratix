@@ -405,7 +405,10 @@ async def event_generator(request: StreamRequest):
                         checkpoint_type = interrupt_value.get("checkpoint", "plan_approval")
                     elif next_node == "research_agent_node" or status == "awaiting_plan_approval":
                         checkpoint_type = "plan_approval"
-                    elif next_node == "persist_node" or status == "awaiting_report_approval":
+                    elif next_node in ("persist_node", "strategy_agent_node") or status == "awaiting_report_approval":
+                        # strategy_agent_node is next when LangGraph re-queues it after
+                        # route_after_strategy; persist_node is next when the report is approved.
+                        # Both cases mean we are waiting for the human to review the report.
                         checkpoint_type = "report_approval"
                     else:
                         # Default: infer from state.awaiting_human + which data is populated

@@ -82,7 +82,7 @@ Rules:
 1. Always include "keyword_discovery" — it is required for all other modules.
 2. For a simple keyword, include 3 modules total (keyword_discovery + 2 others).
 3. For a complex or competitive keyword, include all 5 modules.
-4. Set max_keywords between 5 (quick) and 15 (comprehensive).
+4. Always set max_keywords to exactly 5.
 5. Write 2-3 specific, actionable objectives.
 
 Return ONLY a JSON object with this exact structure — no markdown, no explanation:
@@ -90,7 +90,7 @@ Return ONLY a JSON object with this exact structure — no markdown, no explanat
   "seed_keyword": "<the keyword>",
   "objectives": ["<objective 1>", "<objective 2>"],
   "requested_modules": ["keyword_discovery", "<module2>", ...],
-  "max_keywords": <integer 5-15>
+  "max_keywords": 5
 }
 """
 
@@ -152,7 +152,7 @@ def planner_node(state: AgentState) -> AgentState:
             seed_keyword=seed,
             objectives=["Discover high-value keywords", "Identify market opportunities"],
             requested_modules=["keyword_discovery", "competitor_gap", "serp_analysis"],
-            max_keywords=10,
+            max_keywords=5,
         )
 
     metadata["planner_retries"] = retries + 1
@@ -197,13 +197,12 @@ def planner_node(state: AgentState) -> AgentState:
 RESEARCH_SYSTEM_PROMPT = """
 You are the Research Agent for Keylytics, an AI-powered SEO intelligence platform.
 
-You have access to these tools:
+You have access to exactly these 5 tools:
 - keyword_research     — ALWAYS call this FIRST. Use the seed keyword and max_keywords from the plan.
 - serp_analysis        — Call if "serp_analysis" is in requested_modules.
 - competitor_gap       — Call if "competitor_gap" is in requested_modules.
 - trend_forecast       — Call with the keyword LIST from keyword_research results.
 - topic_cluster        — Call with the keyword LIST from keyword_research results.
-- intent_classifier    — Call for the seed keyword only (not every keyword).
 
 Rules:
 1. Always call keyword_research first — other tools depend on its output.
@@ -211,6 +210,7 @@ Rules:
 3. If a tool returns {{"error": ...}}, log it in your reasoning and continue — do not stop.
 4. After all requested tools have been called, stop and summarise what you collected.
 5. Be efficient — call each tool exactly once unless a retry is clearly needed.
+6. Do NOT call any tool not listed above.
 
 Current research plan:
 {research_plan}
@@ -230,7 +230,10 @@ def research_agent_node(state: AgentState) -> AgentState:
         research_plan=json.dumps(plan, indent=2)
     )
 
-    tools = get_langchain_tools()
+    # Exclude intent_classifier — it is not a research module and should not
+    # appear in the agent's tool loop or the confidence scores panel.
+    EXCLUDED_TOOLS = {"intent_classifier"}
+    tools = [t for t in get_langchain_tools() if t.name not in EXCLUDED_TOOLS]
     llm = _get_llm()
 
     # Build the ReAct sub-agent

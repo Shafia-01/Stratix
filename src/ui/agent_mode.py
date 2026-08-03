@@ -172,7 +172,24 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                     c_cols = st.columns(len(confidence_scores))
                     for c_idx, (m, score) in enumerate(confidence_scores.items()):
                         with c_cols[c_idx]:
-                            st.metric(m.replace("_", " ").title(), f"{score * 100:.0f}%")
+                            pct = score * 100
+                            if pct >= 70:
+                                color = "#22c55e"  # green
+                            elif pct >= 40:
+                                color = "#f59e0b"  # amber
+                            else:
+                                color = "#ef4444"  # red
+                            label = m.replace("_", " ").title()
+                            st.markdown(
+                                f"""
+                                <div style='text-align:center; padding:8px; border-radius:8px;
+                                    background:rgba(0,0,0,0.05); border:1px solid {color}33'>
+                                    <div style='font-size:11px; color:#888; margin-bottom:4px'>{label}</div>
+                                    <div style='font-size:22px; font-weight:700; color:{color}'>{pct:.0f}%</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
             if critic_feedback:
                 with critic_placeholder.container():
@@ -384,12 +401,12 @@ def render_agent_mode():
             default=plan.get("requested_modules", ["keyword_discovery"])
         )
 
-        # Max keywords
+        # Max keywords — locked at 5 per platform policy
         max_keywords_input = st.slider(
             "Max Keywords:",
             min_value=5,
-            max_value=15,
-            value=int(plan.get("max_keywords", 10))
+            max_value=5,
+            value=5
         )
 
         col1, col2 = st.columns(2)
@@ -468,12 +485,29 @@ def render_agent_mode():
                 for w in warnings:
                     st.warning(w)
 
-        # Confidence scores
+        # Confidence scores — color-coded
         st.markdown("#####  Module Confidence Scores")
         cols = st.columns(len(confidence) if confidence else 1)
         for i, (module, score) in enumerate(confidence.items()):
             with cols[i % len(cols)]:
-                st.metric(label=module.replace("_", " ").title(), value=f"{score * 100:.0f}%")
+                pct = score * 100
+                if pct >= 70:
+                    color = "#22c55e"
+                elif pct >= 40:
+                    color = "#f59e0b"
+                else:
+                    color = "#ef4444"
+                label = module.replace("_", " ").title()
+                st.markdown(
+                    f"""
+                    <div style='text-align:center; padding:8px; border-radius:8px;
+                        background:rgba(0,0,0,0.05); border:1px solid {color}33'>
+                        <div style='font-size:11px; color:#888; margin-bottom:4px'>{label}</div>
+                        <div style='font-size:22px; font-weight:700; color:{color}'>{pct:.0f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
         # Executive Summary
         st.markdown("##### 📝 Executive Summary")

@@ -74,7 +74,8 @@ def test_planner_node_llm_flow(base_state, mock_llm):
     state = base_state.copy()
     with patch("src.graph.nodes.interrupt") as mock_interrupt:
         res = planner_node(state)
-        assert res["research_plan"]["max_keywords"] == 12
+        # max_keywords=12 from LLM is clamped to 5 by the schema validator
+        assert res["research_plan"]["max_keywords"] == 5
         assert "keyword_discovery" in res["research_plan"]["requested_modules"]
         # After interrupt() resumes, the node returns "in_progress".
         assert res["status"] == "in_progress"

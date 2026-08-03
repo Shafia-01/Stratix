@@ -97,20 +97,21 @@ def test_research_plan_validation():
         "seed_keyword": "organic soap",
         "objectives": ["find keywords", "analyze competition"],
         "requested_modules": ["keyword_discovery", "topic_clustering"],
-        "max_keywords": 10,
+        "max_keywords": 5,
         "created_at": datetime.now(timezone.utc)
     }
     plan = ResearchPlan(**data)
-    assert plan.max_keywords == 10
+    assert plan.max_keywords == 5
 
-    # max_keywords out of bounds
+    # max_keywords below minimum raises ValidationError
     data["max_keywords"] = 0
     with pytest.raises(ValidationError):
         ResearchPlan(**data)
 
+    # max_keywords above 5 is silently clamped to 5 (not raised)
     data["max_keywords"] = 100
-    with pytest.raises(ValidationError):
-        ResearchPlan(**data)
+    plan_clamped = ResearchPlan(**data)
+    assert plan_clamped.max_keywords == 5
 
 
 @pytest.mark.unit
@@ -119,7 +120,7 @@ def test_market_state_flow():
         "seed_keyword": "organic soap",
         "objectives": ["find keywords"],
         "requested_modules": ["keyword_discovery"],
-        "max_keywords": 10
+        "max_keywords": 5
     }
     state = MarketState(
         research_plan=ResearchPlan(**plan_data),
