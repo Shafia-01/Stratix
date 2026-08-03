@@ -259,10 +259,6 @@ async def event_generator(request: StreamRequest):
     if request.run_id:
         run_id = request.run_id
         config = {"configurable": {"thread_id": run_id}}
-        # Mark the run as no longer awaiting human input in persisted state.
-        # This keeps state consistent even if Command(resume=...) is the
-        # primary mechanism LangGraph uses to resume from the interrupt.
-        graph.update_state(config, {"awaiting_human": False})
         # In LangGraph 1.x the correct way to resume from an interrupt() call
         # is to pass Command(resume=<value>) as the input.  Passing None causes
         # astream_events to exit immediately without running any node, so no
@@ -460,8 +456,10 @@ async def event_generator(request: StreamRequest):
                     LAST_YIELDED_CHECKPOINTS[run_id] = checkpoint_id
                     status = values.get("status", "completed")
                     metadata = values.get("execution_metadata", {})
+                    strategy_report = values.get("strategy_report")
+                    confidence_scores = values.get("confidence_scores")
                     try:
-                        yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata})}\n\n"
+                        yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata, 'strategy_report': strategy_report, 'confidence_scores': confidence_scores}, default=str)}\n\n"
                     except (GeneratorExit, RuntimeError):
                         return
         except Exception as e:

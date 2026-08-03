@@ -15,9 +15,13 @@ GEMINI_MODEL_CHAIN = [
     # ── Gemini Flash Lite (high-throughput, rate-limit relief) ──
     "gemini-3.1-flash-lite",   # Gemini 3.1 Flash Lite  | text-out
     "gemini-3.5-flash-lite",   # Gemini 3.5 Flash Lite  | text-out
+    # ── Gemini 2.x and 1.x Stable (widely available) ──
+    "gemini-2.0-flash",        # Gemini 2.0 Flash       | text-out
+    "gemini-1.5-flash",        # Gemini 1.5 Flash       | text-out
     # ── Gemini Pro (highest quality – slower, use when Flash fails) ──
     "gemini-3.1-pro",          # Gemini 3.1 Pro         | text-out
     "gemini-2.5-pro",          # Gemini 2.5 Pro         | text-out
+    "gemini-1.5-pro",          # Gemini 1.5 Pro         | text-out
     # ── Legacy / restricted (last-resort – may 404 for new API keys) ──
     "gemini-2.5-flash",        # Gemini 2.5 Flash       | text-out (restricted)
     "gemini-2.5-flash-lite",   # Gemini 2.5 Flash Lite  | text-out (restricted)

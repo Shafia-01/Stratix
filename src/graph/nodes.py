@@ -114,6 +114,19 @@ def planner_node(state: AgentState) -> AgentState:
             plan = ResearchPlan(**edited_plan)
             logger.info("planner_node: using human-edited plan")
             metadata["planner_retries"] = retries + 1
+            # If the human feedback also has approved=True, skip the interrupt
+            # so route_after_plan sends directly to research_agent_node
+            approved = (state.get("human_feedback") or {}).get("approved", False)
+            if approved:
+                return {
+                    **state,
+                    "research_plan": plan.model_dump(mode="json"),
+                    "status": "in_progress",
+                    "awaiting_human": False,
+                    "execution_metadata": metadata,
+                    "human_feedback": {"approved": True},  # Keep approved so route_after_plan routes to research
+                }
+            # edited_plan without approval → interrupt again for review
             return {
                 **state,
                 "research_plan": plan.model_dump(mode="json"),
@@ -198,19 +211,20 @@ RESEARCH_SYSTEM_PROMPT = """
 You are the Research Agent for Keylytics, an AI-powered SEO intelligence platform.
 
 You have access to exactly these 5 tools:
-- keyword_research     — ALWAYS call this FIRST. Use the seed keyword and max_keywords from the plan.
-- serp_analysis        — Call if "serp_analysis" is in requested_modules.
-- competitor_gap       — Call if "competitor_gap" is in requested_modules.
-- trend_forecast       — Call with the keyword LIST from keyword_research results.
-- topic_cluster        — Call with the keyword LIST from keyword_research results.
+- keyword_research     — ALWAYS call this FIRST. Use the seed keyword and max_keywords from the plan. Call only if "keyword_discovery" is in requested_modules (it should always be).
+- serp_analysis        — Call only if "serp_analysis" is in requested_modules.
+- competitor_gap       — Call only if "competitor_gap" is in requested_modules.
+- trend_forecast       — Call only if "trend_forecasting" is in requested_modules. Use with the keyword LIST from keyword_research results.
+- topic_cluster        — Call only if "topic_clustering" is in requested_modules. Use with the keyword LIST from keyword_research results.
 
 Rules:
 1. Always call keyword_research first — other tools depend on its output.
 2. Extract the keyword list from keyword_research before calling trend_forecast or topic_cluster.
-3. If a tool returns {{"error": ...}}, log it in your reasoning and continue — do not stop.
-4. After all requested tools have been called, stop and summarise what you collected.
-5. Be efficient — call each tool exactly once unless a retry is clearly needed.
-6. Do NOT call any tool not listed above.
+3. Call ONLY the tools that correspond to the modules listed in requested_modules of the current research plan. Do NOT call any tool for a module that is not in requested_modules.
+4. If a tool returns {{"error": ...}}, log it in your reasoning and continue — do not stop.
+5. After all requested tools have been called, stop and summarise what you collected.
+6. Be efficient — call each tool exactly once unless a retry is clearly needed.
+7. Do NOT call any tool not listed above.
 
 Current research plan:
 {research_plan}
@@ -809,10 +823,18 @@ def persist_node(state: AgentState) -> AgentState:
 # ROUTING FUNCTIONS
 # ---------------------------------------------------------------------------
 def route_after_plan(state: AgentState) -> str:
-    """Route based on human feedback after planner_node interrupt."""
+    """Route based on human feedback after planner_node interrupt.
+
+    Priority:
+    1. approved=True → always go to research (even if edited_plan is present)
+    2. edited_plan only → loop back through planner to validate (max 2 retries)
+    3. Otherwise → end (rejected/cancelled)
+    """
     feedback = state.get("human_feedback") or {}
+    # approved takes absolute priority — if the human approved (with or without edits), proceed
     if feedback.get("approved"):
         return "research_agent_node"
+    # edited_plan without explicit approval → re-validate via planner (capped at 2 retries)
     if feedback.get("edited_plan"):
         meta = state.get("execution_metadata") or {}
         if meta.get("planner_retries", 0) < 2:

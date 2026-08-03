@@ -13,11 +13,50 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+from datetime import datetime, timezone
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+
+def _ensure_run_saved_to_db(run_id: str, report: dict, confidence: dict):
+    """Fallback: ensure the ResearchRunLog row is marked completed with the report data.
+    Called from the 'done' stage as a safety net in case persist_node had issues."""
+    if not run_id:
+        return
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        engine = connect_db()
+        with Session(engine) as session:
+            row = session.query(ResearchRunLog).filter(
+                ResearchRunLog.run_id == run_id
+            ).first()
+            if not row:
+                # Create a new row if missing
+                row = ResearchRunLog(
+                    run_id=run_id,
+                    seed_keyword=report.get("seed_keyword", "unknown"),
+                    triggered_by="manual",
+                )
+                session.add(row)
+            # Only update if not already completed
+            if row.status != "completed":
+                row.status = "completed"
+                row.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                if report:
+                    row.strategy_report = json.dumps(report, default=str)
+                if confidence:
+                    row.confidence_scores = json.dumps(confidence)
+                session.commit()
+                logger.info(f"_ensure_run_saved_to_db: saved run {run_id} to ResearchRunLog")
+            else:
+                logger.info(f"_ensure_run_saved_to_db: run {run_id} already completed in DB")
+    except Exception as e:
+        logger.error(f"_ensure_run_saved_to_db: failed for run_id={run_id}: {e}", exc_info=True)
 
 
 def _get_headers() -> dict:
@@ -71,6 +110,7 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
     checkpoint_data = None
     completed = False
     execution_metadata = None
+    strategy_report_from_event = None
 
     if placeholders is None:
         placeholders = {}
@@ -133,6 +173,13 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
             elif event == "completed":
                 completed = True
                 execution_metadata = data.get("execution_metadata")
+                # Capture report data from the completed event (persist_node results)
+                completed_strategy_report = data.get("strategy_report")
+                completed_confidence_scores = data.get("confidence_scores")
+                if completed_strategy_report:
+                    strategy_report_from_event = completed_strategy_report
+                if completed_confidence_scores:
+                    confidence_scores = completed_confidence_scores
             elif event == "error":
                 raw_msg = str(data.get('message', 'Unknown error')).strip('\'"')
                 st.error(f" Pipeline error: {raw_msg}")
@@ -214,7 +261,8 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
         "confidence_scores": confidence_scores,
         "critic_feedback": critic_feedback,
         "errors": errors,
-        "execution_metadata": execution_metadata
+        "execution_metadata": execution_metadata,
+        "strategy_report": strategy_report_from_event,
     }
 
 
@@ -358,6 +406,11 @@ def render_agent_mode():
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
                 st.session_state.agent_execution_metadata = result.get("execution_metadata")
+                # Save report data from the completed event if available
+                if result.get("strategy_report"):
+                    st.session_state.agent_strategy_report = result.get("strategy_report")
+                if result.get("confidence_scores"):
+                    st.session_state.agent_confidence = result.get("confidence_scores")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -463,6 +516,10 @@ def render_agent_mode():
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
                 st.session_state.agent_execution_metadata = result.get("execution_metadata")
+                if result.get("strategy_report"):
+                    st.session_state.agent_strategy_report = result.get("strategy_report")
+                if result.get("confidence_scores"):
+                    st.session_state.agent_confidence = result.get("confidence_scores")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -579,6 +636,11 @@ def render_agent_mode():
             if result.get("completed"):
                 st.session_state.agent_stage = "done"
                 st.session_state.agent_execution_metadata = result.get("execution_metadata")
+                # Save report from the completed event so the done page has data
+                if result.get("strategy_report"):
+                    st.session_state.agent_strategy_report = result.get("strategy_report")
+                if result.get("confidence_scores"):
+                    st.session_state.agent_confidence = result.get("confidence_scores")
                 st.rerun()
             else:
                 st.error(" Failed to complete agent run.")
@@ -610,6 +672,10 @@ def render_agent_mode():
             elif result.get("completed"):
                 st.session_state.agent_stage = "done"
                 st.session_state.agent_execution_metadata = result.get("execution_metadata")
+                if result.get("strategy_report"):
+                    st.session_state.agent_strategy_report = result.get("strategy_report")
+                if result.get("confidence_scores"):
+                    st.session_state.agent_confidence = result.get("confidence_scores")
                 st.rerun()
             else:
                 st.error(" Failed to resume agent execution.")
@@ -625,27 +691,39 @@ def render_agent_mode():
     # ── STAGE: Done ────────────────────────────────────────────────────────
     elif stage == "done":
         report = st.session_state.agent_strategy_report or {}
+        run_id = st.session_state.agent_run_id
         st.balloons()
 
         metadata = st.session_state.get("agent_execution_metadata") or {}
+
+        # ── Fallback DB save: ensure run is marked completed even if persist_node had issues ──
+        _ensure_run_saved_to_db(run_id, report, st.session_state.get("agent_confidence") or {})
+
         if metadata.get("persist_had_errors"):
-            st.warning("⚠️ Warning: Intelligence report generated, but database persistence failed. Check system logs.")
+            st.warning("⚠️ Report generated. Some data may have had persistence issues — report is still saved.")
         else:
-            st.success(" Intelligence report successfully generated and persisted to the database.")
+            st.success("✅ Intelligence report successfully generated and saved to Executive Reports.")
 
         st.markdown("##### 📝 Final Strategy Report Overview")
         st.markdown(report.get("executive_summary", ""))
 
-        st.markdown("#####  Core Recommendations")
+        st.markdown("##### 🎯 Core Recommendations")
         for rec in report.get("recommendations", []):
             st.markdown(f"- {rec}")
 
         st.markdown("---")
-        if st.button("🔄 Start New Research", type="primary"):
-            st.session_state.agent_stage = "input"
-            st.session_state.agent_run_id = None
-            st.session_state.agent_research_plan = None
-            st.session_state.agent_strategy_report = None
-            st.session_state.agent_confidence = None
-            st.session_state.agent_execution_metadata = None
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📊 View Executive Report", type="primary", use_container_width=True):
+                st.session_state.current_page = "executive_reports"
+                st.rerun()
+        with col2:
+            if st.button("🔄 Start New Research", use_container_width=True):
+                st.session_state.agent_stage = "input"
+                st.session_state.agent_run_id = None
+                st.session_state.agent_research_plan = None
+                st.session_state.agent_strategy_report = None
+                st.session_state.agent_confidence = None
+                st.session_state.agent_execution_metadata = None
+                st.session_state.current_page = "agent_mode"
+                st.rerun()
