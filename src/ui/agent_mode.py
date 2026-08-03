@@ -404,9 +404,10 @@ def render_agent_mode():
         # Max keywords — locked at 5 per platform policy
         max_keywords_input = st.slider(
             "Max Keywords:",
-            min_value=5,
+            min_value=1,
             max_value=5,
-            value=5
+            value=5,
+            disabled=True
         )
 
         col1, col2 = st.columns(2)
