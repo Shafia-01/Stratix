@@ -8,22 +8,25 @@ logger = get_logger(__name__)
 # All models suitable for this project's text-generation tasks.
 # NOT included: TTS, image-gen, video-gen, audio, live-API, embeddings,
 #               robotics, Antigravity/Deep Research agent models.
+# NOTE: gemini-2.5-flash / gemini-2.5-flash-lite return 404 for new API keys;
+#       kept at the end so they don't block the status check.
 GEMINI_MODELS = [
     # ── Gemini Flash (primary workhorses – low latency, strong reasoning) ──
-    "gemini-2.5-flash",       # Gemini 2.5 Flash       | text-out
     "gemini-3.5-flash",       # Gemini 3.5 Flash       | text-out
     "gemini-3.1-flash-lite",  # Gemini 3.1 Flash Lite  | text-out
     "gemini-3-flash-preview", # Gemini 3 Flash         | text-out
-    "gemini-2.5-flash-lite",  # Gemini 2.5 Flash Lite  | text-out
     # ── Gemini Pro (highest quality – slower, use when Flash fails) ──
-    "gemini-2.5-pro",         # Gemini 2.5 Pro         | text-out
     "gemini-3.1-pro",         # Gemini 3.1 Pro         | text-out
+    "gemini-2.5-pro",         # Gemini 2.5 Pro         | text-out
     # ── Gemini 2.x (older generation – stable last-resort) ──
     "gemini-2.0-flash",       # Gemini 2 Flash         | text-out
     "gemini-2.0-flash-lite",  # Gemini 2 Flash Lite    | text-out
     # ── Gemma 4 (text-only – no tool/function calling) ──
     "gemma-4-31b-it",         # Gemma 4 31B            | other
     "gemma-4-26b-it",         # Gemma 4 26B            | other
+    # ── Legacy / restricted (last-resort – may 404 for new API keys) ──
+    "gemini-2.5-flash",       # Gemini 2.5 Flash       | text-out (restricted)
+    "gemini-2.5-flash-lite",  # Gemini 2.5 Flash Lite  | text-out (restricted)
 ]
 
 def check_api_status():

@@ -2,20 +2,25 @@ import os
 from google import genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+# Text-out models ordered: best/fastest first, stable fallbacks last.
+# Source: Gemini API model list (updated 2026-08).
+# Excluded: TTS, image-gen, video-gen, live-API, embeddings, robotics, agent-only models.
+# NOTE: gemini-2.5-flash / gemini-2.5-flash-lite are NOT available to new users (404);
+#       kept at the end as last-resort fallbacks in case access is granted later.
 GEMINI_MODEL_CHAIN = [
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash-lite",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash",
-    "gemini-2.5-pro",
-    "gemini-3.1-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    # ── Gemini Flash (primary workhorses – best latency / quality balance) ──
+    "gemini-3.5-flash",        # Gemini 3.5 Flash       | text-out
+    "gemini-3.6-flash",        # Gemini 3.6 Flash       | text-out
+    "gemini-3-flash",          # Gemini 3 Flash         | text-out
+    # ── Gemini Flash Lite (high-throughput, rate-limit relief) ──
+    "gemini-3.1-flash-lite",   # Gemini 3.1 Flash Lite  | text-out
+    "gemini-3.5-flash-lite",   # Gemini 3.5 Flash Lite  | text-out
+    # ── Gemini Pro (highest quality – slower, use when Flash fails) ──
+    "gemini-3.1-pro",          # Gemini 3.1 Pro         | text-out
+    "gemini-2.5-pro",          # Gemini 2.5 Pro         | text-out
+    # ── Legacy / restricted (last-resort – may 404 for new API keys) ──
+    "gemini-2.5-flash",        # Gemini 2.5 Flash       | text-out (restricted)
+    "gemini-2.5-flash-lite",   # Gemini 2.5 Flash Lite  | text-out (restricted)
 ]
 
 class ChatGoogleGenerativeAIWithEmptyCheck(ChatGoogleGenerativeAI):
