@@ -57,7 +57,7 @@ def add_recent_search(keyword):
     st.session_state.search_history = history[-10:]
 
 def initialize_metrics_from_history():
-    """Seed global metrics from recent database history (runs once per session)."""
+    """Seed global metrics and search history from recent database history (runs once per session)."""
     if st.session_state.get("metrics_initialized"):
         return
     try:
@@ -69,7 +69,18 @@ def initialize_metrics_from_history():
                 st.session_state.opportunities = int((history_df['score'] > 7.0).sum())
             if 'volume' in history_df.columns:
                 st.session_state.avg_volume = float(history_df['volume'].mean())
+            if 'seed' in history_df.columns:
+                # Get unique seed keywords in reverse-chronological order of appearance
+                unique_seeds = []
+                for seed in history_df['seed']:
+                    if seed and seed != 'Unknown':
+                        seed_clean = str(seed).strip()
+                        if seed_clean and seed_clean not in unique_seeds:
+                            unique_seeds.append(seed_clean)
+                # Keep top 10 unique searches, and reverse so that they display correctly with most recent first/last in sidebar
+                st.session_state.search_history = list(reversed(unique_seeds[:10]))
     except Exception:
         logger.exception("Metrics initialization skipped")
     finally:
         st.session_state.metrics_initialized = True
+

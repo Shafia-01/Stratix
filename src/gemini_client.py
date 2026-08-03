@@ -8,36 +8,19 @@ logger = get_logger(__name__)
 load_dotenv()
 from src.llm_config import get_generation_llm, GEMINI_MODEL_CHAIN
 
+from src.llm_config import get_chat_llm
+
 def safe_gemini_call(prompt, temperature=0.7):
-    """Try multiple Gemini models until one succeeds."""
-    client = get_generation_llm()
-    for model_name in GEMINI_MODEL_CHAIN:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config={"temperature": temperature}
-            )
-            if response.text:
-                logger.info(f"Using {model_name}")
-                return response.text.strip()
-            else:
-                logger.warning(f"No text response from {model_name}")
-                continue
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "quota" in error_str.lower():
-                logger.warning(f"{model_name} quota hit. Trying next model...")
-                time.sleep(random.uniform(2, 5))
-                continue
-            elif "safety" in error_str.lower() or "blocked" in error_str.lower():
-                logger.warning(f"{model_name} blocked by safety filters. Trying next model...")
-                time.sleep(random.uniform(1, 3))
-                continue
-            else:
-                logger.error(f"{model_name} failed: {error_str}", exc_info=True)
-                continue
-    logger.error("All Gemini models failed or quota exceeded.")
+    """Try multiple Gemini models using ChatGoogleGenerativeAI with fallback chain and request timeout."""
+    try:
+        llm = get_chat_llm(temperature=temperature)
+        response = llm.invoke(prompt)
+        if response and response.content:
+            text = str(response.content).strip()
+            logger.info("safe_gemini_call completed successfully using get_chat_llm chain")
+            return text
+    except Exception as e:
+        logger.error(f"safe_gemini_call failed via get_chat_llm chain: {e}", exc_info=True)
     return None
 
 from src.prompt_safety import build_safe_prompt, cap_text_length
