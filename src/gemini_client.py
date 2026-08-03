@@ -1,12 +1,9 @@
-import time
-import random
 from dotenv import load_dotenv
 from src.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 load_dotenv()
-from src.llm_config import get_generation_llm, GEMINI_MODEL_CHAIN
 
 from src.llm_config import get_chat_llm
 
