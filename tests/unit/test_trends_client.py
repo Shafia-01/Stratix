@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 import pandas as pd
 from src.trends_client import get_trend_history
