@@ -264,6 +264,7 @@ async def event_generator(request: StreamRequest):
         # astream_events to exit immediately without running any node, so no
         # 'checkpoint' or 'completed' SSE event is ever emitted.
         resume_value = request.human_feedback if request.human_feedback else {}
+        graph.update_state(config, {"human_feedback": resume_value, "awaiting_human": False})
         initial_state = Command(resume=resume_value)
     else:
         run_id = str(uuid.uuid4())
