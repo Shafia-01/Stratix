@@ -253,6 +253,21 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
     except Exception as e:
         st.error(f" Connection to backend streaming failed: {e}")
 
+    # If the stream ended without an explicit 'completed' event but run_id is known,
+    # make one follow-up GET /agent/status/{run_id} to check if the run actually
+    # completed — a transient SSE timing gap shouldn't strand the user.
+    if not completed and run_id and not checkpoint_reached:
+        try:
+            status_resp = _get(f"/agent/status/{run_id}")
+            if not status_resp.get("error") and status_resp.get("status") in ("completed", "failed"):
+                completed = True
+                chk = status_resp.get("checkpoint_data") or {}
+                if chk.get("execution_metadata"):
+                    execution_metadata = chk["execution_metadata"]
+                logger.info(f"run_and_display_stream: recovered completed status via follow-up GET for run_id={run_id}")
+        except Exception as follow_up_err:
+            logger.warning(f"run_and_display_stream: follow-up status check failed for run_id={run_id}: {follow_up_err}")
+
     return {
         "run_id": run_id,
         "checkpoint": checkpoint_reached,

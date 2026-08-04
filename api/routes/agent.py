@@ -357,15 +357,19 @@ async def event_generator(request: StreamRequest):
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
     finally:
         try:
-            # Bounded retry loop with increasing backoff to allow MixedSqliteSaver's asyncio.to_thread writes to flush
-            backoffs = [0.05, 0.1, 0.2, 0.3, 0.3]
+            # Condition-based poll: wait up to 5s total for persist_node's asyncio.to_thread
+            # writes to flush, exiting as soon as the graph is interrupted or completed.
+            _poll_interval = 0.1
+            _poll_deadline = 5.0
+            _elapsed = 0.0
             current_state = None
             values = {}
             is_interrupted = False
             resolved = False
 
-            for sleep_time in backoffs:
-                await asyncio.sleep(sleep_time)
+            while _elapsed < _poll_deadline:
+                await asyncio.sleep(_poll_interval)
+                _elapsed += _poll_interval
                 current_state = graph.get_state(config)
                 values = current_state.values if current_state else {}
                 is_interrupted = bool(current_state and current_state.next)
@@ -376,7 +380,7 @@ async def event_generator(request: StreamRequest):
                     break
 
             if not resolved:
-                logger.warning(f"Retry budget exhausted without state resolution for run_id={run_id}")
+                logger.warning(f"State poll deadline exceeded without resolution for run_id={run_id}")
 
             # ── Determine if graph paused at an interrupt or truly completed ──
             if is_interrupted:

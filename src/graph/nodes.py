@@ -794,7 +794,14 @@ def persist_node(state: AgentState) -> AgentState:
             if confidence:
                 row.confidence_scores = json.dumps(confidence)
             session.commit()
-            logger.info(f"persist_node: saved run completion for run_id={run_id} to ResearchRunLog")
+            # Verify the commit was durable before returning so the graph's
+            # status: completed is only reported after the row is confirmed flushed
+            session.refresh(row)
+            if row.status != "completed":
+                logger.error(f"persist_node: status verification failed for run_id={run_id} — row.status={row.status}")
+                errors.append(f"[persist:db] status verification failed: row.status={row.status}")
+            else:
+                logger.info(f"persist_node: saved run completion for run_id={run_id} to ResearchRunLog (verified)")
     except Exception as e:
         logger.error(f"persist_node: failed to save run completion to ResearchRunLog: {e}", exc_info=True)
 

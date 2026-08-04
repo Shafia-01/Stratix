@@ -161,7 +161,7 @@ def test_event_generator_retry_exhausted(mock_compiled_graph):
     assert len(events) >= 2
     assert '"status": "in_progress"' in events[-1]
     mock_logger.warning.assert_called()
-    assert any("Retry budget exhausted" in arg[0] for arg, _ in mock_logger.warning.call_args_list)
+    assert any("State poll deadline exceeded" in arg[0] for arg, _ in mock_logger.warning.call_args_list)
 
 
 def test_event_generator_disconnect_in_finally(mock_compiled_graph):
