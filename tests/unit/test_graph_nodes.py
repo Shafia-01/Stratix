@@ -689,3 +689,30 @@ def test_quality_gate_regression_routing(base_state):
     assert next_node2 == "critic_node"
 
 
+def test_retry_target_tools(base_state):
+    """Test that retry_target_tools is correctly set in quality_gate_node and handled in research_agent_node."""
+    state = dict(base_state)
+    state["research_plan"] = {
+        "seed_keyword": "test",
+        "requested_modules": ["keyword_discovery", "trend_forecasting"],
+        "max_keywords": 5
+    }
+    state["confidence_scores"] = {
+        "keyword_research": 0.1,
+        "trend_forecast": 0.1
+    }
+    state["intelligence_findings"] = {
+        "keyword_findings": [{"keyword": "test", "volume": 100}] * 5
+    }
+    state["execution_metadata"] = {"gate_retries": 0}
+    state["collected_data"] = {
+        "keyword_research": {"items": [{"keyword": "test", "volume": 100}]},
+        "trend_forecast": {"error": "rate limit"}
+    }
+
+    # Gate fails (trend_forecast is low confidence / error, and keyword_research is low confidence)
+    res = quality_gate_node(state)
+    assert set(res["retry_target_tools"]) == {"keyword_research", "trend_forecast"}
+
+
+

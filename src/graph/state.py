@@ -63,3 +63,7 @@ class AgentState(TypedDict, total=False):
     errors: List[str]
     # Non-fatal errors accumulated across nodes; graph continues unless
     # keyword_research completely fails
+
+    retry_target_tools: Optional[List[str]]
+    # Tools that need to be re-run during retry
+

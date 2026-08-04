@@ -256,6 +256,9 @@ def research_agent_node(state: AgentState) -> AgentState:
     allowed_tool_names = {"keyword_research"} | {
         MODULE_TOOL_MAP[m] for m in requested_modules if m in MODULE_TOOL_MAP
     }
+    retry_targets = state.get("retry_target_tools")
+    if retry_targets is not None:
+        allowed_tool_names = {t for t in allowed_tool_names if t in retry_targets}
     EXCLUDED_TOOLS = {"intent_classifier"}
     tools = [
         t for t in get_langchain_tools()
@@ -266,15 +269,25 @@ def research_agent_node(state: AgentState) -> AgentState:
     # Build the ReAct sub-agent
     agent = create_react_agent(llm, tools)
 
+    collected_keys = list((state.get("collected_data") or {}).keys())
+    valid_tools = [k for k in collected_keys if k not in allowed_tool_names]
+
+    human_content = (
+        f"Execute the research plan for seed keyword: '{plan.get('seed_keyword', '')}'. "
+        f"Modules to run: {plan.get('requested_modules', [])}. "
+        f"Max keywords: {plan.get('max_keywords', 10)}."
+    )
+    if retry_targets is not None:
+        human_content += (
+            f"\nThis is a retry pass. "
+            f"Tools with already valid data: {valid_tools}. "
+            f"Tools that need to be (re)run: {list(allowed_tool_names)}. "
+            f"Do NOT attempt calls outside this restricted list."
+        )
+
     agent_messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(
-            content=(
-                f"Execute the research plan for seed keyword: '{plan.get('seed_keyword', '')}'. "
-                f"Modules to run: {plan.get('requested_modules', [])}. "
-                f"Max keywords: {plan.get('max_keywords', 10)}."
-            )
-        ),
+        HumanMessage(content=human_content),
     ]
 
     errors = list(state.get("errors", []))
@@ -308,13 +321,20 @@ def research_agent_node(state: AgentState) -> AgentState:
                     collected_data[tool_name] = {"raw": str(msg.content)}
 
         metadata = state.get("execution_metadata") or {}
-        metadata["tool_call_counts"] = tool_counts
+        prior_tool_counts = metadata.get("tool_call_counts") or {}
+        merged_tool_counts = dict(prior_tool_counts)
+        for t_name, count in tool_counts.items():
+            merged_tool_counts[t_name] = merged_tool_counts.get(t_name, 0) + count
+        metadata["tool_call_counts"] = merged_tool_counts
 
         logger.info(f"research_agent_node: collected data from {list(collected_data.keys())}")
 
+        merged_collected_data = dict(state.get("collected_data") or {})
+        merged_collected_data.update(collected_data)
+
         return {
             **state,
-            "collected_data": collected_data,
+            "collected_data": merged_collected_data,
             "status": "in_progress",
             "awaiting_human": False,
             # Clear stale human_feedback
@@ -322,18 +342,22 @@ def research_agent_node(state: AgentState) -> AgentState:
             "messages": [*prior_messages, *result_messages],
             "execution_metadata": metadata,
             "errors": errors,
+            "retry_target_tools": None,
         }
 
     except Exception as e:
         logger.error(f"research_agent_node: agent execution failed — {e}", exc_info=True)
         errors.append(f"research_agent_node failed: {str(e)}")
+        merged_collected_data = dict(state.get("collected_data") or {})
+        merged_collected_data.update(collected_data)
         return {
             **state,
-            "collected_data": collected_data,
+            "collected_data": merged_collected_data,
             "status": "failed",
             # Clear stale human_feedback even on failure
             "human_feedback": None,
             "errors": errors,
+            "retry_target_tools": None,
         }
 
 
@@ -967,12 +991,30 @@ def critic_node(state: AgentState) -> AgentState:
         }
 
     metadata["critic_retries"] = critic_retries + 1
+    verdict = critic_feedback.get("overall_verdict", "PASS")
+    retry_target_tools = None
+    if verdict == "REVISE" and (critic_retries + 1) <= 1:
+        plan = state.get("research_plan") or {}
+        requested = plan.get("requested_modules", [])
+        requested_tools = {"keyword_research"} | {
+            MODULE_TOOL_MAP[m] for m in requested if m in MODULE_TOOL_MAP
+        }
+        collected = state.get("collected_data") or {}
+        retry_target_tools = []
+        for t in requested_tools:
+            score = confidence.get(t, 0.0)
+            err_dict = collected.get(t)
+            is_error = isinstance(err_dict, dict) and "error" in err_dict
+            is_missing = t not in collected
+            if is_missing or is_error or score < 0.4:
+                retry_target_tools.append(t)
 
     return {
         **state,
         "critic_feedback": critic_feedback,
         "execution_metadata": metadata,
         "human_feedback": None,
+        "retry_target_tools": retry_target_tools,
     }
 
 
@@ -1054,6 +1096,23 @@ def quality_gate_node(state: AgentState) -> AgentState:
     if not gate_passed:
         gate_retries += 1
 
+    retry_target_tools = None
+    if not gate_passed and gate_retries <= 1:
+        plan = state.get("research_plan") or {}
+        requested = plan.get("requested_modules", [])
+        requested_tools = {"keyword_research"} | {
+            MODULE_TOOL_MAP[m] for m in requested if m in MODULE_TOOL_MAP
+        }
+        collected = state.get("collected_data") or {}
+        retry_target_tools = []
+        for t in requested_tools:
+            score = confidence.get(t, 0.0)
+            err_dict = collected.get(t)
+            is_error = isinstance(err_dict, dict) and "error" in err_dict
+            is_missing = t not in collected
+            if is_missing or is_error or score < 0.4:
+                retry_target_tools.append(t)
+
     return {
         **state,
         "execution_metadata": {
@@ -1063,6 +1122,7 @@ def quality_gate_node(state: AgentState) -> AgentState:
         },
         "errors": errors + (data_limitations if not gate_passed else []),
         "human_feedback": None,
+        "retry_target_tools": retry_target_tools,
     }
 
 
