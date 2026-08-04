@@ -231,6 +231,14 @@ Current research plan:
 """
 
 
+MODULE_TOOL_MAP = {
+    "keyword_discovery": "keyword_research",
+    "competitor_gap": "competitor_gap",
+    "serp_analysis": "serp_analysis",
+    "trend_forecasting": "trend_forecast",
+    "topic_clustering": "topic_cluster",
+}
+
 def research_agent_node(state: AgentState) -> AgentState:
     """
     ReAct agent that calls all tools specified in the research_plan.
@@ -244,10 +252,15 @@ def research_agent_node(state: AgentState) -> AgentState:
         research_plan=json.dumps(plan, indent=2)
     )
 
-    # Exclude intent_classifier — it is not a research module and should not
-    # appear in the agent's tool loop or the confidence scores panel.
+    requested_modules = plan.get("requested_modules", [])
+    allowed_tool_names = {"keyword_research"} | {
+        MODULE_TOOL_MAP[m] for m in requested_modules if m in MODULE_TOOL_MAP
+    }
     EXCLUDED_TOOLS = {"intent_classifier"}
-    tools = [t for t in get_langchain_tools() if t.name not in EXCLUDED_TOOLS]
+    tools = [
+        t for t in get_langchain_tools()
+        if t.name not in EXCLUDED_TOOLS and t.name in allowed_tool_names
+    ]
     llm = _get_llm()
 
     # Build the ReAct sub-agent
