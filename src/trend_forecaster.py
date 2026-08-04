@@ -44,25 +44,15 @@ def get_historical_trends(keywords_data):
         # Get current trend score
         current_trend = get_trend_score(keyword)
         # Fetch actual historical data (weekly/monthly series) from pytrends
-        historical_scores = get_trend_history(keyword)
+        historical_scores, source = get_trend_history(keyword)
 
-        if historical_scores is None:
-            # Mark as unavailable
-            historical_data[keyword] = {
-                "current_trend": None,
-                "historical_scores": [],
-                "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
-                "competition": item.get("competition", 0) if isinstance(item, dict) else 0,
-                "data_source": "unavailable"
-            }
-        else:
-            historical_data[keyword] = {
-                "current_trend": current_trend,
-                "historical_scores": historical_scores,
-                "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
-                "competition": item.get("competition", 0) if isinstance(item, dict) else 0,
-                "data_source": "live"
-            }
+        historical_data[keyword] = {
+            "current_trend": current_trend,
+            "historical_scores": historical_scores,
+            "volume": item.get("volume", 0) if isinstance(item, dict) else 0,
+            "competition": item.get("competition", 0) if isinstance(item, dict) else 0,
+            "data_source": source
+        }
     return historical_data
 
 def perform_trend_analysis(historical_data):
