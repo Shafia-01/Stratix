@@ -13,7 +13,35 @@ load_dotenv()
 
 # Suppress pandas FutureWarning for pytrends
 warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends")
-pytrends = TrendReq(hl='en-US', tz=360)
+
+# ---------------------------------------------------------------------------
+# FIX: pytrends must NEVER be constructed at module import time.
+#
+# TrendReq.__init__() calls GetGoogleCookie(), which makes a live HTTP request
+# to https://trends.google.com the instant the object is created. Because this
+# module is imported transitively by almost the entire agent pipeline
+# (graph/nodes.py -> tools/langchain_adapters.py -> tools/registry.py ->
+#  tools/trend_forecast_tool.py -> trend_forecaster.py -> trends_client.py),
+# a DNS failure or network hiccup at import time used to raise an exception
+# that propagated all the way up and crashed EVERY caller of
+# src.graph.graph.get_compiled_graph() (Agent Mode, Executive Reports,
+# Analytics, the FastAPI lifespan warm-up, and the monitoring Scheduler),
+# even though none of those callers actually needed trend data.
+#
+# The client is now built lazily on first real use inside
+# _fetch_pytrends_dataframe(), and reset to None on failure so the next
+# attempt gets a fresh session instead of a possibly-broken one.
+# ---------------------------------------------------------------------------
+_pytrends_instance = None
+
+
+def _get_pytrends_client():
+    """Lazily construct the pytrends client on first real use."""
+    global _pytrends_instance
+    if _pytrends_instance is None:
+        _pytrends_instance = TrendReq(hl='en-US', tz=360)
+    return _pytrends_instance
+
 
 import requests
 from src.exceptions import KeylyticsAPIError
@@ -37,18 +65,21 @@ def _fetch_pytrends_dataframe(keyword):
     Fetch raw interest over time DataFrame from Google Trends using pytrends.
     Reuses the retry and backoff logic. Returns None on failure.
     """
-    global pytrends
+    global _pytrends_instance
     try:
-        pytrends.build_payload([keyword], timeframe="today 12-m")
-        data = pytrends.interest_over_time()
+        client = _get_pytrends_client()
+        client.build_payload([keyword], timeframe="today 12-m")
+        data = client.interest_over_time()
         if not data.empty:
             return data
     except Exception as e:
         error_msg = str(e)
         logger.warning(f"Trend error for '{keyword}': {error_msg}")
 
-        # Reset pytrends connection to avoid stale sessions
-        pytrends = TrendReq(hl='en-US', tz=360)
+        # Reset pytrends connection to avoid stale sessions.
+        # Do NOT reconstruct here — just drop the reference so the next
+        # call to _get_pytrends_client() builds a fresh one lazily.
+        _pytrends_instance = None
 
         # PyTrends-specific 429/rate-limit detection logic
         if "429" in error_msg or "rate" in error_msg.lower():

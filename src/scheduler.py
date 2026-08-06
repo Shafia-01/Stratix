@@ -36,6 +36,33 @@ except ImportError:
                    "Run: pip install apscheduler>=3.10.0")
 
 
+# ---------------------------------------------------------------------------
+# FIX: module-level job entry point.
+#
+# APScheduler's SQLAlchemyJobStore persists jobs by pickling whatever `func`
+# points to. Previously `add_job(func=self._run_research_job, ...)` passed a
+# BOUND method, which forces pickle to serialize the entire KeylyticsScheduler
+# instance — including its `self._scheduler` attribute, which IS the live
+# BackgroundScheduler. Schedulers cannot be pickled, so every call to
+# add_monitoring_job() raised "Schedulers cannot be serialized" and no
+# monitoring job was ever actually created (this is the error shown in the
+# Intelligence Monitor screenshot).
+#
+# This module-level function has no bound `self`, so it pickles cleanly.
+# It builds a throwaway KeylyticsScheduler at execution time (not at
+# scheduling time) purely to reuse `_run_research_job`'s logic.
+# ---------------------------------------------------------------------------
+def _run_scheduled_research_job(seed_keyword: str, job_id: str) -> None:
+    """Module-level entry point invoked by APScheduler for each scheduled run.
+
+    MUST remain a plain module-level function — do not replace with a bound
+    method reference in add_job(), or job persistence will break again.
+    """
+    from src.graph.graph import get_compiled_graph
+    scheduler = KeylyticsScheduler(graph_fn=get_compiled_graph)
+    scheduler._run_research_job(seed_keyword, job_id)
+
+
 class KeylyticsScheduler:
     """
     Background scheduler for recurring keyword research jobs.
@@ -109,8 +136,14 @@ class KeylyticsScheduler:
 
         job_id = f"monitor_{uuid.uuid4().hex[:12]}"
 
+        # FIX: func must be the module-level _run_scheduled_research_job,
+        # NOT self._run_research_job. A bound method reference here makes
+        # APScheduler try to pickle `self` (including the live
+        # BackgroundScheduler instance) for the SQLAlchemyJobStore, which
+        # always fails with "Schedulers cannot be serialized" and silently
+        # prevents the job from ever being persisted/scheduled.
         self._scheduler.add_job(
-            func=self._run_research_job,
+            func=_run_scheduled_research_job,
             trigger="interval",
             hours=interval_hours,
             id=job_id,
@@ -223,6 +256,9 @@ class KeylyticsScheduler:
         """
         Execute the full LangGraph pipeline in auto-approve mode.
         HITL is bypassed: human_feedback is pre-populated with {"approved": True}.
+
+        NOTE: this stays a bound method — it is only ever CALLED (not passed
+        by reference into add_job), so it never needs to be pickled.
         """
         run_id = str(uuid.uuid4())
         logger.info(f"Scheduler job started: job_id={job_id}, seed={seed_keyword!r}, run_id={run_id}")
