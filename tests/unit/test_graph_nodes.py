@@ -888,4 +888,76 @@ def test_retry_target_tools(base_state):
     assert set(res["retry_target_tools"]) == {"keyword_research", "trend_forecast"}
 
 
+def test_quality_gate_low_keyword_count_borderline_confidence(base_state):
+    """
+    Test scenario: 2 keywords returned for max_keywords=5 with nonzero volume -> confidence=0.4 (fill ratio 2/5 * 1.0 = 0.4).
+    keyword_count=2 (< 3).
+    Assert gate_passed is False AND 'keyword_research' is present in retry_target_tools.
+    """
+    state = dict(base_state)
+    state["research_plan"] = {
+        "seed_keyword": "test",
+        "requested_modules": ["keyword_discovery", "serp_analysis"],
+        "max_keywords": 5
+    }
+    state["confidence_scores"] = {
+        "keyword_research": 0.4,
+        "serp_analysis": 1.0
+    }
+    state["intelligence_findings"] = {
+        "keyword_findings": [{"keyword": "kw1", "volume": 100}, {"keyword": "kw2", "volume": 200}]
+    }
+    state["execution_metadata"] = {"gate_retries": 0}
+    state["collected_data"] = {
+        "keyword_research": {"items": [{"keyword": "kw1", "volume": 100}, {"keyword": "kw2", "volume": 200}]},
+        "serp_analysis": {"organic_results": [1, 2, 3, 4, 5], "paa_questions": {"q1": "a", "q2": "b"}}
+    }
+
+    res = quality_gate_node(state)
+    summary = res["execution_metadata"]["data_quality_summary"]
+
+    assert summary["gate_passed"] is False
+    assert res["retry_target_tools"] is not None
+    assert "keyword_research" in res["retry_target_tools"]
+    assert len(res["retry_target_tools"]) > 0
+
+
+def test_critic_node_low_keyword_count_includes_keyword_research(base_state, mock_llm):
+    """
+    Test that critic_node includes keyword_research in retry_target_tools when REVISE is returned with kw_count < 3.
+    """
+    state = dict(base_state)
+    state["research_plan"] = {
+        "seed_keyword": "test",
+        "requested_modules": ["keyword_discovery"],
+        "max_keywords": 5
+    }
+    state["intelligence_findings"] = {
+        "seed_keyword": "test",
+        "keyword_findings": [{"keyword": "kw1"}, {"keyword": "kw2"}]
+    }
+    state["confidence_scores"] = {"keyword_research": 0.4}
+    state["collected_data"] = {
+        "keyword_research": {"items": [{"keyword": "kw1"}, {"keyword": "kw2"}]}
+    }
+    state["execution_metadata"] = {"critic_retries": 0}
+
+    mock_response = MagicMock()
+    mock_response.content = json.dumps({
+        "weak_claims": [],
+        "data_gaps": [],
+        "issues": ["Low keyword count"],
+        "overall_verdict": "REVISE",
+        "critic_score": 0.3
+    })
+    mock_llm.invoke.return_value = mock_response
+
+    res = critic_node(state)
+
+    assert res["critic_feedback"]["overall_verdict"] == "REVISE"
+    assert res["retry_target_tools"] is not None
+    assert "keyword_research" in res["retry_target_tools"]
+
+
+
 

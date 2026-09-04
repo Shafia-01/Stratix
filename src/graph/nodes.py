@@ -36,6 +36,7 @@ from src.schemas import (
     ResearchPlan,
     StrategyReport,
 )
+from src.llm_config import get_chat_llm
 from src.tools.langchain_adapters import get_langchain_tools
 
 logger = get_logger(__name__)
@@ -43,8 +44,6 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Shared LLM instance
 # ---------------------------------------------------------------------------
-from src.llm_config import get_chat_llm
-
 def _get_llm() -> ChatGoogleGenerativeAI:
     return get_chat_llm(temperature=0.3)
 
@@ -972,6 +971,41 @@ Return ONLY valid JSON — no markdown, no explanation:
 }
 """
 
+def _compute_retry_targets(
+    plan: Dict[str, Any],
+    confidence: Dict[str, float],
+    collected: Dict[str, Any],
+    extra_failing_tools: Optional[List[str]] = None,
+) -> List[str]:
+    """
+    Computes list of tool names that need to be re-run on retry.
+    Includes tools with missing results, tool errors, confidence < 0.4,
+    or explicitly provided extra failing tools (e.g. keyword_research when keyword_count < 3).
+
+    Ensures that retry_target_tools is never empty when a retry is triggered.
+    If no specific tool condition matches, defaults to ['keyword_research'].
+    """
+    requested = plan.get("requested_modules", [])
+    requested_tools = {"keyword_research"} | {
+        MODULE_TOOL_MAP[m] for m in requested if m in MODULE_TOOL_MAP
+    }
+    extras = set(extra_failing_tools or [])
+
+    retry_targets: List[str] = []
+    for t in requested_tools:
+        score = confidence.get(t, 0.0)
+        err_dict = collected.get(t)
+        is_error = isinstance(err_dict, dict) and "error" in err_dict
+        is_missing = t not in collected
+        if is_missing or is_error or score < 0.4 or t in extras:
+            retry_targets.append(t)
+
+    if not retry_targets:
+        retry_targets = ["keyword_research"]
+
+    return retry_targets
+
+
 def critic_node(state: AgentState) -> AgentState:
     """
     Adversarial critic that reviews intelligence findings before strategy synthesis.
@@ -1032,19 +1066,14 @@ def critic_node(state: AgentState) -> AgentState:
     retry_target_tools = None
     if verdict == "REVISE" and (critic_retries + 1) <= 1:
         plan = state.get("research_plan") or {}
-        requested = plan.get("requested_modules", [])
-        requested_tools = {"keyword_research"} | {
-            MODULE_TOOL_MAP[m] for m in requested if m in MODULE_TOOL_MAP
-        }
         collected = state.get("collected_data") or {}
-        retry_target_tools = []
-        for t in requested_tools:
-            score = confidence.get(t, 0.0)
-            err_dict = collected.get(t)
-            is_error = isinstance(err_dict, dict) and "error" in err_dict
-            is_missing = t not in collected
-            if is_missing or is_error or score < 0.4:
-                retry_target_tools.append(t)
+        kw_count = len(findings.get("keyword_findings", []))
+        extra_failing: List[str] = []
+        if kw_count < QUALITY_GATE_MIN_KEYWORDS:
+            extra_failing.append("keyword_research")
+        retry_target_tools = _compute_retry_targets(
+            plan, confidence, collected, extra_failing_tools=extra_failing
+        )
 
     return {
         **state,
@@ -1136,19 +1165,13 @@ def quality_gate_node(state: AgentState) -> AgentState:
     retry_target_tools = None
     if not gate_passed and gate_retries <= 1:
         plan = state.get("research_plan") or {}
-        requested = plan.get("requested_modules", [])
-        requested_tools = {"keyword_research"} | {
-            MODULE_TOOL_MAP[m] for m in requested if m in MODULE_TOOL_MAP
-        }
         collected = state.get("collected_data") or {}
-        retry_target_tools = []
-        for t in requested_tools:
-            score = confidence.get(t, 0.0)
-            err_dict = collected.get(t)
-            is_error = isinstance(err_dict, dict) and "error" in err_dict
-            is_missing = t not in collected
-            if is_missing or is_error or score < 0.4:
-                retry_target_tools.append(t)
+        extra_failing: List[str] = []
+        if keyword_count < QUALITY_GATE_MIN_KEYWORDS or keyword_confidence < QUALITY_GATE_MIN_KEYWORD_CONFIDENCE:
+            extra_failing.append("keyword_research")
+        retry_target_tools = _compute_retry_targets(
+            plan, confidence, collected, extra_failing_tools=extra_failing
+        )
 
     return {
         **state,
