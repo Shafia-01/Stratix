@@ -3,28 +3,34 @@ Builds and returns the compiled Keylytics LangGraph research pipeline.
 
 Graph topology:
   START
-    └─► planner_node
-          └─► [INTERRUPT: plan_approval]
-                ├─► research_agent_node  (approved)
-                │     └─► aggregator_node
-                │             └─► strategy_agent_node
-                │                   └─► [INTERRUPT: report_approval]
-                │                         ├─► persist_node  (approved)
-                │                         │     └─► END
-                │                         └─► strategy_agent_node  (regenerate, max 1)
-                ├─► planner_node  (edited plan, max 2 retries)
-                └─► END  (rejected)
+    └─► plan_generation_node
+          └─► plan_approval_node
+                └─► [INTERRUPT: plan_approval]
+                      ├─► research_agent_node  (approved)
+                      │     └─► aggregator_node
+                      │             └─► quality_gate_node
+                      │                   └─► critic_node
+                      │                         └─► strategy_generation_node
+                      │                               └─► strategy_approval_node
+                      │                                     └─► [INTERRUPT: report_approval]
+                      │                                           ├─► persist_node  (approved)
+                      │                                           │     └─► END
+                      │                                           └─► strategy_generation_node  (regenerate, max 1)
+                      ├─► plan_generation_node  (edited plan, max 2 retries)
+                      └─► END  (rejected)
 """
 from langgraph.graph import StateGraph, START, END
 
 from src.graph.state import AgentState
 from src.graph.nodes import (
-    planner_node,
+    plan_generation_node,
+    plan_approval_node,
     research_agent_node,
     aggregator_node,
     quality_gate_node,
     critic_node,
-    strategy_agent_node,
+    strategy_generation_node,
+    strategy_approval_node,
     persist_node,
     route_after_plan,
     route_after_research,
@@ -44,23 +50,26 @@ def build_graph():
     builder = StateGraph(AgentState)
 
     # ── Nodes ──────────────────────────────────────────────────────────────
-    builder.add_node("planner_node", planner_node)
+    builder.add_node("plan_generation_node", plan_generation_node)
+    builder.add_node("plan_approval_node", plan_approval_node)
     builder.add_node("research_agent_node", research_agent_node)
     builder.add_node("aggregator_node", aggregator_node)
     builder.add_node("quality_gate_node", quality_gate_node)
     builder.add_node("critic_node", critic_node)
-    builder.add_node("strategy_agent_node", strategy_agent_node)
+    builder.add_node("strategy_generation_node", strategy_generation_node)
+    builder.add_node("strategy_approval_node", strategy_approval_node)
     builder.add_node("persist_node", persist_node)
 
     # ── Edges ──────────────────────────────────────────────────────────────
-    builder.add_edge(START, "planner_node")
+    builder.add_edge(START, "plan_generation_node")
+    builder.add_edge("plan_generation_node", "plan_approval_node")
 
     builder.add_conditional_edges(
-        "planner_node",
+        "plan_approval_node",
         route_after_plan,
         {
             "research_agent_node": "research_agent_node",
-            "planner_node": "planner_node",
+            "plan_generation_node": "plan_generation_node",
             "__end__": END,
         },
     )
@@ -90,15 +99,17 @@ def build_graph():
         route_after_critic,
         {
             "research_agent_node": "research_agent_node",
-            "strategy_agent_node": "strategy_agent_node",
+            "strategy_generation_node": "strategy_generation_node",
         },
     )
 
+    builder.add_edge("strategy_generation_node", "strategy_approval_node")
+
     builder.add_conditional_edges(
-        "strategy_agent_node",
+        "strategy_approval_node",
         route_after_strategy,
         {
-            "strategy_agent_node": "strategy_agent_node",
+            "strategy_generation_node": "strategy_generation_node",
             "persist_node": "persist_node",
         },
     )

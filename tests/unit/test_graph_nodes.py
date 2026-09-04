@@ -29,11 +29,13 @@ import pytest
 from src.graph.nodes import (
     aggregator_node,
     persist_node,
-    planner_node,
+    plan_generation_node,
+    plan_approval_node,
     route_after_plan,
     route_after_research,
     route_after_strategy,
-    strategy_agent_node,
+    strategy_generation_node,
+    strategy_approval_node,
     critic_node,
     quality_gate_node,
     route_after_critic,
@@ -82,13 +84,13 @@ def mock_llm():
 
 
 # ---------------------------------------------------------------------------
-# Test 1: planner_node — valid LLM response
+# Test 1: plan_generation_node — valid LLM response
 # ---------------------------------------------------------------------------
 
-def test_planner_node_valid_llm_response(base_state, mock_llm):
+def test_plan_generation_node_valid_llm_response(base_state, mock_llm):
     """
     Given a valid JSON plan from the LLM,
-    planner_node should populate research_plan and set status="awaiting_approval".
+    plan_generation_node should populate research_plan and set status="in_progress".
     """
     valid_plan = {
         "seed_keyword": "content marketing",
@@ -100,47 +102,126 @@ def test_planner_node_valid_llm_response(base_state, mock_llm):
     mock_response.content = json.dumps(valid_plan)
     mock_llm.invoke.return_value = mock_response
 
-    with patch("src.graph.nodes.interrupt", return_value=None):
-        result = planner_node(base_state)
+    result = plan_generation_node(base_state)
 
     assert result["research_plan"]["seed_keyword"] == "content marketing"
     assert result["research_plan"]["max_keywords"] == 5
     assert "keyword_discovery" in result["research_plan"]["requested_modules"]
-    # After interrupt() resumes, the node returns "in_progress" (not "awaiting_approval").
-    # In real LangGraph execution, interrupt() suspends before reaching the return; the
-    # return is only hit post-resume, so "in_progress" / awaiting_human=False is correct.
     assert result["status"] == "in_progress"
     assert result["awaiting_human"] is False
     assert result["execution_metadata"]["planner_retries"] == 1
+    mock_llm.invoke.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
-# Test 2: planner_node — malformed JSON falls back to default plan
+# Test 2: plan_generation_node — malformed JSON falls back to default plan
 # ---------------------------------------------------------------------------
 
-def test_planner_node_malformed_json_uses_fallback(base_state, mock_llm):
+def test_plan_generation_node_malformed_json_uses_fallback(base_state, mock_llm):
     """
     When the LLM returns invalid JSON,
-    planner_node should use the fallback plan (keyword_discovery + competitor_gap + serp_analysis).
+    plan_generation_node should use the fallback plan.
     """
     mock_response = MagicMock()
     mock_response.content = "This is definitely not JSON {broken"
     mock_llm.invoke.return_value = mock_response
 
-    with patch("src.graph.nodes.interrupt", return_value=None):
-        result = planner_node(base_state)
+    result = plan_generation_node(base_state)
 
     plan = result["research_plan"]
     assert plan["seed_keyword"] == "content marketing"
     assert "keyword_discovery" in plan["requested_modules"]
-    assert plan["max_keywords"] == 5  # fallback now uses 5
-    # After interrupt() resumes, the node returns "in_progress".
+    assert plan["max_keywords"] == 5
     assert result["status"] == "in_progress"
-    # response should be None → messages should include the fallback SystemMessage
     messages = result["messages"]
-    # Last message should be a SystemMessage (fallback)
     from langchain_core.messages import SystemMessage
     assert any(isinstance(m, SystemMessage) for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# Test 2b: plan_approval_node — calls interrupt and makes NO LLM call
+# ---------------------------------------------------------------------------
+
+def test_plan_approval_node_no_llm_call(base_state, mock_llm):
+    """
+    plan_approval_node must call interrupt() and MUST NOT invoke the LLM.
+    """
+    state = dict(base_state)
+    state["research_plan"] = {
+        "seed_keyword": "content marketing",
+        "objectives": ["Identify high-volume keywords"],
+        "requested_modules": ["keyword_discovery"],
+        "max_keywords": 5,
+    }
+
+    with patch("src.graph.nodes.interrupt", return_value={"approved": True}) as mock_interrupt:
+        result = plan_approval_node(state)
+
+    mock_interrupt.assert_called_once()
+    mock_llm.invoke.assert_not_called()
+    assert result["human_feedback"] == {"approved": True}
+
+
+def test_plan_approval_node_edited_plan_calls_interrupt(base_state, mock_llm):
+    """
+    When state has human_feedback={"edited_plan": {...}} (no approved key),
+    plan_approval_node must call interrupt() to pause for approval of the edited plan.
+    """
+    state = dict(base_state)
+    state["research_plan"] = {
+        "seed_keyword": "content marketing",
+        "objectives": ["Identify high-volume keywords"],
+        "requested_modules": ["keyword_discovery"],
+        "max_keywords": 5,
+    }
+    state["human_feedback"] = {
+        "edited_plan": {
+            "seed_keyword": "content marketing",
+            "objectives": ["Edited objective"],
+            "requested_modules": ["keyword_discovery"],
+            "max_keywords": 5,
+        }
+    }
+
+    with patch("src.graph.nodes.interrupt", return_value=None) as mock_interrupt:
+        plan_approval_node(state)
+
+    mock_interrupt.assert_called_once()
+    mock_llm.invoke.assert_not_called()
+
+
+def test_full_resume_cycle_single_llm_call(base_state, mock_llm):
+    """
+    Simulates a full resume cycle:
+    1. Call plan_generation_node once (LLM invoked once).
+    2. Call plan_approval_node for initial interrupt (interrupt mocked to return None).
+    3. Call plan_approval_node again for resume (interrupt mocked to return {"approved": True}).
+    Asserts the LLM was invoked exactly ONCE across the entire cycle.
+    """
+    valid_plan = {
+        "seed_keyword": "content marketing",
+        "objectives": ["Identify high-volume keywords"],
+        "requested_modules": ["keyword_discovery"],
+        "max_keywords": 5,
+    }
+    mock_response = MagicMock()
+    mock_response.content = json.dumps(valid_plan)
+    mock_llm.invoke.return_value = mock_response
+
+    # Step 1: generation
+    state = plan_generation_node(base_state)
+    assert mock_llm.invoke.call_count == 1
+
+    # Step 2: approval (initial interrupt pass)
+    with patch("src.graph.nodes.interrupt", return_value=None):
+        state_pass1 = plan_approval_node(state)
+
+    # Step 3: approval (resume pass with approved)
+    with patch("src.graph.nodes.interrupt", return_value={"approved": True}):
+        state_pass2 = plan_approval_node(state_pass1)
+
+    assert state_pass2["human_feedback"] == {"approved": True}
+    assert mock_llm.invoke.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -240,13 +321,13 @@ def test_aggregator_node_missing_keyword_research(base_state):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: strategy_agent_node — valid LLM response
+# Test 5: strategy_generation_node — valid LLM response
 # ---------------------------------------------------------------------------
 
-def test_strategy_agent_node_valid_response(base_state, mock_llm):
+def test_strategy_generation_node_valid_response(base_state, mock_llm):
     """
     When the LLM returns a valid strategy report JSON,
-    strategy_agent_node should populate strategy_report with schema-validated data.
+    strategy_generation_node should populate strategy_report with schema-validated data.
     """
     state = dict(base_state)
     state["intelligence_findings"] = {
@@ -282,15 +363,34 @@ def test_strategy_agent_node_valid_response(base_state, mock_llm):
     mock_response.content = json.dumps(valid_report)
     mock_llm.invoke.return_value = mock_response
 
-    with patch("src.graph.nodes.interrupt", return_value=None):
-        result = strategy_agent_node(state)
+    result = strategy_generation_node(state)
 
     assert result["strategy_report"]["seed_keyword"] == "content marketing"
     assert len(result["strategy_report"]["recommendations"]) == 5
-    # After interrupt() resumes, the node returns "in_progress" (not "awaiting_approval").
     assert result["status"] == "in_progress"
     assert result["awaiting_human"] is False
     assert result["execution_metadata"]["strategy_retries"] == 1
+    mock_llm.invoke.assert_called_once()
+
+
+def test_strategy_approval_node_no_llm_call(base_state, mock_llm):
+    """
+    strategy_approval_node must call interrupt() and MUST NOT invoke the LLM.
+    """
+    state = dict(base_state)
+    state["strategy_report"] = {
+        "seed_keyword": "content marketing",
+        "executive_summary": "Summary",
+        "top_opportunities": [],
+        "recommendations": ["Rec 1"],
+    }
+
+    with patch("src.graph.nodes.interrupt", return_value={"approved": True}) as mock_interrupt:
+        result = strategy_approval_node(state)
+
+    mock_interrupt.assert_called_once()
+    mock_llm.invoke.assert_not_called()
+    assert result["human_feedback"] == {"approved": True}
 
 
 # ---------------------------------------------------------------------------
@@ -392,12 +492,12 @@ def test_route_after_plan_rejected():
 
 
 def test_route_after_plan_edited_within_retry_limit():
-    """edited_plan with retries < 2 should route back to planner_node."""
+    """edited_plan with retries < 2 should route back to plan_generation_node."""
     state: AgentState = {
         "human_feedback": {"edited_plan": {"seed_keyword": "test"}},
         "execution_metadata": {"planner_retries": 1},
     }
-    assert route_after_plan(state) == "planner_node"
+    assert route_after_plan(state) == "plan_generation_node"
 
 
 def test_route_after_plan_edited_at_retry_limit():
@@ -457,12 +557,12 @@ def test_route_after_strategy_approved():
 
 
 def test_route_after_strategy_regenerate_within_limit():
-    """regenerate=True with retries < 1 should route back to strategy_agent_node."""
+    """regenerate=True with retries < 1 should route back to strategy_generation_node."""
     state: AgentState = {
         "human_feedback": {"regenerate": True},
         "execution_metadata": {"strategy_retries": 0},
     }
-    assert route_after_strategy(state) == "strategy_agent_node"
+    assert route_after_strategy(state) == "strategy_generation_node"
 
 
 def test_route_after_strategy_regenerate_at_limit():
@@ -543,12 +643,12 @@ def test_critic_node_llm_failure_defaults_to_pass(base_state, mock_llm):
 
 
 def test_route_after_critic_pass():
-    """overall_verdict=PASS should route to strategy_agent_node."""
+    """overall_verdict=PASS should route to strategy_generation_node."""
     state: AgentState = {
         "critic_feedback": {"overall_verdict": "PASS"},
         "execution_metadata": {"critic_retries": 1}
     }
-    assert route_after_critic(state) == "strategy_agent_node"
+    assert route_after_critic(state) == "strategy_generation_node"
 
 
 def test_route_after_critic_revise_with_retries():
@@ -561,12 +661,12 @@ def test_route_after_critic_revise_with_retries():
 
 
 def test_route_after_critic_revise_max_retries():
-    """overall_verdict=REVISE and retries > 1 should route to strategy_agent_node."""
+    """overall_verdict=REVISE and retries > 1 should route to strategy_generation_node."""
     state: AgentState = {
         "critic_feedback": {"overall_verdict": "REVISE"},
         "execution_metadata": {"critic_retries": 2}
     }
-    assert route_after_critic(state) == "strategy_agent_node"
+    assert route_after_critic(state) == "strategy_generation_node"
 
 
 # ---------------------------------------------------------------------------

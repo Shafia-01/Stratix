@@ -10,11 +10,12 @@ The Stratix execution pipeline is built as a stateful LangGraph `StateGraph`. Th
 
 ```mermaid
 graph TD
-    START([START]) --> planner_node[planner_node]
+    START([START]) --> plan_generation_node[plan_generation_node]
+    plan_generation_node --> plan_approval_node[plan_approval_node]
     
-    planner_node -->|route_after_plan| HITL1{{"Interrupt: plan_approval"}}
+    plan_approval_node -->|route_after_plan| HITL1{{"Interrupt: plan_approval"}}
     HITL1 -->|Approved| research_agent_node[research_agent_node]
-    HITL1 -->|Edited & planner_retries <= 2| planner_node
+    HITL1 -->|Edited & planner_retries <= 2| plan_generation_node
     HITL1 -->|Rejected / Cancelled| END([END])
     
     research_agent_node -->|route_after_research| aggregator_node[aggregator_node]
@@ -26,10 +27,11 @@ graph TD
     quality_gate_node -->|route_after_quality_gate: Passed / Max Retries| critic_node[critic_node]
     
     critic_node -->|route_after_critic: REVISE & critic_retries <= 1| research_agent_node
-    critic_node -->|route_after_critic: PASS / Max Retries| strategy_agent_node[strategy_agent_node]
+    critic_node -->|route_after_critic: PASS / Max Retries| strategy_generation_node[strategy_generation_node]
     
-    strategy_agent_node -->|route_after_strategy| HITL2{{"Interrupt: report_approval"}}
-    HITL2 -->|Regenerate & strategy_retries <= 1| strategy_agent_node
+    strategy_generation_node --> strategy_approval_node[strategy_approval_node]
+    strategy_approval_node -->|route_after_strategy| HITL2{{"Interrupt: report_approval"}}
+    HITL2 -->|Regenerate & strategy_retries <= 1| strategy_generation_node
     HITL2 -->|Approved / Max Retries| persist_node[persist_node]
     
     persist_node --> END([END])
@@ -41,7 +43,7 @@ graph TD
 ### Cyclical Routing & Retries
 The pipeline implements two operational retry loops designed to resolve execution issues dynamically:
 1. **Research Rectification Cycle**: Triggers when the deterministic `quality_gate_node` fails or when the adversarial `critic_node` returns a `REVISE` verdict. If retry budgets allow, execution flows back to `research_agent_node` to gather additional or cleaner data.
-2. **Strategy Refinement Cycle**: Pauses at the `report_approval` interrupt. If a human operator requests modifications, the graph routes back to `strategy_agent_node` to regenerate the report incorporating operator notes.
+2. **Strategy Refinement Cycle**: Pauses at the `report_approval` interrupt. If a human operator requests modifications, the graph routes back to `strategy_generation_node` to regenerate the report incorporating operator notes.
 
 ### Retry Budgets
 Retry limits are strictly checked inside routing helpers to prevent infinite execution loops:
@@ -54,12 +56,19 @@ Retry limits are strictly checked inside routing helpers to prevent infinite exe
 
 ## 2. Node Contracts
 
-### `planner_node`
+### `plan_generation_node`
 * **Node Type**: LLM-Based Structured Generator.
 * **Inputs Read**: `seed_keyword` (str), `human_feedback` (dict|None), `execution_metadata` (dict).
-* **Outputs Written**: `research_plan` (dict), `status` (`"awaiting_approval"`), `awaiting_human` (`true`), `execution_metadata` (dict), `messages` (list).
+* **Outputs Written**: `research_plan` (dict), `status` (`"in_progress"`), `awaiting_human` (`false`), `execution_metadata` (dict), `messages` (list).
+* **Interrupts**: No.
+* **Failure Behavior**: On LLM or parsing errors, it logs the exception, falls back to a default `ResearchPlan` (containing `keyword_discovery`, `competitor_gap`, and `serp_analysis` modules, with `max_keywords=5`), and passes the plan to `plan_approval_node`.
+
+### `plan_approval_node`
+* **Node Type**: Deterministic Approval Checkpoint.
+* **Inputs Read**: `research_plan` (dict), `execution_metadata` (dict).
+* **Outputs Written**: `human_feedback` (dict|None), `status` (`"in_progress"`), `awaiting_human` (`false`), `execution_metadata` (dict).
 * **Interrupts**: Yes. Calls the `interrupt()` function containing `research_plan` details.
-* **Failure Behavior**: On LLM or parsing errors, it logs the exception, falls back to a default `ResearchPlan` (containing `keyword_discovery`, `competitor_gap`, and `serp_analysis` modules, with `max_keywords=10`), and pauses at the interrupt.
+* **Failure Behavior**: Pauses execution at the checkpoint until human feedback is provided via resume.
 
 ### `research_agent_node`
 * **Node Type**: ReAct Agent (built using `create_react_agent`).
@@ -89,12 +98,19 @@ Retry limits are strictly checked inside routing helpers to prevent infinite exe
 * **Interrupts**: No.
 * **Failure Behavior**: Logs the exception and falls back to a default `PASS` verdict with a neutral `critic_score` of `0.5` to avoid blocking pipeline progression.
 
-### `strategy_agent_node`
+### `strategy_generation_node`
 * **Node Type**: LLM-Based Structured Generator.
 * **Inputs Read**: `intelligence_findings` (dict), `confidence_scores` (dict), `research_plan` (dict), `human_feedback` (dict|None), `execution_metadata` (dict), `errors` (list), `critic_feedback` (dict).
-* **Outputs Written**: `strategy_report` (dict), `status` (`"awaiting_approval"`), `awaiting_human` (`true`), `execution_metadata` (dict), `errors` (list), `messages` (list).
+* **Outputs Written**: `strategy_report` (dict), `status` (`"in_progress"`), `awaiting_human` (`false`), `execution_metadata` (dict), `errors` (list), `messages` (list).
+* **Interrupts**: No.
+* **Failure Behavior**: Logs parsing errors, falls back to a default strategy draft, and passes the report to `strategy_approval_node`.
+
+### `strategy_approval_node`
+* **Node Type**: Deterministic Approval Checkpoint.
+* **Inputs Read**: `strategy_report` (dict), `confidence_scores` (dict), `execution_metadata` (dict), `errors` (list).
+* **Outputs Written**: `human_feedback` (dict|None), `status` (`"in_progress"`), `awaiting_human` (`false`), `execution_metadata` (dict), `errors` (list).
 * **Interrupts**: Yes. Calls the `interrupt()` function containing `strategy_report`, `confidence_scores`, and `warnings`.
-* **Failure Behavior**: Logs parsing errors, falls back to a default strategy draft, and proceeds to pause at the interrupt boundary.
+* **Failure Behavior**: Pauses execution at the checkpoint until human feedback is provided via resume.
 
 ### `persist_node`
 * **Node Type**: Deterministic Python Function.
@@ -111,20 +127,20 @@ The state schema is defined in [state.py](../src/graph/state.py) as a `TypedDict
 
 | Field Name | Type | Initializing Node | Downstream Reading Nodes |
 | :--- | :--- | :--- | :--- |
-| `seed_keyword` | `str` | Entry point config | `planner_node`, `aggregator_node` |
-| `research_plan` | `Optional[Dict[str, Any]]` | `planner_node` | `research_agent_node`, `aggregator_node`, `strategy_agent_node`, `persist_node` |
+| `seed_keyword` | `str` | Entry point config | `plan_generation_node`, `aggregator_node` |
+| `research_plan` | `Optional[Dict[str, Any]]` | `plan_generation_node` | `plan_approval_node`, `research_agent_node`, `aggregator_node`, `strategy_generation_node`, `persist_node` |
 | `collected_data` | `Optional[Dict[str, Any]]` | `research_agent_node` | `aggregator_node`, `persist_node` (evals) |
-| `intelligence_findings`| `Optional[Dict[str, Any]]`| `aggregator_node` | `critic_node`, `strategy_agent_node`, `persist_node` |
-| `confidence_scores` | `Optional[Dict[str, float]]` | `aggregator_node` | `quality_gate_node`, `critic_node`, `strategy_agent_node`, `persist_node` (evals) |
-| `strategy_report` | `Optional[Dict[str, Any]]` | `strategy_agent_node` | `persist_node`, `route_after_strategy` |
-| `human_feedback` | `Optional[Dict[str, Any]]` | External Client | `planner_node`, `strategy_agent_node`, routing helpers |
-| `awaiting_human` | `bool` | `planner_node` | Shared across checkpoints |
-| `messages` | `Annotated[List[Any], add_messages]` | `planner_node` | `research_agent_node`, `strategy_agent_node` |
+| `intelligence_findings`| `Optional[Dict[str, Any]]`| `aggregator_node` | `critic_node`, `strategy_generation_node`, `persist_node` |
+| `confidence_scores` | `Optional[Dict[str, float]]` | `aggregator_node` | `quality_gate_node`, `critic_node`, `strategy_generation_node`, `strategy_approval_node`, `persist_node` (evals) |
+| `strategy_report` | `Optional[Dict[str, Any]]` | `strategy_generation_node` | `strategy_approval_node`, `persist_node`, `route_after_strategy` |
+| `human_feedback` | `Optional[Dict[str, Any]]` | External Client | `plan_generation_node`, `strategy_generation_node`, routing helpers |
+| `awaiting_human` | `bool` | Entry point config | Shared across checkpoints |
+| `messages` | `Annotated[List[Any], add_messages]` | `plan_generation_node` | `research_agent_node`, `strategy_generation_node` |
 | `execution_metadata` | `Optional[Dict[str, Any]]` | Entry point config | Read/updated by all nodes |
 | `status` | `str` | Entry point config | Read/updated by all nodes |
-| `critic_feedback` | `Optional[Dict[str, Any]]` | `critic_node` | `route_after_critic`, `strategy_agent_node`, `persist_node` |
+| `critic_feedback` | `Optional[Dict[str, Any]]` | `critic_node` | `route_after_critic`, `strategy_generation_node`, `persist_node` |
 | `critic_retries` | `int` | `critic_node` | `route_after_critic` |
-| `errors` | `List[str]` | `research_agent_node` | `aggregator_node`, `strategy_agent_node`, `persist_node` |
+| `errors` | `List[str]` | `research_agent_node` | `aggregator_node`, `strategy_generation_node`, `strategy_approval_node`, `persist_node` |
 
 ### Message Accumulation Reducer
 The `messages` field is decorated with the `add_messages` reducer. LangGraph uses this reducer to accumulate messages within the thread. Instead of replacing the list on every node write, `add_messages` appends new messages or updates existing ones matching unique IDs. This maintains the complete message history across agent iterations.

@@ -2,11 +2,13 @@
 LangGraph node functions for the Keylytics research pipeline.
 
 Node inventory:
-  planner_node         — LLM call; structured output → ResearchPlan
-  research_agent_node  — ReAct agent; executes all 6 tools
-  aggregator_node      — Deterministic; builds IntelligenceFindings + confidence scores
-  strategy_agent_node  — LLM call; structured output → StrategyReport
-  persist_node         — Deterministic; saves keywords to DB; finalises metadata + evals
+  plan_generation_node     — LLM call; structured output → ResearchPlan
+  plan_approval_node       — Deterministic; interrupt() checkpoint for human approval
+  research_agent_node      — ReAct agent; executes all 6 tools
+  aggregator_node          — Deterministic; builds IntelligenceFindings + confidence scores
+  strategy_generation_node — LLM call; structured output → StrategyReport
+  strategy_approval_node   — Deterministic; interrupt() checkpoint for human approval
+  persist_node             — Deterministic; saves keywords to DB; finalises metadata + evals
 
 Routing helpers (used in graph.py):
   route_after_plan
@@ -95,14 +97,15 @@ Return ONLY a JSON object with this exact structure — no markdown, no explanat
 """
 
 
-def planner_node(state: AgentState) -> AgentState:
+def plan_generation_node(state: AgentState) -> AgentState:
     """
-    Calls the LLM to produce a ResearchPlan from the seed keyword.
-    Interrupts after writing the plan so a human can approve or edit it.
+    Calls the LLM to produce a ResearchPlan from the seed keyword, or adopts
+    a human-edited plan if provided in state.
+    Does NOT interrupt — plan generation checkpoint commits immediately upon return.
     """
-    logger.info("planner_node: generating research plan")
+    logger.info("plan_generation_node: generating research plan")
     seed = state.get("seed_keyword", "")
-    metadata = state.get("execution_metadata") or {}
+    metadata = dict(state.get("execution_metadata") or {})
 
     # Detect re-plan (human edited the plan)
     retries = metadata.get("planner_retries", 0)
@@ -112,31 +115,17 @@ def planner_node(state: AgentState) -> AgentState:
         # Human provided an edited plan — validate and use it directly
         try:
             plan = ResearchPlan(**edited_plan)
-            logger.info("planner_node: using human-edited plan")
+            logger.info("plan_generation_node: using human-edited plan")
             metadata["planner_retries"] = retries + 1
-            # If the human feedback also has approved=True, skip the interrupt
-            # so route_after_plan sends directly to research_agent_node
-            approved = (state.get("human_feedback") or {}).get("approved", False)
-            if approved:
-                return {
-                    **state,
-                    "research_plan": plan.model_dump(mode="json"),
-                    "status": "in_progress",
-                    "awaiting_human": False,
-                    "execution_metadata": metadata,
-                    "human_feedback": {"approved": True},  # Keep approved so route_after_plan routes to research
-                }
-            # edited_plan without approval → interrupt again for review
             return {
                 **state,
                 "research_plan": plan.model_dump(mode="json"),
-                "status": "awaiting_approval",
-                "awaiting_human": True,
+                "status": "in_progress",
+                "awaiting_human": False,
                 "execution_metadata": metadata,
-                "human_feedback": None,  # Clear so we don't re-enter this branch
             }
         except Exception as e:
-            logger.warning(f"planner_node: invalid edited plan — {e}; replanning from LLM")
+            logger.warning(f"plan_generation_node: invalid edited plan — {e}; replanning from LLM")
 
     llm = _get_llm()
     messages = [
@@ -156,9 +145,9 @@ def planner_node(state: AgentState) -> AgentState:
                 raw = raw[4:]
         plan_dict = json.loads(raw.strip())
         plan = ResearchPlan(**plan_dict)
-        logger.info(f"planner_node: plan created — {plan.requested_modules}, max_keywords={plan.max_keywords}")
+        logger.info(f"plan_generation_node: plan created — {plan.requested_modules}, max_keywords={plan.max_keywords}")
     except Exception as e:
-        logger.error(f"planner_node: LLM call or parsing failed — {e}")
+        logger.error(f"plan_generation_node: LLM call or parsing failed — {e}")
         response = None
         # Fallback plan
         plan = ResearchPlan(
@@ -170,28 +159,9 @@ def planner_node(state: AgentState) -> AgentState:
 
     metadata["planner_retries"] = retries + 1
 
-    # ── INTERRUPT: human must approve before research runs ────────────────
-    # Capture the interrupt return value (equals what update_state injects)
-    human_input = interrupt({
-        "checkpoint": "plan_approval",
-        "research_plan": plan.model_dump(mode="json"),
-        "instructions": (
-            "Review the research plan. "
-            "Set human_feedback to: "
-            '{"approved": true} to proceed, '
-            '{"approved": true, "edited_plan": {...}} to modify, or '
-            '{"approved": false} to cancel.'
-        ),
-    })
-    if human_input:
-        logger.debug(f"planner_node: interrupt returned human_input={human_input!r}")
-
     return {
         **state,
         "research_plan": plan.model_dump(mode="json"),
-        # After the interrupt resumes, human_input carries the feedback.
-        # Store it in state so route_after_plan can read it.
-        "human_feedback": human_input if human_input else state.get("human_feedback"),
         "status": "in_progress",
         "awaiting_human": False,
         "execution_metadata": metadata,
@@ -201,6 +171,38 @@ def planner_node(state: AgentState) -> AgentState:
             HumanMessage(content=f"Plan seed keyword: {seed}"),
             *([response] if response is not None else [SystemMessage(content="Fallback plan used")]),
         ],
+    }
+
+
+def plan_approval_node(state: AgentState) -> AgentState:
+    """
+    Reads research_plan from state and interrupts so a human can approve or edit it.
+    Contains NO LLM call.
+    """
+    logger.info("plan_approval_node: requesting human approval for research plan")
+    plan_dict = state.get("research_plan") or {}
+    metadata = state.get("execution_metadata") or {}
+
+    human_input = interrupt({
+        "checkpoint": "plan_approval",
+        "research_plan": plan_dict,
+        "instructions": (
+            "Review the research plan. "
+            "Set human_feedback to: "
+            '{"approved": true} to proceed, '
+            '{"approved": true, "edited_plan": {...}} to modify, or '
+            '{"approved": false} to cancel.'
+        ),
+    })
+    if human_input:
+        logger.debug(f"plan_approval_node: interrupt returned human_input={human_input!r}")
+
+    return {
+        **state,
+        "human_feedback": human_input if human_input else state.get("human_feedback"),
+        "status": "in_progress",
+        "awaiting_human": False,
+        "execution_metadata": metadata,
     }
 
 
@@ -586,34 +588,20 @@ Return ONLY this JSON structure:
 """
 
 
-def strategy_agent_node(state: AgentState) -> AgentState:
+def strategy_generation_node(state: AgentState) -> AgentState:
     """
     LLM call to synthesise findings into a StrategyReport.
-    Interrupts after writing the report so a human can approve or request regeneration.
+    Does NOT interrupt — report generation checkpoint commits immediately upon return.
     """
-    logger.info("strategy_agent_node: synthesising strategy report")
+    logger.info("strategy_generation_node: synthesising strategy report")
     findings = state.get("intelligence_findings") or {}
     confidence = state.get("confidence_scores") or {}
     plan = state.get("research_plan") or {}
     human_feedback = state.get("human_feedback") or {}
-    metadata = state.get("execution_metadata") or {}
+    metadata = dict(state.get("execution_metadata") or {})
     errors = list(state.get("errors", []))
 
-    # Check regeneration retry limit
     strategy_retries = metadata.get("strategy_retries", 0)
-    if strategy_retries >= 1:
-        logger.warning("strategy_agent_node: max retries reached; using existing report")
-        max_retry_human_input = interrupt({
-            "checkpoint": "report_approval",
-            "note": "Maximum regeneration attempts reached. Approving current report.",
-            "strategy_report": state.get("strategy_report"),
-        })
-        return {
-            **state,
-            "human_feedback": max_retry_human_input if max_retry_human_input else state.get("human_feedback"),
-            "status": "in_progress",
-            "awaiting_human": False,
-        }
 
     llm = _get_llm()
 
@@ -654,7 +642,7 @@ def strategy_agent_node(state: AgentState) -> AgentState:
                 try:
                     validated_opps.append(KeywordFinding(**opp))
                 except Exception as opp_err:
-                    logger.warning(f"strategy_agent_node: skipping invalid top_opportunity — {opp_err}")
+                    logger.warning(f"strategy_generation_node: skipping invalid top_opportunity — {opp_err}")
 
         # Build IntelligenceFindings object for StrategyReport schema compliance
         findings_obj = (
@@ -681,11 +669,11 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         report_dict["seed_keyword"] = serialized["seed_keyword"]
         report_dict["executive_summary"] = serialized["executive_summary"]
         report_dict["recommendations"] = serialized["recommendations"]
-        logger.info("strategy_agent_node: report generated and schema-validated successfully")
+        logger.info("strategy_generation_node: report generated and schema-validated successfully")
 
     except Exception as e:
-        logger.error(f"strategy_agent_node: failed — {e}", exc_info=True)
-        errors.append(f"strategy_agent_node failed: {str(e)}")
+        logger.error(f"strategy_generation_node: failed — {e}", exc_info=True)
+        errors.append(f"strategy_generation_node failed: {str(e)}")
         report_dict = {
             "seed_keyword": plan.get("seed_keyword", ""),
             "executive_summary": "Strategy generation encountered an error. Manual review recommended.",
@@ -702,8 +690,33 @@ def strategy_agent_node(state: AgentState) -> AgentState:
 
     metadata["strategy_retries"] = strategy_retries + 1
 
-    # ── INTERRUPT: human must approve before persisting ───────────────────
-    # Capture the interrupt return value
+    return {
+        **state,
+        "strategy_report": report_dict,
+        "status": "in_progress",
+        "awaiting_human": False,
+        "execution_metadata": metadata,
+        "errors": errors,
+        "messages": [
+            *state.get("messages", []),
+            *messages,
+            # Use response if not None, else fall back to SystemMessage
+            *([response] if response is not None else [SystemMessage(content="Fallback report")]),
+        ],
+    }
+
+
+def strategy_approval_node(state: AgentState) -> AgentState:
+    """
+    Reads strategy_report from state and interrupts so a human can approve or request regeneration.
+    Contains NO LLM call.
+    """
+    logger.info("strategy_approval_node: requesting human approval for strategy report")
+    report_dict = state.get("strategy_report") or {}
+    confidence = state.get("confidence_scores") or {}
+    metadata = state.get("execution_metadata") or {}
+    errors = list(state.get("errors", []))
+
     human_input = interrupt({
         "checkpoint": "report_approval",
         "strategy_report": report_dict,
@@ -718,24 +731,16 @@ def strategy_agent_node(state: AgentState) -> AgentState:
         ),
     })
     if human_input:
-        logger.debug(f"strategy_agent_node: interrupt returned human_input={human_input!r}")
+        logger.debug(f"strategy_approval_node: interrupt returned human_input={human_input!r}")
 
     return {
         **state,
         "strategy_report": report_dict,
-        # After the interrupt resumes, human_input carries the feedback.
-        # Store it in state so route_after_strategy can read it.
         "human_feedback": human_input if human_input else state.get("human_feedback"),
         "status": "in_progress",
         "awaiting_human": False,
         "execution_metadata": metadata,
         "errors": errors,
-        "messages": [
-            *state.get("messages", []),
-            *messages,
-            # Use response if not None, else fall back to SystemMessage
-            *([response] if response is not None else [SystemMessage(content="Fallback report")]),
-        ],
     }
 
 
@@ -867,11 +872,11 @@ def persist_node(state: AgentState) -> AgentState:
 # ROUTING FUNCTIONS
 # ---------------------------------------------------------------------------
 def route_after_plan(state: AgentState) -> str:
-    """Route based on human feedback after planner_node interrupt.
+    """Route based on human feedback after plan_approval_node interrupt.
 
     Priority:
     1. approved=True → always go to research (even if edited_plan is present)
-    2. edited_plan only → loop back through planner to validate (max 2 retries)
+    2. edited_plan only → loop back through plan_generation_node to validate (max 2 retries)
     3. Otherwise → end (rejected/cancelled)
     """
     feedback = state.get("human_feedback") or {}
@@ -882,7 +887,7 @@ def route_after_plan(state: AgentState) -> str:
     if feedback.get("edited_plan"):
         meta = state.get("execution_metadata") or {}
         if meta.get("planner_retries", 0) < 2:
-            return "planner_node"
+            return "plan_generation_node"
     return "__end__"
 
 
@@ -901,12 +906,12 @@ def route_after_research(state: AgentState) -> str:
 
 
 def route_after_strategy(state: AgentState) -> str:
-    """Route based on human feedback after strategy_agent_node interrupt."""
+    """Route based on human feedback after strategy_approval_node interrupt."""
     feedback = state.get("human_feedback") or {}
     if feedback.get("regenerate"):
         meta = state.get("execution_metadata") or {}
         if meta.get("strategy_retries", 0) < 1:
-            return "strategy_agent_node"
+            return "strategy_generation_node"
     return "persist_node"
 
 
@@ -1035,7 +1040,7 @@ def route_after_critic(state: AgentState) -> str:
     if verdict == "REVISE" and critic_retries <= 1:
         logger.info("critic_node: REVISE verdict — routing back to research_agent_node")
         return "research_agent_node"
-    return "strategy_agent_node"
+    return "strategy_generation_node"
 
 
 # Configurable thresholds

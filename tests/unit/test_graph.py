@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from src.graph.nodes import (
-    planner_node,
+    plan_generation_node,
     aggregator_node,
     route_after_plan,
     route_after_research,
@@ -36,7 +36,7 @@ def base_state() -> AgentState:
         "awaiting_human": False,
     }
 
-def test_planner_node_human_edited_plan(base_state):
+def test_plan_generation_node_human_edited_plan(base_state):
     # If the user edited the plan, it should use the human-edited plan without calling the LLM
     edited = {
         "seed_keyword": "coffee",
@@ -47,18 +47,15 @@ def test_planner_node_human_edited_plan(base_state):
     state = base_state.copy()
     state["human_feedback"] = {"edited_plan": edited}
 
-    with patch("src.graph.nodes.interrupt"):
-        res = planner_node(state)
-        # Should not interrupt again if it just uses the edited plan
-        assert res["research_plan"]["seed_keyword"] == edited["seed_keyword"]
-        assert res["research_plan"]["max_keywords"] == edited["max_keywords"]
-        assert res["research_plan"]["requested_modules"] == edited["requested_modules"]
-        assert res["status"] == "awaiting_approval"
-        assert res["awaiting_human"] is True
-        assert res["execution_metadata"]["planner_retries"] == 1
-        assert res["human_feedback"] is None
+    res = plan_generation_node(state)
+    assert res["research_plan"]["seed_keyword"] == edited["seed_keyword"]
+    assert res["research_plan"]["max_keywords"] == edited["max_keywords"]
+    assert res["research_plan"]["requested_modules"] == edited["requested_modules"]
+    assert res["status"] == "in_progress"
+    assert res["awaiting_human"] is False
+    assert res["execution_metadata"]["planner_retries"] == 1
 
-def test_planner_node_llm_flow(base_state, mock_llm):
+def test_plan_generation_node_llm_flow(base_state, mock_llm):
     # Set up LLM return value
     mock_response = MagicMock()
     mock_response.content = """
@@ -72,15 +69,13 @@ def test_planner_node_llm_flow(base_state, mock_llm):
     mock_llm.invoke.return_value = mock_response
 
     state = base_state.copy()
-    with patch("src.graph.nodes.interrupt") as mock_interrupt:
-        res = planner_node(state)
-        # max_keywords=12 from LLM is clamped to 5 by the schema validator
-        assert res["research_plan"]["max_keywords"] == 5
-        assert "keyword_discovery" in res["research_plan"]["requested_modules"]
-        # After interrupt() resumes, the node returns "in_progress".
-        assert res["status"] == "in_progress"
-        assert res["awaiting_human"] is False
-        mock_interrupt.assert_called_once()
+    res = plan_generation_node(state)
+    # max_keywords=12 from LLM is clamped to 5 by the schema validator
+    assert res["research_plan"]["max_keywords"] == 5
+    assert "keyword_discovery" in res["research_plan"]["requested_modules"]
+    assert res["status"] == "in_progress"
+    assert res["awaiting_human"] is False
+    mock_llm.invoke.assert_called_once()
 
 def test_aggregator_node_success(base_state):
     state = base_state.copy()
@@ -110,7 +105,7 @@ def test_route_after_plan():
     assert route_after_plan(state) == "research_agent_node"
 
     state = {"human_feedback": {"edited_plan": {"seed_keyword": "coffee"}}, "execution_metadata": {"planner_retries": 1}}
-    assert route_after_plan(state) == "planner_node"
+    assert route_after_plan(state) == "plan_generation_node"
 
     state = {"human_feedback": {"edited_plan": {"seed_keyword": "coffee"}}, "execution_metadata": {"planner_retries": 2}}
     assert route_after_plan(state) == "__end__"
@@ -133,7 +128,7 @@ def test_route_after_research():
 
 def test_route_after_strategy():
     state: AgentState = {"human_feedback": {"regenerate": True}, "execution_metadata": {"strategy_retries": 0}}
-    assert route_after_strategy(state) == "strategy_agent_node"
+    assert route_after_strategy(state) == "strategy_generation_node"
 
     state = {"human_feedback": {"regenerate": True}, "execution_metadata": {"strategy_retries": 1}}
     assert route_after_strategy(state) == "persist_node"
