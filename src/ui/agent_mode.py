@@ -170,6 +170,14 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
             elif event == "checkpoint":
                 checkpoint_reached = data.get("checkpoint")
                 checkpoint_data = data.get("checkpoint_data")
+                # Mark the interrupted node as awaiting approval rather than
+                # leaving it in the visually-identical "running" state.
+                # Mapping: plan_approval  → planner_node
+                #          report_approval → strategy_agent_node
+                if checkpoint_reached == "plan_approval":
+                    node_states["planner_node"] = "awaiting_approval"
+                elif checkpoint_reached == "report_approval":
+                    node_states["strategy_agent_node"] = "awaiting_approval"
             elif event == "completed":
                 completed = True
                 execution_metadata = data.get("execution_metadata")
@@ -198,6 +206,13 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                             st.markdown(f"🔵 **{label}**\n*(running...)*")
                         elif state == "completed":
                             st.markdown(f"🟢 **{label}**\n*(complete)*")
+                        elif state == "awaiting_approval":
+                            st.markdown(
+                                f"<span style='color:#f59e0b; font-size:18px'>⏸</span> "
+                                f"**{label}**\n"
+                                f"<span style='color:#f59e0b; font-size:11px'>*(awaiting approval)*</span>",
+                                unsafe_allow_html=True,
+                            )
                         else:
                             st.markdown(f"🔴 **{label}**\n*(failed)*")
 
