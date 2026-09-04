@@ -1,9 +1,127 @@
+import json
 import streamlit as st
 import pandas as pd
 from sqlalchemy.orm import Session
+from sqlalchemy.engine import Engine
 from src.db_client import connect_db
 from src.models import ResearchRunLog
 from src.graph.graph import get_compiled_graph
+
+
+# ---------------------------------------------------------------------------
+# Data-sourcing helper (pure function — no Streamlit calls, fully testable)
+# ---------------------------------------------------------------------------
+
+def _load_report_data(run_id: str, graph, engine: Engine) -> dict:
+    """Return a dict with report data for *run_id*.
+
+    Primary source: LangGraph checkpoint state (richer — includes
+    intelligence_findings and critic_feedback).
+
+    Fallback source: ResearchRunLog columns strategy_report and
+    confidence_scores (written by persist_node; always available when
+    checkpoint state has been cleared or is unreachable).
+
+    Return schema:
+        {
+            "source":   "checkpoint" | "db_fallback" | "unavailable",
+            "report":   dict,
+            "confidence": dict,
+            "metadata": dict,
+            "findings": dict,
+            "critic":   dict,
+            "error":    str | None,   # human-readable message when unavailable
+        }
+    """
+    _empty: dict = {
+        "source": "unavailable",
+        "report": {},
+        "confidence": {},
+        "metadata": {},
+        "findings": {},
+        "critic": {},
+        "error": None,
+    }
+
+    # ------------------------------------------------------------------
+    # 1. Try checkpoint state (PRIMARY)
+    # ------------------------------------------------------------------
+    try:
+        config = {"configurable": {"thread_id": run_id}}
+        state = graph.get_state(config)
+        if state and state.values and state.values.get("strategy_report"):
+            values = state.values
+            return {
+                "source": "checkpoint",
+                "report": values.get("strategy_report") or {},
+                "confidence": values.get("confidence_scores") or {},
+                "metadata": values.get("execution_metadata") or {},
+                "findings": values.get("intelligence_findings") or {},
+                "critic": values.get("critic_feedback") or {},
+                "error": None,
+            }
+    except Exception:
+        pass  # Fall through to DB fallback
+
+    # ------------------------------------------------------------------
+    # 2. Try ResearchRunLog columns (FALLBACK)
+    # ------------------------------------------------------------------
+    try:
+        with Session(engine) as session:
+            row = (
+                session.query(ResearchRunLog)
+                .filter(ResearchRunLog.run_id == run_id)
+                .first()
+            )
+        if row is None:
+            result = dict(_empty)
+            result["error"] = f"No ResearchRunLog row found for run_id `{run_id}`."
+            return result
+
+        report: dict = {}
+        if row.strategy_report:
+            try:
+                report = json.loads(row.strategy_report)
+            except (json.JSONDecodeError, TypeError):
+                report = {}
+
+        confidence: dict = {}
+        if row.confidence_scores:
+            try:
+                confidence = json.loads(row.confidence_scores)
+            except (json.JSONDecodeError, TypeError):
+                confidence = {}
+
+        if not report and not confidence:
+            result = dict(_empty)
+            result["error"] = (
+                "Checkpoint state is unavailable and ResearchRunLog contains no "
+                "report data for this run."
+            )
+            return result
+
+        return {
+            "source": "db_fallback",
+            "report": report,
+            "confidence": confidence,
+            # findings and critic only exist in checkpoint state
+            "metadata": {},
+            "findings": {},
+            "critic": {},
+            "error": None,
+        }
+    except Exception as exc:
+        result = dict(_empty)
+        result["error"] = (
+            f"Checkpoint state is unavailable and the ResearchRunLog fallback "
+            f"also failed: {exc}"
+        )
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Main Streamlit page renderer
+# ---------------------------------------------------------------------------
 
 def render_executive_reports():
     st.title(" Executive Intelligence Workspace")
@@ -27,25 +145,33 @@ def render_executive_reports():
     selected_label = st.selectbox("Select Intelligence Run:", list(run_options.keys()))
     selected_run_id = run_options[selected_label]
 
-    # Fetch the state from the checkpointer
+    # ------------------------------------------------------------------
+    # Load report data (checkpoint primary -> ResearchRunLog fallback)
+    # ------------------------------------------------------------------
     try:
         graph = get_compiled_graph()
-        config = {"configurable": {"thread_id": selected_run_id}}
-        state = graph.get_state(config)
     except Exception as e:
-        st.error(f"Failed to load execution state from checkpointer: {e}")
+        st.error(f"Failed to initialise graph: {e}")
         return
 
-    if not state or not state.values:
-        st.error(f"Could not load state values for run `{selected_run_id}`.")
+    data = _load_report_data(selected_run_id, graph, engine)
+
+    if data["source"] == "unavailable":
+        st.error(data["error"] or f"Could not load report data for run `{selected_run_id}`.")
         return
 
-    values = state.values
-    report = values.get("strategy_report") or {}
-    confidence = values.get("confidence_scores") or {}
-    metadata = values.get("execution_metadata") or {}
-    findings = values.get("intelligence_findings") or {}
-    critic = values.get("critic_feedback") or {}
+    if data["source"] == "db_fallback":
+        st.warning(
+            "⚠️ Checkpoint state is unavailable for this run. "
+            "Report is being rendered from the database record. "
+            "Findings and critic feedback sections will show 'not available'."
+        )
+
+    report = data["report"]
+    confidence = data["confidence"]
+    metadata = data["metadata"]
+    findings = data["findings"]
+    critic = data["critic"]
 
     # 2. Executive Summary
     st.markdown("### 📝 Executive Summary")
@@ -84,7 +210,11 @@ def render_executive_reports():
         else:
             st.write("No significant competitor keyword gaps identified.")
     else:
-        st.write("No competitor gap findings recorded in state.")
+        st.write(
+            "No competitor gap findings recorded in state."
+            if data["source"] == "checkpoint"
+            else "Competitor gap findings not available (checkpoint state unavailable)."
+        )
 
     # 5. Opportunities
     st.markdown("### 🎯 Strategic Opportunities")
@@ -114,6 +244,8 @@ def render_executive_reports():
     if all_risks:
         for risk in all_risks:
             st.markdown(f"- {risk}")
+    elif data["source"] == "db_fallback":
+        st.info("Risks & limitations data not available (checkpoint state unavailable).")
     else:
         st.success("No significant data risks or limitations flagged for this run.")
 
