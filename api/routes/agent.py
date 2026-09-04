@@ -183,8 +183,7 @@ async def resume_agent_run(request: ResumeRequest) -> RunResponse:
             interrupt_val = _extract_interrupt_value(current_state=current_state, exception=gi)
 
         status = state_values.get("status", "in_progress")
-        is_mock = current_state and current_state.next.__class__.__name__ in ("Mock", "MagicMock")
-        awaiting = state_values.get("awaiting_human", False) or (bool(current_state and current_state.next) if not is_mock else False)
+        awaiting = state_values.get("awaiting_human", False) or bool(current_state and current_state.next)
 
         checkpoint_data = None
         if awaiting or status == "awaiting_approval":

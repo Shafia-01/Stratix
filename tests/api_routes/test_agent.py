@@ -52,12 +52,16 @@ def test_resume_agent_run_success(mock_compiled_graph):
         "status": "completed",
         "awaiting_human": False
     }
-    mock_compiled_graph.get_state.return_value = MagicMock(
+    mock_state = MagicMock(
         values={
             "status": "completed",
             "awaiting_human": False
         }
     )
+    # Explicitly set .next to an empty list so bool(current_state.next) is False,
+    # matching what a real LangGraph StateSnapshot returns for a completed run.
+    mock_state.next = []
+    mock_compiled_graph.get_state.return_value = mock_state
 
     response = client.post("/agent/resume", json={
         "run_id": "test-run-id",
