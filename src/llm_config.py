@@ -1,6 +1,10 @@
 import os
+from typing import List, Union
 from google import genai
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.runnables import RunnableWithFallbacks
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # Text-out models ordered: best/fastest first, stable fallbacks last.
 # Source: Gemini API model list (updated 2026-08).
@@ -27,6 +31,16 @@ GEMINI_MODEL_CHAIN = [
     "gemini-2.5-flash-lite",   # Gemini 2.5 Flash Lite  | text-out (restricted)
 ]
 
+# Groq production models supporting function calling / tool use and high throughput.
+# Verified against Groq API / docs (2026):
+# Primary: llama-3.3-70b-versatile (128k context, high reasoning & tool use)
+# Fallback: llama-3.1-8b-instant (128k context, fast, lightweight fallback)
+GROQ_MODEL_CHAIN = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]
+
+
 class ChatGoogleGenerativeAIWithEmptyCheck(ChatGoogleGenerativeAI):
     def _is_empty_and_no_tools(self, result) -> bool:
         if not result or not result.generations:
@@ -44,19 +58,51 @@ class ChatGoogleGenerativeAIWithEmptyCheck(ChatGoogleGenerativeAI):
     def _generate(self, *args, **kwargs):
         result = super()._generate(*args, **kwargs)
         if self._is_empty_and_no_tools(result):
-            raise ValueError(f"Empty LLM response content from {self.model}")
+            model_name = getattr(self, "model", "unknown")
+            raise ValueError(f"Empty LLM response content from {model_name}")
         return result
 
     async def _agenerate(self, *args, **kwargs):
         result = await super()._agenerate(*args, **kwargs)
         if self._is_empty_and_no_tools(result):
-            raise ValueError(f"Empty LLM response content from {self.model}")
+            model_name = getattr(self, "model", "unknown")
+            raise ValueError(f"Empty LLM response content from {model_name}")
         return result
 
-def get_chat_llm(temperature: float = 0.3) -> ChatGoogleGenerativeAI:
+
+class ChatGroqWithEmptyCheck(ChatGroq):
+    def _is_empty_and_no_tools(self, result) -> bool:
+        if not result or not result.generations:
+            return True
+        gen = result.generations[0]
+        msg = getattr(gen, "message", None)
+        if msg is not None:
+            if getattr(msg, "tool_calls", None) or getattr(msg, "invalid_tool_calls", None):
+                return False
+            if isinstance(getattr(msg, "additional_kwargs", None), dict) and msg.additional_kwargs.get("tool_calls"):
+                return False
+        text = gen.text if hasattr(gen, "text") else (getattr(msg, "content", "") if msg else "")
+        return not text or not str(text).strip()
+
+    def _generate(self, *args, **kwargs):
+        result = super()._generate(*args, **kwargs)
+        if self._is_empty_and_no_tools(result):
+            model_name = getattr(self, "model_name", getattr(self, "model", "unknown"))
+            raise ValueError(f"Empty LLM response content from {model_name}")
+        return result
+
+    async def _agenerate(self, *args, **kwargs):
+        result = await super()._agenerate(*args, **kwargs)
+        if self._is_empty_and_no_tools(result):
+            model_name = getattr(self, "model_name", getattr(self, "model", "unknown"))
+            raise ValueError(f"Empty LLM response content from {model_name}")
+        return result
+
+
+def _build_gemini_chain(temperature: float = 0.3) -> List[BaseChatModel]:
     """
-    Builds the primary + .with_fallbacks() chain for ChatGoogleGenerativeAI
-    with explicit request_timeout on every instance and empty content verification.
+    Builds the list of ChatGoogleGenerativeAI models with empty check,
+    request_timeout=45.0, and convert_system_message_to_human=True.
     """
     api_key = os.getenv("GEMINI_API_KEY", "")
     llms = []
@@ -69,8 +115,64 @@ def get_chat_llm(temperature: float = 0.3) -> ChatGoogleGenerativeAI:
             request_timeout=45.0,
         )
         llms.append(llm)
+    return llms
 
-    return llms[0].with_fallbacks(llms[1:])
+
+def _build_groq_chain(temperature: float = 0.3) -> List[BaseChatModel]:
+    """
+    Builds the list of ChatGroq models with empty check and request_timeout=45.0.
+    Fails loudly at startup if GROQ_API_KEY is not set.
+    """
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key or not groq_api_key.strip():
+        raise ValueError("GROQ_API_KEY environment variable is required when using Groq as an LLM provider.")
+
+    llms = []
+    for model in GROQ_MODEL_CHAIN:
+        llm = ChatGroqWithEmptyCheck(
+            model_name=model,
+            groq_api_key=groq_api_key,
+            temperature=temperature,
+            request_timeout=45.0,
+        )
+        llms.append(llm)
+    return llms
+
+
+def _build_provider_chain(provider: str, temperature: float = 0.3) -> List[BaseChatModel]:
+    normalized_provider = (provider or "").strip().lower()
+    if normalized_provider == "groq":
+        return _build_groq_chain(temperature=temperature)
+    elif normalized_provider in ("gemini", ""):
+        return _build_gemini_chain(temperature=temperature)
+    else:
+        raise ValueError(f"Unsupported LLM provider: '{provider}'. Supported providers: 'gemini', 'groq'.")
+
+
+def get_chat_llm(temperature: float = 0.3) -> Union[BaseChatModel, RunnableWithFallbacks]:
+    """
+    Builds the primary + .with_fallbacks() chain for the configured LLM provider.
+    Reads PRIMARY_LLM_PROVIDER (default: 'gemini').
+    If FALLBACK_LLM_PROVIDER is set, chains the primary provider's models with the
+    fallback provider's models in a single combined .with_fallbacks() call.
+    """
+    primary_provider = os.getenv("PRIMARY_LLM_PROVIDER", "gemini")
+    primary_llms = _build_provider_chain(primary_provider, temperature=temperature)
+
+    fallback_provider = os.getenv("FALLBACK_LLM_PROVIDER", "").strip()
+    fallback_llms: List[BaseChatModel] = []
+    if fallback_provider and fallback_provider.lower() != primary_provider.strip().lower():
+        fallback_llms = _build_provider_chain(fallback_provider, temperature=temperature)
+
+    all_llms = primary_llms + fallback_llms
+    if not all_llms:
+        raise ValueError("No LLM models configured in chain.")
+
+    if len(all_llms) == 1:
+        return all_llms[0]
+
+    return all_llms[0].with_fallbacks(all_llms[1:])
+
 
 _genai_client = None
 
