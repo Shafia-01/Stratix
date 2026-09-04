@@ -70,11 +70,24 @@ def start_backend_server():
             str(port)
         ]
         
+        # Prepare log files for backend stdout and stderr
+        stdout_handle = subprocess.DEVNULL
+        stderr_handle = subprocess.DEVNULL
+        try:
+            log_dir = os.path.join(os.getcwd(), "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            stdout_handle = open(os.path.join(log_dir, "backend_stdout.log"), "a", encoding="utf-8")
+            stderr_handle = open(os.path.join(log_dir, "backend_stderr.log"), "a", encoding="utf-8")
+        except Exception as log_err:
+            logger.warning(f"Failed to create backend log files in logs/: {log_err}. Falling back to DEVNULL.")
+            stdout_handle = subprocess.DEVNULL
+            stderr_handle = subprocess.DEVNULL
+
         # Start uvicorn. We don't want it to block, so we use subprocess.Popen
         process = subprocess.Popen(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
             close_fds=True if os.name != 'nt' else False
         )
         logger.info(f"FastAPI backend started (PID: {process.pid})")
