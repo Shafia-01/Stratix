@@ -474,6 +474,79 @@ def test_persist_node_handles_db_error(base_state, mocker):
     assert "Connection refused" in db_err[0]
 
 
+def test_persist_node_non_blocking_evaluation(base_state, mocker):
+    """
+    Assert that persist_node returns status='completed' immediately without
+    blocking on KeylyticsEvaluator calls, while the evaluator runs in background thread.
+    """
+    import time
+    import threading
+
+    state = dict(base_state)
+    state["intelligence_findings"] = {"seed_keyword": "test", "keyword_findings": []}
+    mocker.patch("src.db_client.save_to_db", return_value=None)
+
+    eval_started = threading.Event()
+    eval_can_finish = threading.Event()
+
+    def slow_evaluate(*args, **kwargs):
+        eval_started.set()
+        eval_can_finish.wait(timeout=5)
+        return MagicMock(score=0.9)
+
+    mock_eval = MagicMock()
+    mock_eval.evaluate_plan.side_effect = slow_evaluate
+    mock_eval.evaluate_report.side_effect = slow_evaluate
+    mock_eval.evaluate_tool_reliability.side_effect = slow_evaluate
+    mocker.patch("src.evals.evaluator.KeylyticsEvaluator", return_value=mock_eval)
+
+    start_time = time.time()
+    result = persist_node(state)
+    elapsed = time.time() - start_time
+
+    # Must return immediately (< 0.2s) even though evaluator is blocked on Event
+    assert elapsed < 0.2
+    assert result["status"] == "completed"
+
+    # Verify background thread started evaluation
+    assert eval_started.wait(timeout=2.0) is True
+
+    # Allow thread to finish
+    eval_can_finish.set()
+
+
+def test_persist_node_eval_results_eventually_persisted(base_state, mocker):
+    """
+    Verify that evaluation methods are invoked and completed in the background thread.
+    """
+    import time
+
+    state = dict(base_state)
+    state["execution_metadata"]["run_id"] = "test-run-async-eval"
+    state["intelligence_findings"] = {"seed_keyword": "test", "keyword_findings": []}
+    mocker.patch("src.db_client.save_to_db", return_value=None)
+
+    mock_eval = MagicMock()
+    mock_eval.evaluate_plan.return_value = MagicMock(score=0.85)
+    mock_eval.evaluate_report.return_value = MagicMock(score=0.88)
+    mock_eval.evaluate_tool_reliability.return_value = MagicMock(score=0.90)
+    mocker.patch("src.evals.evaluator.KeylyticsEvaluator", return_value=mock_eval)
+
+    result = persist_node(state)
+    assert result["status"] == "completed"
+
+    # Poll short timeout to allow background thread to execute
+    for _ in range(20):
+        if mock_eval.evaluate_plan.called:
+            break
+        time.sleep(0.05)
+
+    assert mock_eval.evaluate_plan.called
+    assert mock_eval.evaluate_report.called
+    assert mock_eval.evaluate_tool_reliability.called
+
+
+
 
 # ---------------------------------------------------------------------------
 # Test 7: route_after_plan routing logic

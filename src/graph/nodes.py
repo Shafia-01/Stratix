@@ -18,6 +18,7 @@ Routing helpers (used in graph.py):
 from __future__ import annotations
 
 import json
+import threading
 from typing import Any, Dict, List, Optional
 
 
@@ -820,21 +821,58 @@ def persist_node(state: AgentState) -> AgentState:
     except Exception:
         pass  # Metrics are non-critical
 
-    # Task 4.3b: trigger LLM evaluation
-    eval_errors: List[str] = []
+    # Task 4.3b: trigger LLM evaluation in background thread (non-blocking)
+    plan_dict = dict(state.get("research_plan") or {})
+    report_dict = dict(state.get("strategy_report") or {})
+    confidence_dict = dict(state.get("confidence_scores") or {})
+    collected_dict = dict(state.get("collected_data") or {})
+
+    eval_thread = threading.Thread(
+        target=_run_background_evaluations,
+        args=(run_id, plan_dict, report_dict, confidence_dict, collected_dict),
+        daemon=True,
+    )
+    eval_thread.start()
+    logger.info(f"persist_node: background evaluation thread started for run_id={run_id}")
+
+    metadata["persist_had_errors"] = bool(errors)
+
+    return {
+        **state,
+        "status": "completed",
+        "awaiting_human": False,
+        # Clear stale human_feedback
+        "human_feedback": None,
+        "execution_metadata": metadata,
+        "errors": errors,
+    }
+
+
+def _run_background_evaluations(
+    run_id: str,
+    plan_dict: Dict[str, Any],
+    report_dict: Dict[str, Any],
+    confidence_scores: Dict[str, float],
+    collected_data: Dict[str, Any],
+) -> None:
+    """
+    Executes LLM-as-judge evaluations in a background daemon thread.
+    Catches and logs all errors without affecting main process state.
+    """
+    logger.info(f"_run_background_evaluations: starting evaluation for run_id={run_id}")
     try:
         from src.evals.evaluator import KeylyticsEvaluator
         evaluator = KeylyticsEvaluator()
 
-        plan_eval = evaluator.evaluate_plan(run_id, state.get("research_plan") or {})
+        plan_eval = evaluator.evaluate_plan(run_id, plan_dict)
         report_eval = evaluator.evaluate_report(
             run_id,
-            state.get("strategy_report") or {},
-            state.get("confidence_scores") or {},
+            report_dict,
+            confidence_scores,
         )
         tool_eval = evaluator.evaluate_tool_reliability(
             run_id,
-            state.get("collected_data") or {},
+            collected_data,
         )
 
         # Emit eval score metrics
@@ -847,25 +885,12 @@ def persist_node(state: AgentState) -> AgentState:
             pass
 
         logger.info(
-            f"persist_node: evaluations complete — "
+            f"_run_background_evaluations: evaluations complete for run_id={run_id} — "
             f"plan={plan_eval.score:.2f}, report={report_eval.score:.2f}, "
             f"tool={tool_eval.score:.2f}"
         )
     except Exception as e:
-        logger.warning(f"persist_node: evaluation failed (non-fatal) — {e}")
-        eval_errors.append(f"[persist:eval] evaluation error: {str(e)}")
-
-    metadata["persist_had_errors"] = bool(errors)
-
-    return {
-        **state,
-        "status": "completed",
-        "awaiting_human": False,
-        # Clear stale human_feedback
-        "human_feedback": None,
-        "execution_metadata": metadata,
-        "errors": errors + eval_errors,
-    }
+        logger.error(f"_run_background_evaluations: evaluation failed for run_id={run_id} — {e}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
