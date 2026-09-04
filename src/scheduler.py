@@ -52,12 +52,71 @@ except ImportError:
 # It builds a throwaway KeylyticsScheduler at execution time (not at
 # scheduling time) purely to reuse `_run_research_job`'s logic.
 # ---------------------------------------------------------------------------
+
+
+def _is_job_paused(job_id: str) -> bool:
+    """Return True if the DB record for job_id has status 'paused_due_to_failures'.
+
+    Uses a short-lived session matching the style of other DB helpers in this
+    module.  Callers should treat any exception as "status unknown" and
+    proceed (fail-open semantics).
+    """
+    try:
+        from src.db_client import connect_db
+        from src.models import MonitoringJobModel
+        from sqlalchemy.orm import Session
+
+        engine = connect_db()
+        with Session(engine) as session:
+            row = session.query(MonitoringJobModel).filter(
+                MonitoringJobModel.job_id == job_id
+            ).first()
+            return row is not None and row.status == "paused_due_to_failures"
+    except Exception as e:
+        logger.warning(
+            f"_is_job_paused: DB check failed for job {job_id!r} — "
+            f"proceeding with execution (fail-open). Error: {e}"
+        )
+        return False
+
+
 def _run_scheduled_research_job(seed_keyword: str, job_id: str) -> None:
     """Module-level entry point invoked by APScheduler for each scheduled run.
 
     MUST remain a plain module-level function — do not replace with a bound
     method reference in add_job(), or job persistence will break again.
+
+    Circuit-breaker enforcement
+    ---------------------------
+    APScheduler fires this function even after _handle_job_failure marks the
+    DB row as 'paused_due_to_failures', because the throwaway
+    KeylyticsScheduler built below holds no reference to the live
+    BackgroundScheduler and therefore cannot call pause_job() on it.
+
+    The DB-status check below is the AUTHORITATIVE enforcement mechanism:
+    it gates every dispatch before any work begins, making the DB row the
+    single source of truth.  resume_monitoring_job() resets the row to
+    'active' (via the live app.state.scheduler instance), which is the
+    correct re-enable path.
+
+    The `if self._scheduler: pause_job(...)` call inside _handle_job_failure
+    is intentionally kept for code paths where _run_research_job IS invoked
+    on a live KeylyticsScheduler instance (e.g. unit tests, future direct
+    callers). It provides a best-effort APScheduler-level pause in those
+    cases but is not relied upon for the production APScheduler dispatch path.
     """
+    # ── Circuit-breaker gate ────────────────────────────────────────────────
+    # Check DB status BEFORE constructing the throwaway scheduler or touching
+    # run logs.  A paused job skip is not a "run" and must not create a
+    # ResearchRunLog entry.  Errors in this check are non-fatal (fail-open).
+    if _is_job_paused(job_id):
+        logger.info(
+            f"Skipping scheduled fire for job {job_id!r} (keyword={seed_keyword!r}): "
+            "status is 'paused_due_to_failures'. Resume via the /monitor/{job_id}/resume API."
+        )
+        return
+    # ────────────────────────────────────────────────────────────────────────
+
     from src.graph.graph import get_compiled_graph
     scheduler = KeylyticsScheduler(graph_fn=get_compiled_graph)
     scheduler._run_research_job(seed_keyword, job_id)
@@ -451,6 +510,22 @@ class KeylyticsScheduler:
                     row.consecutive_failures += 1
                     if row.consecutive_failures >= 3:
                         row.status = "paused_due_to_failures"
+                        # NOTE: The `if self._scheduler` guard below is a
+                        # best-effort APScheduler-level pause for code paths
+                        # where _run_research_job is called on a live
+                        # KeylyticsScheduler instance (e.g. direct callers or
+                        # unit tests with a mock scheduler attached).
+                        #
+                        # It is intentionally NOT the authoritative enforcement
+                        # mechanism for the production APScheduler dispatch
+                        # path.  In that path the throwaway KeylyticsScheduler
+                        # constructed by _run_scheduled_research_job holds
+                        # self._scheduler = None, so this block is silently
+                        # skipped — by design.  The circuit-breaker is instead
+                        # enforced at dispatch time via the DB-status check at
+                        # the top of _run_scheduled_research_job(), which reads
+                        # the 'paused_due_to_failures' status set here and
+                        # no-ops before any work is done.
                         if self._scheduler:
                             try:
                                 self._scheduler.pause_job(job_id)
