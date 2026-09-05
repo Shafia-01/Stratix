@@ -79,7 +79,6 @@ def build_graph():
         route_after_research,
         {
             "aggregator_node": "aggregator_node",
-            "__end__": END,
         },
     )
 

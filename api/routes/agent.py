@@ -26,6 +26,49 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 LAST_YIELDED_CHECKPOINTS: Dict[str, str] = {}
 
 
+def _reconcile_terminal_db_status(run_id: str, graph_status: str) -> None:
+    """Safety net: if the graph reached a terminal non-completed state and the
+    ResearchRunLog is still pending/in_progress, mark it failed.
+
+    This covers the edge-case where the graph exits without going through
+    persist_node (e.g. human rejected the plan, or a hard crash).  The primary
+    fix is in route_after_research; this is purely defensive.
+
+    Does NOT overwrite a row that is already completed or failed.
+    """
+    if graph_status in ("pending", "in_progress", "awaiting_approval"):
+        # Graph is still running / waiting — nothing to reconcile yet.
+        return
+    if graph_status == "completed":
+        # persist_node already wrote the completed status; nothing to do.
+        return
+    # graph_status is "failed" (or some unexpected value) and the graph has
+    # no pending next node.  Ensure the DB row is terminal.
+    try:
+        from src.db_client import connect_db
+        from src.models import ResearchRunLog
+        from sqlalchemy.orm import Session
+        from datetime import datetime, timezone
+        engine = connect_db()
+        with Session(engine) as session:
+            row = session.query(ResearchRunLog).filter(
+                ResearchRunLog.run_id == run_id
+            ).first()
+            if row and row.status in ("pending", "in_progress"):
+                row.status = "failed"
+                row.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                session.commit()
+                logger.warning(
+                    f"_reconcile_terminal_db_status: marked run_id={run_id} as failed "
+                    f"(was '{row.status}' before reconciliation)"
+                )
+    except Exception as db_err:
+        logger.error(
+            f"_reconcile_terminal_db_status: could not update run_id={run_id}: {db_err}",
+            exc_info=True,
+        )
+
+
 # ── Request / Response models ──────────────────────────────────────────────
 
 class RunRequest(BaseModel):
@@ -213,6 +256,11 @@ async def resume_agent_run(request: ResumeRequest) -> RunResponse:
         )
     except Exception as e:
         logger.error(f"resume_agent_run failed for run_id={request.run_id}: {e}", exc_info=True)
+        # Attempt to mark the run as failed in the DB before re-raising
+        try:
+            _reconcile_terminal_db_status(request.run_id, "failed")
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -462,6 +510,8 @@ async def event_generator(request: StreamRequest):
                     metadata = values.get("execution_metadata", {})
                     strategy_report = values.get("strategy_report")
                     confidence_scores = values.get("confidence_scores")
+                    # Safety net: ensure DB row is in a terminal state
+                    _reconcile_terminal_db_status(run_id, status)
                     try:
                         yield f"data: {json.dumps({'event': 'completed', 'status': status, 'execution_metadata': metadata, 'strategy_report': strategy_report, 'confidence_scores': confidence_scores}, default=str)}\n\n"
                     except (GeneratorExit, RuntimeError):

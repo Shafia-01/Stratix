@@ -916,16 +916,37 @@ def route_after_plan(state: AgentState) -> str:
 
 
 def route_after_research(state: AgentState) -> str:
-    """Route based on research results."""
+    """Route after research_agent_node.
+
+    Always routes to aggregator_node so the existing quality_gate_node /
+    critic_node bounded-retry mechanism handles missing, empty, or errored
+    keyword_research results.  Routing directly to __end__ here would bypass
+    persist_node and leave ResearchRunLog permanently in a non-terminal state.
+
+    Failure handling is delegated to:
+      aggregator_node   — records confidence_scores["keyword_research"] = 0.0
+      quality_gate_node — retries up to QUALITY_GATE_MAX_RETRIES times
+      critic_node       — retries up to 1 time
+      persist_node      — always runs and records a terminal DB status
+    """
     collected = state.get("collected_data") or {}
     if not collected or "keyword_research" not in collected:
-        return "__end__"
-    kw_result = collected.get("keyword_research", {})
-    if isinstance(kw_result, dict) and "error" in kw_result:
-        return "__end__"
-    items = kw_result.get("items", []) if isinstance(kw_result, dict) else []
-    if not items:
-        return "__end__"
+        logger.warning(
+            "route_after_research: keyword_research missing from collected_data — "
+            "routing to aggregator_node for quality-gate handling"
+        )
+    else:
+        kw_result = collected.get("keyword_research", {})
+        if isinstance(kw_result, dict) and "error" in kw_result:
+            logger.warning(
+                "route_after_research: keyword_research returned an error — "
+                "routing to aggregator_node for quality-gate handling"
+            )
+        elif not (kw_result.get("items", []) if isinstance(kw_result, dict) else []):
+            logger.warning(
+                "route_after_research: keyword_research returned empty items — "
+                "routing to aggregator_node for quality-gate handling"
+            )
     return "aggregator_node"
 
 
