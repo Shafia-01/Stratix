@@ -114,17 +114,21 @@ def test_route_after_plan():
     assert route_after_plan(state) == "__end__"
 
 def test_route_after_research():
+    # Empty items — still routes to aggregator_node so persist_node always runs
     state: AgentState = {"collected_data": {"keyword_research": {"items": []}}}
-    assert route_after_research(state) == "__end__"
+    assert route_after_research(state) == "aggregator_node"
 
+    # Valid data — routes to aggregator_node
     state = {"collected_data": {"keyword_research": {"items": [{"keyword": "coffee"}]}}}
     assert route_after_research(state) == "aggregator_node"
 
+    # Missing keyword_research — routes to aggregator_node (quality-gate handles it)
     state = {"collected_data": {}}
-    assert route_after_research(state) == "__end__"
+    assert route_after_research(state) == "aggregator_node"
 
+    # Error result — routes to aggregator_node (quality-gate handles it)
     state = {"collected_data": {"keyword_research": {"error": "Failed"}}}
-    assert route_after_research(state) == "__end__"
+    assert route_after_research(state) == "aggregator_node"
 
 def test_route_after_strategy():
     state: AgentState = {"human_feedback": {"regenerate": True}, "execution_metadata": {"strategy_retries": 0}}

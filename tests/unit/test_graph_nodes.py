@@ -593,17 +593,17 @@ def test_route_after_plan_null_feedback():
 # ---------------------------------------------------------------------------
 
 def test_route_after_research_no_keyword_data():
-    """Empty collected_data should route to __end__."""
+    """Empty collected_data should route to aggregator_node (quality-gate handles it)."""
     state: AgentState = {"collected_data": {}}
-    assert route_after_research(state) == "__end__"
+    assert route_after_research(state) == "aggregator_node"
 
 
 def test_route_after_research_keyword_error():
-    """keyword_research with an error key should route to __end__."""
+    """keyword_research with an error key should route to aggregator_node (quality-gate handles it)."""
     state: AgentState = {
         "collected_data": {"keyword_research": {"error": "API failure"}}
     }
-    assert route_after_research(state) == "__end__"
+    assert route_after_research(state) == "aggregator_node"
 
 
 def test_route_after_research_valid_data():
