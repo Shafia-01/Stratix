@@ -112,7 +112,7 @@ def start_backend_server():
 start_backend_server()
 
 # Services
-from src.services.status_service import check_api_status, test_api_quick
+from src.services.status_service import get_system_status
 from src.services.metrics_service import initialize_metrics_from_history
 
 # UI Theme, Components, and Pages
@@ -127,13 +127,12 @@ from src.ui.topic_clustering import render_topic_clustering
 from src.ui.trend_forecasting import render_trend_forecasting
 from src.ui.serp_analysis import render_serp_analysis
 from src.ui.full_strategy import render_full_strategy
-from src.ui.search_history import render_search_history
 from src.ui.agent_mode import render_agent_mode
 
 
 def handle_api_errors():
-    """Display API status."""
-    api_status = check_api_status()
+    """Display API status — uses cached check to avoid repeated API calls."""
+    api_status, _ = get_system_status()
     if not api_status["GEMINI_API_KEY"]:
         st.error(" **GEMINI_API_KEY not found!** Please add it to your .env file.")
     if not api_status["SERPAPI_KEY"]:
@@ -141,8 +140,8 @@ def handle_api_errors():
 
 def main():
     initialize_metrics_from_history()
-    api_status = check_api_status()
-    api_test = test_api_quick()
+    # Use the cached status check — avoids repeated Gemini API calls on every Streamlit rerun.
+    api_status, api_test = get_system_status()
     if not api_status["GEMINI_API_KEY"] or not api_status["SERPAPI_KEY"]:
         with st.expander(" API Configuration Issues", expanded=True):
             handle_api_errors()

@@ -20,6 +20,38 @@ logger = get_logger(__name__)
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
+# ---------------------------------------------------------------------------
+# Node display configuration
+# ---------------------------------------------------------------------------
+# Maps actual LangGraph node names -> concise UI display labels.
+# Multiple LangGraph nodes can share a single display label (collapsed into
+# one stage in the user-facing progress bar). Single source of truth.
+LANGGRAPH_NODE_TO_UI: dict = {
+    "plan_generation_node":     "Planner",
+    "plan_approval_node":       "Planner",
+    "research_agent_node":      "Research",
+    "aggregator_node":          "Aggregator",
+    "quality_gate_node":        "Quality Gate",
+    "critic_node":              "Critic",
+    "strategy_generation_node": "Strategy",
+    "strategy_approval_node":   "Strategy",
+    "persist_node":             "Persist",
+}
+
+UI_STAGES: list = [
+    ("Planner",      {"plan_generation_node", "plan_approval_node"}),
+    ("Research",     {"research_agent_node"}),
+    ("Aggregator",   {"aggregator_node"}),
+    ("Quality Gate", {"quality_gate_node"}),
+    ("Critic",       {"critic_node"}),
+    ("Strategy",     {"strategy_generation_node", "strategy_approval_node"}),
+    ("Persist",      {"persist_node"}),
+]
+
+_INITIAL_STAGE_STATES: dict = {label: "pending" for label, _ in UI_STAGES}
+
+
+
 
 def _ensure_run_saved_to_db(run_id: str, report: dict, confidence: dict):
     """Fallback: ensure the ResearchRunLog row is marked completed with the report data.
@@ -89,18 +121,56 @@ def _get(endpoint: str) -> dict:
         return {"error": str(e)}
 
 
+
+def _fetch_initial_node_states(run_id: str) -> dict:
+    """Fetch persisted execution state from the timeline API and convert to
+    UI-stage states.  Called when run_id is known at the start of a streaming
+    session (resume/approval stages) to prevent completed stages from reverting
+    to Pending on Streamlit reruns.
+
+    Falls back to all-pending on any error so SSE updates still work normally.
+    """
+    import requests as _req
+    states = dict(_INITIAL_STAGE_STATES)  # start all-pending
+    if not run_id:
+        return states
+    try:
+        headers = {}
+        import os as _os
+        api_key = _os.getenv("STRATIX_API_KEY") or _os.getenv("STRATIX_AI_API_KEY") or _os.getenv("KEYLYTICS_API_KEY")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        resp = _req.get(
+            f"{API_BASE}/timeline/{run_id}",
+            headers=headers,
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return states
+        data = resp.json()
+        for event in data.get("events", []):
+            node_name = event.get("node_name", "")
+            ui_label = LANGGRAPH_NODE_TO_UI.get(node_name)
+            if not ui_label:
+                continue
+            event_type = event.get("event_type", "")
+            if event_type == "hitl_interrupt":
+                states[ui_label] = "awaiting_approval"
+            elif event_type == "error":
+                states[ui_label] = "failed"
+            elif event_type == "node_start":
+                if states.get(ui_label) == "pending":
+                    states[ui_label] = "completed"
+    except Exception:
+        pass
+    return states
+
 def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
     """Run the agent pipeline using SSE streaming and display live execution logs."""
-    nodes = [
-        "planner_node",
-        "research_agent_node",
-        "aggregator_node",
-        "quality_gate_node",
-        "critic_node",
-        "strategy_agent_node",
-        "persist_node"
-    ]
-    node_states = {n: "pending" for n in nodes}
+    # When run_id is known (resume/approval stages), prime stage_states from the
+    # persisted timeline so already-completed stages don't revert to Pending.
+    prefill_run_id = payload.get("run_id") or st.session_state.get("agent_run_id")
+    stage_states: dict = _fetch_initial_node_states(prefill_run_id)
     tool_calls = []
     confidence_scores = None
     critic_feedback = None
@@ -145,12 +215,14 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                 status_placeholder.info(f" **Started Autonomous Execution Run:** `{run_id}`")
             elif event == "node_start":
                 node = data.get("node")
-                if node in node_states:
-                    node_states[node] = "running"
+                ui_label = LANGGRAPH_NODE_TO_UI.get(node)
+                if ui_label and stage_states.get(ui_label) != "completed":
+                    stage_states[ui_label] = "running"
             elif event == "node_complete":
                 node = data.get("node")
-                if node in node_states:
-                    node_states[node] = "completed"
+                ui_label = LANGGRAPH_NODE_TO_UI.get(node)
+                if ui_label:
+                    stage_states[ui_label] = "completed"
                 if "confidence_scores" in data:
                     confidence_scores = data["confidence_scores"]
                 if "critic_feedback" in data:
@@ -175,9 +247,9 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                 # Mapping: plan_approval  → planner_node
                 #          report_approval → strategy_agent_node
                 if checkpoint_reached == "plan_approval":
-                    node_states["planner_node"] = "awaiting_approval"
+                    stage_states["Planner"] = "awaiting_approval"
                 elif checkpoint_reached == "report_approval":
-                    node_states["strategy_agent_node"] = "awaiting_approval"
+                    stage_states["Strategy"] = "awaiting_approval"
             elif event == "completed":
                 completed = True
                 execution_metadata = data.get("execution_metadata")
@@ -192,14 +264,13 @@ def run_and_display_stream(payload: dict, placeholders: dict = None) -> dict:
                 raw_msg = str(data.get('message', 'Unknown error')).strip('\'"')
                 st.error(f" Pipeline error: {raw_msg}")
 
-            # Update UI
+            # Update UI -- render the stage-level progress bar
             with progress_placeholder.container():
                 st.markdown("### 🔄 Graph Execution Progress")
-                cols = st.columns(len(nodes))
-                for idx, node in enumerate(nodes):
+                cols = st.columns(len(UI_STAGES))
+                for idx, (label, _lg_nodes) in enumerate(UI_STAGES):
                     with cols[idx]:
-                        state = node_states[node]
-                        label = node.replace("_node", "").replace("_", " ").title()
+                        state = stage_states.get(label, "pending")
                         if state == "pending":
                             st.markdown(f"⚪ **{label}**\n*(pending)*")
                         elif state == "running":
@@ -300,7 +371,7 @@ def render_agent_mode():
     """ Agent Mode: Autonomous multi-agent SEO research pipeline"""
     st.markdown("###  Agent Mode: Autonomous Research Pipeline")
     st.markdown(
-        "Powered by **LangGraph** + **Gemini 2.5 Flash** + **6 Specialized Intelligence Tools**. "
+        "Powered by **LangGraph** + **Gemini/Groq** + **5 Intelligence Tools**. "
         "The agent autonomously plans, researches, critiques, and synthesises market intelligence "
         "with human approval at each critical decision point."
     )

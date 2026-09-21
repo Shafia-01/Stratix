@@ -4,7 +4,7 @@ FastAPI routes for LLM evaluation results.
 GET /evals/{run_id}             — All EvalResults for a specific research run
 GET /evals/trends/{seed_keyword} — Eval score trends over the last 10 runs
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,12 +17,16 @@ router = APIRouter(prefix="/evals", tags=["Evaluations"])
 
 
 class EvalTrendPoint(BaseModel):
-    """Single data point in an eval score trend series."""
+    """Single data point in an eval score trend series.
+
+    Score fields are Optional[float] to correctly distinguish
+    'evaluation not run' (None) from 'genuine score of 0.0' (0.0).
+    """
     run_id: str
     evaluated_at: str
-    plan_score: float
-    report_score: float
-    tool_score: float
+    plan_score: Optional[float] = None
+    report_score: Optional[float] = None
+    tool_score: Optional[float] = None
 
 
 @router.get("/{run_id}", response_model=List[EvalResult])
@@ -118,9 +122,11 @@ async def get_eval_trends(seed_keyword: str) -> List[EvalTrendPoint]:
                     EvalTrendPoint(
                         run_id=run_id,
                         evaluated_at=completed_at.isoformat() if completed_at else "",
-                        plan_score=score_map.get("plan_quality", 0.0),
-                        report_score=score_map.get("report_quality", 0.0),
-                        tool_score=score_map.get("tool_reliability", 0.0),
+                        # Use None (not 0.0) when an eval type was never run for this
+                        # run, so the frontend can distinguish missing data from zero.
+                        plan_score=score_map.get("plan_quality"),
+                        report_score=score_map.get("report_quality"),
+                        tool_score=score_map.get("tool_reliability"),
                     )
                 )
             return trends

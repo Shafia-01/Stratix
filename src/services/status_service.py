@@ -38,29 +38,28 @@ def check_api_status():
     return api_status
 
 def test_api_quick():
-    """Quick API test to show current status."""
+    """Quick API availability check — uses non-generative model metadata fetch
+    to avoid consuming LLM generation quota on every Streamlit rerun."""
     results = {"gemini": False, "serpapi": False}
 
-    # Test Gemini with multiple models
+    # Test Gemini with a non-generative metadata fetch (no quota consumed)
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
         try:
             client = genai.Client(api_key=gemini_key)
+            # Use models.get() — a metadata-only call, no generation quota consumed.
+            # Try models in order until one succeeds (confirms key + model access).
             for model_name in GEMINI_MODELS:
                 try:
-                    result = client.models.generate_content(
-                        model=model_name,
-                        contents="Hello"
-                    )
-                    if result.text:
-                        results["gemini"] = True
-                        logger.info(f"Gemini model {model_name} succeeded.")
-                        break
+                    client.models.get(model=model_name)
+                    results["gemini"] = True
+                    logger.info(f"Gemini API accessible via model metadata: {model_name}")
+                    break
                 except Exception as e:
-                    logger.warning(f"Gemini model {model_name} failed: {e}. Trying next fallback...")
+                    logger.warning(f"Gemini model {model_name} metadata check failed: {e}. Trying next...")
                     continue
         except Exception:
-            logger.exception("Gemini test failed")
+            logger.exception("Gemini availability check failed")
 
     # Test SerpApi
     serpapi_key = os.getenv("SERPAPI_KEY")

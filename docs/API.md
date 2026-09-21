@@ -356,8 +356,14 @@ Clusters a list of keywords semantically into topic groupings to build content a
 **Notable Status Codes:**
 * `502 Bad Gateway`: Raised if clustering logic fails.
 
+---
+
+### Internal Capabilities
+
+The following endpoint is an internal tool capability used by the research agent's ReAct execution loop. It is excluded from the public OpenAPI schema (`include_in_schema=False`) and is not part of the 5 primary user-facing intelligence capabilities.
+
 #### `POST /intelligence/intent`
-Classifies the search intent of a keyword.
+Classifies the search intent of a keyword (informational, commercial, transactional, navigational). Used internally by the research agent.
 
 **Request Body Example (`IntentClassifierInput`):**
 ```json
@@ -381,6 +387,7 @@ Classifies the search intent of a keyword.
 ---
 
 ### Agent
+
 
 #### `POST /agent/run`
 Initializes a stateful multi-agent research run for a seed keyword.
@@ -872,14 +879,17 @@ The client approves the final strategic findings:
 
 ## 5. Tool Registry Endpoints
 
-The `/intelligence/*` endpoints map directly to individual tools registered in the platform's central registry ([registry.py](../src/tools/registry.py)):
+The `/intelligence/*` and `/keywords/*` endpoints map directly to tools registered in the platform's central registry ([registry.py](../src/tools/registry.py)):
 
-* `POST /intelligence/serp` $\rightarrow$ `serp_analysis`
-* `POST /intelligence/competitors` $\rightarrow$ `competitor_gap`
-* `POST /intelligence/trends` $\rightarrow$ `trend_forecast`
-* `POST /intelligence/clusters` $\rightarrow$ `topic_cluster`
-* `POST /intelligence/intent` $\rightarrow$ `intent_classifier`
-* `POST /keywords/research` $\rightarrow$ `keyword_research`
+**User-Facing Intelligence Tools (5):**
+* `POST /keywords/research` $\rightarrow$ `keyword_research` (Keyword Discovery)
+* `POST /intelligence/serp` $\rightarrow$ `serp_analysis` (SERP Analysis)
+* `POST /intelligence/competitors` $\rightarrow$ `competitor_gap` (Competitor Gap)
+* `POST /intelligence/trends` $\rightarrow$ `trend_forecast` (Trend Forecasting)
+* `POST /intelligence/clusters` $\rightarrow$ `topic_cluster` (Topic Clustering)
+
+**Internal Capability:**
+* `POST /intelligence/intent` $\rightarrow$ `intent_classifier` (Internal ReAct helper, excluded from public OpenAPI schema)
 
 ### Graph Execution vs. Direct REST Access
 These endpoints expose individual tool capabilities directly to clients for one-off research tasks. During full agent execution runs, the orchestrating LangGraph pipeline accesses these exact same tools internally. 

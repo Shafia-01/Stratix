@@ -106,7 +106,9 @@ def render_monitoring_dashboard():
         sub_tabs = st.tabs([" Strategy Report Diffs", " Keyword Database Archives"])
 
         with sub_tabs[0]:
-            st.subheader(" Monitored Report History & Diffs")
+            # Phase G: This endpoint returns all runs for the keyword (manual + scheduled).
+            st.subheader(" Research Run History & Diffs")
+            st.caption("Shows the last 10 research runs associated with this keyword, including manual and scheduled runs.")
             try:
                 jobs_resp = requests.get(f"{API_BASE_URL}/monitor/jobs", headers=_get_headers())
                 if jobs_resp.status_code == 200:
@@ -275,9 +277,14 @@ def render_monitoring_dashboard():
                     unique_keywords = list(set(job["seed_keyword"] for job in jobs))
                     selected_trend_seed = st.selectbox("Select Keyword to Track Score Trends", unique_keywords, key="trend_seed_select")
 
-                    # Fetch trends
+                    # Phase C + F: Distinguish no-data (404) from empty list from errors.
                     trends_resp = requests.get(f"{API_BASE_URL}/evals/trends/{selected_trend_seed}", headers=_get_headers())
-                    if trends_resp.status_code == 200:
+                    if trends_resp.status_code == 404:
+                        st.info(
+                            f"No evaluation trend yet — no completed evaluations are available "
+                            f"for **'{selected_trend_seed}'**. Run the Agent pipeline at least once to generate evaluation data."
+                        )
+                    elif trends_resp.status_code == 200:
                         trends = trends_resp.json()
                         if not trends:
                             st.info(f"No LLM evaluation runs recorded for '{selected_trend_seed}' yet.")
@@ -302,13 +309,19 @@ def render_monitoring_dashboard():
                             st.subheader(" Evaluation Run Log Details")
                             for run_eval in trends:
                                 with st.expander(f"Run ID: {run_eval['run_id'][:12]} - Date: {run_eval.get('evaluated_at', 'Unknown')}"):
-                                    st.markdown(f"**Plan Score:** `{run_eval['plan_score']:.2f}`")
-                                    st.markdown(f"**Report Score:** `{run_eval['report_score']:.2f}`")
-                                    st.markdown(f"**Tool Reliability Score:** `{run_eval['tool_score']:.2f}`")
-                                    st.markdown(f"**Evaluated At:** {run_eval['evaluated_at']}")
+                                    # Phase F: render None scores as N/A, not 0.00
+                                    def _fmt_score(v):
+                                        return f"{v:.2f}" if v is not None else "N/A"
+                                    st.markdown(f"**Plan Score:** `{_fmt_score(run_eval.get('plan_score'))}`")
+                                    st.markdown(f"**Report Score:** `{_fmt_score(run_eval.get('report_score'))}`")
+                                    st.markdown(f"**Tool Reliability Score:** `{_fmt_score(run_eval.get('tool_score'))}`")
+                                    st.markdown(f"**Evaluated At:** {run_eval.get('evaluated_at', 'Unknown')}")
+                    else:
+                        st.error(f"Failed to load evaluation trends: {trends_resp.status_code} — {trends_resp.text[:200]}")
                 else:
                     st.info("No active monitoring jobs found.")
             else:
                 st.error("Failed to load active monitoring jobs for evaluation analytics.")
         except Exception as e:
             st.error(f"Backend API connection failed: {e}")
+

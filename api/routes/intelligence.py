@@ -116,11 +116,14 @@ async def cluster_topics(req: TopicClusterInput, _db=Depends(get_db_session)):
 
 
 # ---------------------------------------------------------------------------
-# Intent Classification  (NEW — not in legacy routers)
+# Intent Classification (Internal Capability — used by ReAct research agent)
 # ---------------------------------------------------------------------------
-@router.post("/intent", response_model=IntentClassification)
+@router.post("/intent", response_model=IntentClassification, include_in_schema=False)
 async def classify_intent(req: IntentClassifierInput, _db=Depends(get_db_session)):
-    """Classify the search intent of a keyword (informational/commercial/transactional/navigational)."""
+    """Internal capability: classify the search intent of a keyword
+    (informational/commercial/transactional/navigational).
+    Used by the research agent's ReAct tool execution loop.
+    Not part of the 5 primary user-facing intelligence capabilities."""
     logger.info(f"POST /intelligence/intent — keyword='{req.keyword}'")
     try:
         return await run_in_threadpool(run_intent_classifier, req)

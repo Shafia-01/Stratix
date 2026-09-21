@@ -10,12 +10,21 @@ def render_sidebar():
     <div class="sidebar-header" style="text-align: center; margin-bottom: 20px;">
         <h2 style="font-family: 'Cambria', serif; font-size: 1.3rem; font-weight: bold; color: #051B4A; margin: 0 0 10px 0;">Autonomous Multi-Agent Market Intelligence Platform</h2>
         <hr style="border: none; height: 1.5px; background: #051B4A; margin: 10px 0; border-radius: 1.5px;" />
-        <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 6 Specialized Tools</p>
+        <p style="font-size: 0.75rem; color: #232527; font-weight: bold; margin-top: 5px;">Powered by LangGraph · Gemini · 5 Intelligence Tools</p>
     </div>
     """, unsafe_allow_html=True)
 
     # System Status Card
     api_status, api_test = get_system_status()
+
+    # Phase E: Research mode disclosure
+    import os as _os
+    _demo_mode = _os.getenv("DATAFORSEO_DEMO_MODE", "false").lower() == "true"
+    _force_sandbox = _os.getenv("DATAFORSEO_FORCE_SANDBOX", "false").lower() == "true"
+    _research_mode_live = not (_demo_mode or _force_sandbox)
+    _research_mode_label = "Live" if _research_mode_live else "Demo / Sandbox"
+    _research_mode_color = "#10B981" if _research_mode_live else "#F59E0B"
+
     system_status_html = f"""
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
@@ -25,6 +34,10 @@ def render_sidebar():
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
             <span style="color: #232527; font-weight: 500;">SerpApi</span>
             <span style="font-weight: 600; color: {'#10B981' if api_test['serpapi'] else '#EF4444'};">{'Online' if api_test['serpapi'] else 'Offline'}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+            <span style="color: #232527; font-weight: 500;">Research Data</span>
+            <span style="font-weight: 600; color: {_research_mode_color};">{_research_mode_label}</span>
         </div>
     </div>
     """
@@ -36,17 +49,29 @@ def render_sidebar():
         sidebar=True
     )
 
-    # Model Status Card
-    from src.services.status_service import GEMINI_MODELS
+    # Model Status Card (Phase D: read from actual LLM config, not hardcoded Gemini list)
+    import os as _os2
+    from src.llm_config import GEMINI_MODEL_CHAIN, GROQ_MODEL_CHAIN
+    _primary_provider = (_os2.getenv("PRIMARY_LLM_PROVIDER", "gemini") or "gemini").strip()
+    _fallback_provider = (_os2.getenv("FALLBACK_LLM_PROVIDER", "") or "").strip()
+    _primary_models = GEMINI_MODEL_CHAIN if _primary_provider.lower() == "gemini" else GROQ_MODEL_CHAIN
+    _fallback_models: list = []
+    if _fallback_provider and _fallback_provider.lower() != _primary_provider.lower():
+        _fallback_models = GROQ_MODEL_CHAIN if _fallback_provider.lower() == "groq" else GEMINI_MODEL_CHAIN
+    _total_configured = len(_primary_models) + len(_fallback_models)
     model_status_html = f"""
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
-            <span style="color: #232527; font-weight: 500;">Model Type</span>
-            <span style="font-weight: 600; color: #051B4A;">Primary + {len(GEMINI_MODELS) - 1} Fallbacks</span>
+            <span style="color: #232527; font-weight: 500;">Primary Provider</span>
+            <span style="font-weight: 600; color: #051B4A;">{_primary_provider.title()}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
-            <span style="color: #232527; font-weight: 500;">Active Models</span>
-            <span style="font-weight: 600; color: #051B4A;">{len(GEMINI_MODELS)}</span>
+            <span style="color: #232527; font-weight: 500;">Fallback</span>
+            <span style="font-weight: 600; color: #051B4A;">{_fallback_provider.title() if _fallback_provider else 'None'}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+            <span style="color: #232527; font-weight: 500;">Configured Models</span>
+            <span style="font-weight: 600; color: #051B4A;">{_total_configured}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
             <span style="color: #232527; font-weight: 500;">Requests Today</span>
@@ -60,6 +85,7 @@ def render_sidebar():
         icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#051B4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg>',
         sidebar=True
     )
+
 
     if st.sidebar.button("Check Database Status", use_container_width=True):
         with st.spinner("Checking database..."):

@@ -8,14 +8,17 @@ import os
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
+# Actual LangGraph node names (from graph.py) mapped to display icons.
 NODE_ICONS = {
-    "planner_node": "",
-    "research_agent_node": "",
-    "aggregator_node": "",
-    "quality_gate_node": "🚪",
-    "critic_node": "",
-    "strategy_agent_node": "",
-    "persist_node": "💾",
+    "plan_generation_node":     "",
+    "plan_approval_node":       "",
+    "research_agent_node":      "",
+    "aggregator_node":          "",
+    "quality_gate_node":        "🚪",
+    "critic_node":              "",
+    "strategy_generation_node": "",
+    "strategy_approval_node":   "",
+    "persist_node":             "💾",
 }
 
 EVENT_COLORS = {
@@ -91,8 +94,11 @@ def render_agent_timeline():
         st.metric("Critic Verdict", verdict)
     with col4:
         eval_scores = data.get("eval_scores", {})
-        avg_eval = sum(eval_scores.values()) / len(eval_scores) if eval_scores else 0
-        st.metric("Avg Eval Score", f"{avg_eval:.0%}")
+        if eval_scores:
+            avg_eval = sum(eval_scores.values()) / len(eval_scores)
+            st.metric("Avg Eval Score", f"{avg_eval:.0%}")
+        else:
+            st.metric("Avg Eval Score", "—")
 
     st.markdown("---")
 
