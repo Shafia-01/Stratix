@@ -1,47 +1,101 @@
 import os
-from typing import List, Union
+from typing import Any, List, Optional, Union
 from google import genai
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableWithFallbacks
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 
-# Text-out models ordered: best/fastest first, stable fallbacks last.
-# Source: Gemini API model list (updated 2026-08).
-# Excluded: TTS, image-gen, video-gen, live-API, embeddings, robotics, agent-only models.
-# NOTE: gemini-2.5-flash / gemini-2.5-flash-lite are NOT available to new users (404);
-#       kept at the end as last-resort fallbacks in case access is granted later.
+# Gemini production models ordered: high-capability primary reasoning first, fast lightweight fallback last.
+# Primary: gemini-3.8-flash (1M+ context, primary reasoning, agent execution, structured output, tool calling)
+# Fallback: gemini-3.5-flash-lite (fast inference, rate-limit relief, auxiliary/helper tasks)
 GEMINI_MODEL_CHAIN = [
-    # ── Gemini Flash (primary workhorses – best latency / quality balance) ──
-    "gemini-3.5-flash",        # Gemini 3.5 Flash       | text-out
-    "gemini-3.6-flash",        # Gemini 3.6 Flash       | text-out
-    "gemini-3-flash",          # Gemini 3 Flash         | text-out
-    # ── Gemini Flash Lite (high-throughput, rate-limit relief) ──
-    "gemini-3.1-flash-lite",   # Gemini 3.1 Flash Lite  | text-out
-    "gemini-3.5-flash-lite",   # Gemini 3.5 Flash Lite  | text-out
-    # ── Gemini 2.x and 1.x Stable (widely available) ──
-    "gemini-2.0-flash",        # Gemini 2.0 Flash       | text-out
-    "gemini-1.5-flash",        # Gemini 1.5 Flash       | text-out
-    # ── Gemini Pro (highest quality – slower, use when Flash fails) ──
-    "gemini-3.1-pro",          # Gemini 3.1 Pro         | text-out
-    "gemini-2.5-pro",          # Gemini 2.5 Pro         | text-out
-    "gemini-1.5-pro",          # Gemini 1.5 Pro         | text-out
-    # ── Legacy / restricted (last-resort – may 404 for new API keys) ──
-    "gemini-2.5-flash",        # Gemini 2.5 Flash       | text-out (restricted)
-    "gemini-2.5-flash-lite",   # Gemini 2.5 Flash Lite  | text-out (restricted)
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
 ]
 
 # Groq production models supporting function calling / tool use and high throughput.
-# Verified against Groq API / docs (2026):
-# Primary: llama-3.3-70b-versatile (128k context, high reasoning & tool use)
-# Fallback: llama-3.1-8b-instant (128k context, fast, lightweight fallback)
+# Primary: openai/gpt-oss-120b (high reasoning & tool use; official Groq replacement for llama-3.3-70b-versatile)
+# Fallback: openai/gpt-oss-20b (fast, lightweight fallback; official Groq replacement for llama-3.1-8b-instant)
 GROQ_MODEL_CHAIN = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
 ]
 
 
+def _get_gemini_models() -> List[str]:
+    custom = os.getenv("GEMINI_MODEL") or os.getenv("GOOGLE_GEMINI_MODEL") or os.getenv("GOOGLE_MODEL") or os.getenv("PRIMARY_MODEL")
+    if custom and custom.strip():
+        models = [m.strip() for m in custom.split(",") if m.strip()]
+        if len(models) == 1 and models[0] != "gemini-3.5-flash-lite":
+            fb = os.getenv("FALLBACK_MODEL")
+            if fb and fb.strip():
+                models.append(fb.strip())
+            else:
+                models.append("gemini-3.5-flash-lite")
+        return models
+    return GEMINI_MODEL_CHAIN
+
+
+def _get_groq_models() -> List[str]:
+    custom = os.getenv("GROQ_MODEL") or os.getenv("GROQ_MODEL_NAME") or os.getenv("GROQ_LLM_MODEL")
+    if custom and custom.strip():
+        models = [m.strip() for m in custom.split(",") if m.strip()]
+        if len(models) == 1 and models[0] != "openai/gpt-oss-20b":
+            models.append("openai/gpt-oss-20b")
+        return models
+    return GROQ_MODEL_CHAIN
+
+
+def _map_thinking_budget_to_level(thinking_budget: Union[int, str, None]) -> Optional[str]:
+    """
+    Map legacy thinking_budget to Gemini 3.8 thinking_level ('low', 'medium', 'high').
+    Note: 'minimal' is NOT supported for Gemini 3.8.
+    """
+    if thinking_budget is None:
+        return None
+    if isinstance(thinking_budget, str):
+        val = thinking_budget.strip().lower()
+        if val in ("low", "medium", "high"):
+            return val
+        try:
+            budget_num = int(val)
+        except ValueError:
+            return "medium"
+    else:
+        budget_num = int(thinking_budget)
+
+    if budget_num <= 1024:
+        return "low"
+    elif budget_num <= 8192:
+        return "medium"
+    else:
+        return "high"
+
+
 class ChatGoogleGenerativeAIWithEmptyCheck(ChatGoogleGenerativeAI):
+    def __init__(self, *args, **kwargs):
+        # Support migration from legacy thinking_budget to thinking_level
+        if "thinking_budget" in kwargs and not kwargs.get("thinking_level"):
+            mapped_level = _map_thinking_budget_to_level(kwargs.pop("thinking_budget"))
+            if mapped_level:
+                kwargs["thinking_level"] = mapped_level
+        super().__init__(*args, **kwargs)
+
+    def _build_base_generation_config(self, stop: list[str] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """
+        Build base generation config, enforcing Gemini 3.8 parameter compatibility.
+        Gemini 3.8 does not support sampling parameters: temperature, top_p, top_k, candidate_count.
+        """
+        config = super()._build_base_generation_config(stop=stop, **kwargs)
+        model_name = getattr(self, "model", "") or ""
+        if model_name.startswith("gemini-3.8"):
+            config.pop("temperature", None)
+            config.pop("top_p", None)
+            config.pop("top_k", None)
+            config.pop("candidate_count", None)
+        return config
+
     def _is_empty_and_no_tools(self, result) -> bool:
         if not result or not result.generations:
             return True
@@ -99,21 +153,51 @@ class ChatGroqWithEmptyCheck(ChatGroq):
         return result
 
 
-def _build_gemini_chain(temperature: float = 0.3) -> List[BaseChatModel]:
+def _build_gemini_chain(
+    temperature: float = 0.3,
+    thinking_level: Optional[str] = None,
+    thinking_budget: Optional[Union[int, str]] = None,
+) -> List[BaseChatModel]:
     """
     Builds the list of ChatGoogleGenerativeAI models with empty check,
     request_timeout=45.0, and convert_system_message_to_human=True.
+
+    For Gemini 3.8 (e.g. gemini-3.8-flash):
+    - Sampling parameters (temperature, top_p, top_k, candidate_count) are omitted/stripped.
+    - Thinking configuration is migrated to thinking_level ('low', 'medium', 'high').
+    For other Gemini models (e.g. gemini-3.5-flash-lite):
+    - Standard temperature and sampling parameters are preserved.
     """
     api_key = os.getenv("GEMINI_API_KEY", "")
+    models = _get_gemini_models()
     llms = []
-    for model in GEMINI_MODEL_CHAIN:
-        llm = ChatGoogleGenerativeAIWithEmptyCheck(
-            model=model,
-            google_api_key=api_key,
-            temperature=temperature,
-            convert_system_message_to_human=True,
-            request_timeout=45.0,
-        )
+
+    # Resolve thinking_level
+    resolved_thinking_level = thinking_level
+    if not resolved_thinking_level and thinking_budget is not None:
+        resolved_thinking_level = _map_thinking_budget_to_level(thinking_budget)
+    if not resolved_thinking_level:
+        env_level = os.getenv("GEMINI_THINKING_LEVEL")
+        env_budget = os.getenv("GEMINI_THINKING_BUDGET")
+        if env_level and env_level.strip().lower() in ("low", "medium", "high"):
+            resolved_thinking_level = env_level.strip().lower()
+        elif env_budget:
+            resolved_thinking_level = _map_thinking_budget_to_level(env_budget)
+
+    for model in models:
+        kwargs: dict = {
+            "model": model,
+            "google_api_key": api_key,
+            "convert_system_message_to_human": True,
+            "request_timeout": 45.0,
+        }
+        is_gemini_38 = model.startswith("gemini-3.8")
+        if not is_gemini_38:
+            kwargs["temperature"] = temperature
+        else:
+            kwargs["thinking_level"] = resolved_thinking_level or "medium"
+
+        llm = ChatGoogleGenerativeAIWithEmptyCheck(**kwargs)
         llms.append(llm)
     return llms
 
@@ -127,8 +211,9 @@ def _build_groq_chain(temperature: float = 0.3) -> List[BaseChatModel]:
     if not groq_api_key or not groq_api_key.strip():
         raise ValueError("GROQ_API_KEY environment variable is required when using Groq as an LLM provider.")
 
+    models = _get_groq_models()
     llms = []
-    for model in GROQ_MODEL_CHAIN:
+    for model in models:
         llm = ChatGroqWithEmptyCheck(
             model_name=model,
             groq_api_key=groq_api_key,
@@ -139,17 +224,30 @@ def _build_groq_chain(temperature: float = 0.3) -> List[BaseChatModel]:
     return llms
 
 
-def _build_provider_chain(provider: str, temperature: float = 0.3) -> List[BaseChatModel]:
+def _build_provider_chain(
+    provider: str,
+    temperature: float = 0.3,
+    thinking_level: Optional[str] = None,
+    thinking_budget: Optional[Union[int, str]] = None,
+) -> List[BaseChatModel]:
     normalized_provider = (provider or "").strip().lower()
     if normalized_provider == "groq":
         return _build_groq_chain(temperature=temperature)
     elif normalized_provider in ("gemini", ""):
-        return _build_gemini_chain(temperature=temperature)
+        return _build_gemini_chain(
+            temperature=temperature,
+            thinking_level=thinking_level,
+            thinking_budget=thinking_budget,
+        )
     else:
         raise ValueError(f"Unsupported LLM provider: '{provider}'. Supported providers: 'gemini', 'groq'.")
 
 
-def get_chat_llm(temperature: float = 0.3) -> Union[BaseChatModel, RunnableWithFallbacks]:
+def get_chat_llm(
+    temperature: float = 0.3,
+    thinking_level: Optional[str] = None,
+    thinking_budget: Optional[Union[int, str]] = None,
+) -> Union[BaseChatModel, RunnableWithFallbacks]:
     """
     Builds the primary + .with_fallbacks() chain for the configured LLM provider.
     Reads PRIMARY_LLM_PROVIDER (default: 'gemini').
@@ -157,12 +255,22 @@ def get_chat_llm(temperature: float = 0.3) -> Union[BaseChatModel, RunnableWithF
     fallback provider's models in a single combined .with_fallbacks() call.
     """
     primary_provider = os.getenv("PRIMARY_LLM_PROVIDER", "gemini")
-    primary_llms = _build_provider_chain(primary_provider, temperature=temperature)
+    primary_llms = _build_provider_chain(
+        primary_provider,
+        temperature=temperature,
+        thinking_level=thinking_level,
+        thinking_budget=thinking_budget,
+    )
 
     fallback_provider = os.getenv("FALLBACK_LLM_PROVIDER", "").strip()
     fallback_llms: List[BaseChatModel] = []
     if fallback_provider and fallback_provider.lower() != primary_provider.strip().lower():
-        fallback_llms = _build_provider_chain(fallback_provider, temperature=temperature)
+        fallback_llms = _build_provider_chain(
+            fallback_provider,
+            temperature=temperature,
+            thinking_level=thinking_level,
+            thinking_budget=thinking_budget,
+        )
 
     all_llms = primary_llms + fallback_llms
     if not all_llms:
@@ -184,3 +292,4 @@ def get_generation_llm():
     if _genai_client is None:
         _genai_client = genai.Client()
     return _genai_client
+
