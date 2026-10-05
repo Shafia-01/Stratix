@@ -37,6 +37,12 @@ pinned: false
     <i>Stratix is an agentic AI platform that executes multi-step market intelligence research workflows. The platform orchestrates research tasks through a stateful LangGraph-based multi-agent pipeline that plans, researches with tools, aggregates with confidence scoring, applies a deterministic quality gate and an LLM critic, synthesizes a strategy report, and pauses for human approval at two checkpoints. By combining SQLite checkpointer persistence with systematic LLM-as-judge evaluation, Stratix converts raw search and competitor data into structured strategy reports.</i>
   </p>
 
+  <h3><a href="https://youtu.be/Q5ThyrZ4mFs"><img src="https://img.shields.io/badge/YouTube-Demo%20Video-red?style=flat-square&logo=youtube&logoColor=white" alt="YouTube Demo Video"></a></h3>
+  
+  <p>
+    The demo link above features a video walkthrough demonstrating Stratix executing the autonomous market intelligence pipeline, real-time agent event streaming with timeline checkpoints, human-in-the-loop plan and report approvals, multi-source research tools (competitor gap, SERP analysis, and trend forecasting), and interactive executive strategy dashboards.
+  </p>
+
   <p><strong>Note:</strong> While Stratix features an automated continuous-deployment pipeline that pushes updates to Hugging Face Spaces, the hosted instance is kept private to preserve API credit limits and quota budgets for upstream search and forecasting providers.</p>
 </div>
 
